@@ -12,6 +12,7 @@ import (
 	"github.com/DavidGodefroid/lockkit/agentwire"
 	"github.com/DavidGodefroid/lockkit/client"
 	"github.com/DavidGodefroid/lockkit/ipc"
+	"github.com/DavidGodefroid/lockkit/sysconf"
 
 	"github.com/DavidGodefroid/lockmq/internal/agentassets"
 	"github.com/DavidGodefroid/lockmq/internal/config"
@@ -40,6 +41,16 @@ func runDoctor(e env, args []string) int {
 		where = "project " + root
 	}
 	fmt.Fprintln(e.stdout, "✓ config:", where)
+	switch sys, err := e.sysconf(); {
+	case err != nil:
+		fmt.Fprintln(e.stdout, "✗ separated setup:", err)
+		code = exitFail
+	case sys == nil:
+		fmt.Fprintln(e.stdout, "✗ separated setup: none (/etc/lockmq/system.toml): the console refuses to start; run: sudo lockmq install")
+		code = exitFail
+	default:
+		fmt.Fprintf(e.stdout, "✓ separated setup: console account %s, clients group %s\n", sys.ServiceUser, sys.ClientGroup)
+	}
 	names := profileNames(ps)
 	if *only != "" {
 		if _, ok := ps[*only]; !ok {
@@ -76,6 +87,14 @@ func (e env) agents() (agentwire.Env, error) {
 		return e.agentEnv()
 	}
 	return agentwire.SystemEnv()
+}
+
+// sysconf is the machine's separated setup (nil: none).
+func (e env) sysconf() (*sysconf.Config, error) {
+	if e.sys != nil {
+		return e.sys()
+	}
+	return sysconf.Load(product.P)
 }
 
 // profileLine sums up a profile: its tier first.

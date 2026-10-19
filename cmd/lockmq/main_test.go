@@ -15,6 +15,7 @@ import (
 	"github.com/DavidGodefroid/lockkit/client"
 	"github.com/DavidGodefroid/lockkit/ipc"
 	"github.com/DavidGodefroid/lockkit/refusal"
+	"github.com/DavidGodefroid/lockkit/sysconf"
 
 	"github.com/DavidGodefroid/lockmq/internal/config"
 	"github.com/DavidGodefroid/lockmq/internal/mcptools"
@@ -58,6 +59,9 @@ func runWith(t *testing.T, root string, conn *fakeConn, dialErr error, stdin str
 	var out, errb bytes.Buffer
 	e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: root,
 		userConfig: filepath.Join(t.TempDir(), "none.toml"),
+		sys: func() (*sysconf.Config, error) {
+			return &sysconf.Config{ServiceUser: "lockmq", ClientGroup: "lockmq-clients", SocketDir: "/run/lockmq"}, nil
+		},
 		agentEnv: func() (agentwire.Env, error) {
 			home := t.TempDir()
 			return agentwire.Env{Home: home, Getenv: func(string) string { return "" },
@@ -219,8 +223,48 @@ func TestDoctorShowsTier(t *testing.T) {
 	root := project(t, oneProfile+"\n[profiles.q]\nurl = \"http://127.0.0.1:15672\"\ntier = \"peek\"\n")
 	noConsole := &client.NoConsoleError{Product: product.P, Profile: "dev", Socket: "/x", Err: syscall.ECONNREFUSED}
 	code, out, _ := runWith(t, root, nil, noConsole, "", "doctor")
-	if code != exitOK || !strings.Contains(out, "profile dev: tier read") || !strings.Contains(out, "profile q: tier peek (NOT READ-ONLY") ||
+	if code != exitOK || !strings.Contains(out, "✓ separated setup: console account lockmq") || !strings.Contains(out, "profile dev: tier read") || !strings.Contains(out, "profile q: tier peek (NOT READ-ONLY") ||
 		!strings.Contains(out, "lockmq console") {
 		t.Errorf("exit %d:\n%s", code, out)
+	}
+}
+
+// install never runs anything for real here: e.root captures the script.
+func TestInstall(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "lockmq")
+	if err := os.WriteFile(bin, []byte("binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var scripts []string
+	inst := func(goos, stdin string, tty bool, args ...string) (int, string, string) {
+		var out, errb bytes.Buffer
+		e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: tty,
+			executable: bin, goos: goos, root: func(s string) error { scripts = append(scripts, s); return nil }}
+		code := run(e, append([]string{"install", "--client", "agent"}, args...))
+		return code, out.String(), errb.String()
+	}
+	if code, _, stderr := inst("linux", "", false); code != exitFail || !strings.Contains(stderr, "could have been replaced by the agent") {
+		t.Errorf("untrusted binary: %d %s", code, stderr)
+	}
+	if code, out, _ := inst("linux", "", false, "--trust-binary", "--print"); code != exitOK || !strings.Contains(out, "These commands run as root") || len(scripts) != 0 {
+		t.Errorf("--print: %d scripts %d\n%s", code, len(scripts), out)
+	}
+	if code, _, _ := inst("linux", "", false, "--trust-binary"); code != exitUsage || len(scripts) != 0 {
+		t.Errorf("no terminal: %d", code)
+	}
+	if code, out, _ := inst("linux", "n\n", true, "--trust-binary"); code != exitOK || !strings.Contains(out, "nothing done") || len(scripts) != 0 {
+		t.Errorf("declined: %d %s", code, out)
+	}
+	if code, out, _ := inst("linux", "", false, "--trust-binary", "--yes"); code != exitOK || len(scripts) != 1 || !strings.Contains(out, "Done. Next:") {
+		t.Fatalf("--yes: %d scripts %d\n%s", code, len(scripts), out)
+	}
+	if !strings.Contains(scripts[0], "usermod -aG lockmq-clients agent") || !strings.Contains(scripts[0], "/etc/lockmq/system.toml") {
+		t.Errorf("script:\n%s", scripts[0])
+	}
+	if code, out, _ := inst("darwin", "", true, "--trust-binary", "--yes"); code != exitOK || len(scripts) != 1 || !strings.Contains(out, "as an administrator") {
+		t.Errorf("darwin prints only: %d scripts %d", code, len(scripts))
+	}
+	if code, _, _ := inst("linux", "", false, "--user", "agent"); code != exitUsage {
+		t.Errorf("same accounts: %d", code)
 	}
 }
