@@ -1,21 +1,22 @@
-/* lockmq.com — one stylesheet, no build step, no external resources. */
+/* lockmq site — one stylesheet, no build step, no external resources.
+   Palette taken from assets/logo.svg: orange body, teal shackle. */
 
 :root {
   color-scheme: light dark;
   --bg: #ffffff;
-  --bg-glow: rgba(139, 92, 246, 0.14);
+  --bg-glow: rgba(249, 115, 22, 0.12);
   --bg-glow-2: rgba(20, 184, 166, 0.10);
   --surface: #f8fafc;
   --surface-2: #f1f5f9;
   --text: #0f172a;
   --muted: #475569;
   --border: #e2e8f0;
-  --link: #4338ca;
-  --link-hover: #3730a3;
-  --accent: #8b5cf6;
+  --link: #c2410c;
+  --link-hover: #9a3412;
+  --accent: #ea580c;
   --accent-2: #14b8a6;
   --key: #0f766e;
-  --focus: #8b5cf6;
+  --focus: #ea580c;
   --term-bg: #0f172a;
   --term-bar: #1e293b;
   --term-text: #e2e8f0;
@@ -28,7 +29,7 @@
   --no-bg: #fee2e2;
   --header-bg: rgba(255, 255, 255, 0.82);
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 24px 60px -12px rgba(67, 56, 202, 0.35);
+  --shadow-lg: 0 24px 60px -12px rgba(194, 65, 12, 0.35);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --radius: 12px;
@@ -38,16 +39,16 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0b1120;
-    --bg-glow: rgba(139, 92, 246, 0.22);
+    --bg-glow: rgba(249, 115, 22, 0.18);
     --bg-glow-2: rgba(45, 212, 191, 0.10);
     --surface: #111a2e;
     --surface-2: #1e293b;
     --text: #f1f5f9;
     --muted: #94a3b8;
     --border: #253047;
-    --link: #c4b5fd;
-    --link-hover: #ddd6fe;
-    --accent: #a78bfa;
+    --link: #fdba74;
+    --link-hover: #fed7aa;
+    --accent: #fb923c;
     --accent-2: #5eead4;
     --key: #5eead4;
     --focus: #5eead4;
@@ -63,7 +64,7 @@
     --no-bg: rgba(248, 113, 113, 0.12);
     --header-bg: rgba(11, 17, 32, 0.8);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
-    --shadow-lg: 0 30px 80px -20px rgba(139, 92, 246, 0.45);
+    --shadow-lg: 0 30px 80px -20px rgba(249, 115, 22, 0.4);
   }
 }
 
@@ -354,7 +355,7 @@ blockquote p { margin: 0; }
 .badge {
   padding: 0.05rem 0.55rem;
   border-radius: 999px;
-  background: linear-gradient(90deg, #6d28d9, #4338ca);
+  background: linear-gradient(90deg, #c2410c, #9a3412);
   color: #ffffff;
   font-weight: 700;
   font-size: 0.8rem;
@@ -392,12 +393,12 @@ blockquote p { margin: 0; }
 }
 .button:hover { color: var(--text); border-color: var(--accent); }
 .button.primary {
-  background: linear-gradient(135deg, #6d28d9, #4338ca);
+  background: linear-gradient(135deg, #c2410c, #9a3412);
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 8px 20px -6px rgba(79, 70, 229, 0.6);
+  box-shadow: 0 8px 20px -6px rgba(194, 65, 12, 0.55);
 }
-.button.primary:hover { color: #ffffff; box-shadow: 0 10px 26px -6px rgba(79, 70, 229, 0.75); }
+.button.primary:hover { color: #ffffff; box-shadow: 0 10px 26px -6px rgba(194, 65, 12, 0.7); }
 
 .notice {
   display: inline-block;
@@ -428,7 +429,7 @@ figure.demo img {
   height: auto;
   aspect-ratio: 1700 / 940;
   border-radius: var(--radius);
-  background: #5b4bc4;
+  background: var(--term-bg);
   box-shadow: var(--shadow-lg);
 }
 figure.demo figcaption { max-width: 52rem; margin: 1rem auto 0; text-align: center; }
@@ -466,6 +467,25 @@ figure.demo figcaption { max-width: 52rem; margin: 1rem auto 0; text-align: cent
 }
 .cards h3 { margin-top: 0; font-size: 1.1rem; }
 .cards p { margin: 0; color: var(--muted); font-size: 0.975rem; }
+
+/* The lock family: the current product's card is marked. */
+.cards.family > li { position: relative; }
+.cards.family a { font-family: var(--mono); font-weight: 700; }
+.cards.family > li[aria-current] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+.cards.family .here {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: 0.15em;
+}
+.site-footer .family-line { margin-top: 0.5rem; }
 
 /* Tables */
 .table-wrap {

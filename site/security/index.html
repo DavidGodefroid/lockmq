@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lockmq security model — boundaries, threats, limits</title>
+  <meta name="description" content="What lockmq protects and where it stops: the separated console, what it sends to RabbitMQ, the read-only broker user, credentials, message masking, queue peek, threats and known limits.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://davidgodefroid.github.io/lockmq/security/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="lockmq">
+  <meta property="og:title" content="lockmq security model — boundaries, threats, limits">
+  <meta property="og:description" content="What lockmq protects and where it stops: the separated console, the read-only broker user, credentials, message masking, queue peek and known limits.">
+  <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/security/">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/anchors.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="../"><img src="../assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lock<span>mq</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="../">Home</a></li>
+          <li><a href="../install/">Install</a></li>
+          <li><a href="../how-it-works/">How it works</a></li>
+          <li><a href="../security/" aria-current="page">Security</a></li>
+          <li><a href="../faq/">FAQ</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main id="main" tabindex="-1">
+    <div class="wrap">
+
+<h1>Security model</h1>
+<div class="prose">
+  <p class="lead">lockmq lets an AI agent inspect a RabbitMQ broker without holding its credentials or connecting to it. This page says what it protects, how, and where it stops.</p>
+  <p>It summarises <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">docs/security-model.md</a>, which is the reference.</p>
+</div>
+
+<section aria-labelledby="principles">
+  <h2 id="principles">Principles</h2>
+  <ol class="steps prose">
+    <li><strong>Two processes, one key holder.</strong> The console holds the credentials and the only broker connections; the clients (CLI, MCP server) hold neither.</li>
+    <li><strong>The console is the enforcement point.</strong> Skills, rules and tool descriptions only guide the agent.</li>
+    <li><strong>The AI tightens, the human loosens.</strong> Any change that widens what the agent can do takes effect only after you confirm it in the console.</li>
+    <li><strong>Fail closed.</strong> An unknown operation, field, body format or rule is refused or treated as the most restrictive case.</li>
+    <li><strong>Defence in depth.</strong> The broker user’s own permissions back the allowlist where RabbitMQ allows it.</li>
+    <li><strong>Results are data, not instructions.</strong> Everything read from the broker is framed as untrusted.</li>
+    <li><strong>Reading a message is not always free.</strong> An operation that can change what a consumer receives (<code>peek</code>) needs its own tier, set by you, and your approval every time, with its side effects on the screen.</li>
+  </ol>
+</section>
+
+<section aria-labelledby="boundaries">
+  <h2 id="boundaries">Boundaries</h2>
+<div class="table-wrap" role="region" aria-label="Boundaries" tabindex="0">
+<table>
+<caption>Boundaries and what enforces them</caption>
+<thead><tr><th scope="col">Boundary</th><th scope="col">Enforced by</th></tr></thead>
+<tbody>
+<tr><th scope="row">Agent ↔ console</th><td>a separate OS account (<code>lockmq install</code>); a Unix socket in a directory only the clients group reaches; the kernel’s peer credentials checked on every connection; the console refuses to start without the separated setup</td></tr>
+<tr><th scope="row">Console ↔ human</th><td>approval screens in the console’s own terminal; on production the typed profile name; a 5-minute timeout means denied</td></tr>
+<tr><th scope="row">Console ↔ broker</th><td>an allowlist of operations and endpoints; one broker user; TLS <code>verify-full</code> by default; an optional ssh tunnel opened by the console</td></tr>
+<tr><th scope="row">Policy</th><td>config files read every 2 s; loosenings held until confirmed; the approved policy stored in the console account’s state</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="sends">
+  <h2 id="sends">What lockmq sends to the broker</h2>
+  <div class="prose">
+    <ul>
+      <li><strong>Management API:</strong> <code>GET</code> on overview, nodes, feature flags, queues, one queue and its bindings, exchanges, bindings, policies, operator policies, consumers, connections, channels, whoami and runtime parameters; plus, under tier <code>peek</code> only, <code>POST /api/queues/{vhost}/{name}/get</code> with <code>ackmode = "ack_requeue_true"</code>.</li>
+      <li><strong>Stream protocol:</strong> an unnamed consumer (no stored offset, no single-active-consumer group), metadata and <code>QueryOffset</code>.</li>
+      <li><strong>AMQP 0-9-1:</strong> <code>basic.qos</code>, <code>basic.consume</code> with <code>x-stream-offset</code> on a stream, manual acks, <code>basic.cancel</code>.</li>
+    </ul>
+    <p><strong>Never:</strong> <code>/api/definitions</code>, <code>/api/users*</code> (password hashes), other users’ <code>/api/permissions*</code>, any other non-GET endpoint, <code>basic.get</code>, <code>basic.publish</code>, a declare, a delete, a purge, <code>store_offset</code>, <code>ack_requeue_false</code> or <code>reject_requeue_false</code>. Every management URL path segment is escaped.</p>
+  </div>
+</section>
+
+<section aria-labelledby="broker-user">
+  <h2 id="broker-user">The broker user</h2>
+  <div class="prose">
+    <p>Recommended: tag <code>monitoring</code>, permissions <code>configure "^$"</code>, <code>write "^$"</code>, and <code>read</code> on what lockmq may read. With <code>configure</code> and <code>write</code> empty, the broker refuses publish, declare, delete and policy changes from that user (tested on RabbitMQ 3.13 and 4.1).</p>
+  </div>
+  <div class="limits" role="note" aria-labelledby="purge">
+    <h2 id="purge">The <code>read</code> permission also allows a purge</h2>
+    <p class="prose">RabbitMQ authorises <code>queue.purge</code> (and the management API’s <code>DELETE …/contents</code>) with <code>read</code> alone. lockmq never purges, but the broker user cannot back that up: grant <code>read</code> on the streams only (<code>^(order-events|payment-events)$</code>), and on queues only for profiles with tier <code>peek</code>.</p>
+  </div>
+  <div class="prose">
+    <p>A <code>monitoring</code> user cannot read runtime parameters nor its own permissions: <code>policies</code> says the parameters are not visible, and the console’s privilege audit relies on the user’s tags only. At start and at each reconnection the console reads <code>whoami</code>: a user tagged <code>administrator</code> or <code>policymaker</code> is refused on production and needs a typed <code>continue</code> elsewhere.</p>
+  </div>
+</section>
+
+<section aria-labelledby="credentials">
+  <h2 id="credentials">Credentials</h2>
+  <p class="prose">Asked at console start (echo off), read from the console account’s OS keychain, or read from Vault at every connection (the console never handles the Vault token; a lease is renewed by reconnecting before it ends). They never appear in argv, the environment, a file, the socket, the audit log or an error: errors are generic, URIs are built without userinfo (AMQP and stream logins go through SASL), and every error text that leaves the console is scrubbed of known secrets, URI userinfo and <code>Authorization</code> headers. URIs inside runtime parameters (shovels, federation) lose their userinfo before they reach a client.</p>
+</section>
+
+<section aria-labelledby="content">
+  <h2 id="content">Message content</h2>
+  <div class="prose">
+    <ul>
+      <li><strong>Approval.</strong> Every <code>read</code> and <code>peek</code> shows a screen: the queue or stream, the starting point and count, what moves (nothing, for a stream read), the masking in force, the agent’s intent. Auto mode (non-production only) approves <code>read</code>, never <code>peek</code>.</li>
+      <li><strong>Masking.</strong> JSON bodies are masked per leaf: <code>redact-unknown</code> (the production default) redacts every string no allow rule names; <code>detect</code> uses mask rules, field-name heuristics and value detectors. Headers and properties follow rules and heuristics. Bodies that are binary, compressed, invalid JSON, deeper than 64 levels or larger than four times <code>max_body_bytes</code> become <code>&lt;bytes:N sha256:H type:T&gt;</code>.</li>
+      <li><strong>Size.</strong> At most <code>read_max</code> (≤ 200) or <code>peek_max</code> (≤ 20) messages, each body cut at <code>max_body_bytes</code>, the answer cut at <code>max_output_bytes</code>.</li>
+      <li><strong>Audit.</strong> One JSON line per event in the console account’s <code>~/.local/state/lockmq/audit.log</code> (mode 0600), with the operation, vhost, target, message count, the agent’s intent and the client’s uid. Never a message body, header or property value.</li>
+    </ul>
+  </div>
+</section>
+
+<section aria-labelledby="threats">
+  <h2 id="threats">Threats</h2>
+<div class="table-wrap" role="region" aria-label="Threats and mitigations" tabindex="0">
+<table>
+<caption>Threats and mitigations</caption>
+<thead><tr><th scope="col">Threat</th><th scope="col">Mitigation</th></tr></thead>
+<tbody>
+<tr><th scope="row">Agent changes broker state</th><td>operation allowlist; GET only plus the <code>get</code> of peek; no publish, declare, purge, <code>store_offset</code> or destructive ack mode; broker user with empty configure/write</td></tr>
+<tr><th scope="row">Peek dead-letters or drops a message</th><td>off by default; tier per profile set by the human; delivery limit read first, refusal near it; side effects on the screen; never auto-approved</td></tr>
+<tr><th scope="row">Agent turns peek on</th><td><code>read</code> → <code>peek</code> is a loosening: no effect until confirmed in the console; no IPC method loosens</td></tr>
+<tr><th scope="row">A read moves a real consumer</th><td>unnamed stream consumer; never <code>store_offset</code></td></tr>
+<tr><th scope="row">Password hashes or URI passwords leak</th><td>those endpoints never called; userinfo stripped from every URI</td></tr>
+<tr><th scope="row">PII in bodies of unknown shape</th><td><code>redact-unknown</code> on production; detectors; proposals of mask rules</td></tr>
+<tr><th scope="row">Prompt injection in payloads</th><td>results framed as untrusted data</td></tr>
+<tr><th scope="row">Broker overload</th><td>paginated lists with selected columns, one request at a time, <code>request_timeout</code>, <code>read_max</code></td></tr>
+<tr><th scope="row">Agent reads the console’s terminal or types into it</th><td>separate account and session; same-user mode refused</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="limits" aria-labelledby="limits">
+  <h2 id="limits">Known limits</h2>
+  <ul class="prose">
+    <li>Masking is best effort: a personal value in a free-text field that no rule, heuristic or detector catches comes back in clear. Use <code>redact-unknown</code> and allow rules on production.</li>
+    <li>RabbitMQ allows a purge to any user with <code>read</code> on the queue: the allowlist is the only barrier.</li>
+    <li>The approval screen can only show what the broker reports before the read: unacked messages are invisible to a peek, and a peek cannot know the next message’s delivery count before taking it.</li>
+    <li>Through an ssh tunnel streams are read over AMQP; offsets and lag need the stream protocol and are unavailable.</li>
+    <li>The audit log is append-only by convention (<code>chattr +a</code> on Linux makes it so for the console account too); there is no hash chain.</li>  </ul>
+</section>
+
+<section aria-labelledby="report">
+  <h2 id="report">Reporting a vulnerability</h2>
+  <p class="prose">Privately, through <a href="https://github.com/DavidGodefroid/lockmq/security/advisories/new">GitHub security advisories</a>, not in a public issue. See <a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+</section>
+
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <ul>
+        <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
+      </ul>
+      <p>Pre-release (<code>v0.1.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
+    </div>
+  </footer>
+</body>
+</html>
