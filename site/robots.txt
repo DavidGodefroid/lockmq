@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://lockmq.com/sitemap.xml
+Sitemap: https://davidgodefroid.github.io/lockmq/sitemap.xml

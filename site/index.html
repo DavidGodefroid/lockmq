@@ -8,12 +8,14 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
-  <link rel="canonical" href="https://lockmq.com/">
+  <link rel="canonical" href="https://davidgodefroid.github.io/lockmq/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="lockmq">
   <meta property="og:title" content="lockmq — Your AI reads the queue. You hold the key.">
   <meta property="og:description" content="lockmq puts a human-held console between your AI agent and RabbitMQ. The agent never sees a credential; every message read is approved and masked.">
-  <meta property="og:url" content="https://lockmq.com/">
+  <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/style.css">
   <script src="assets/anchors.js" defer></script>
@@ -26,9 +28,10 @@
       <nav class="site-nav" aria-label="Main">
         <ul>
           <li><a href="./" aria-current="page">Home</a></li>
-          <li><a href="https://github.com/DavidGodefroid/lockmq#install">Install</a></li>
-          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage</a></li>
-          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security</a></li>
+          <li><a href="install/">Install</a></li>
+          <li><a href="how-it-works/">How it works</a></li>
+          <li><a href="security/">Security</a></li>
+          <li><a href="faq/">FAQ</a></li>
           <li><a href="https://github.com/DavidGodefroid/lockmq">GitHub</a></li>
         </ul>
       </nav>
@@ -38,19 +41,20 @@
     <div class="wrap">
 
 <section class="hero" aria-labelledby="hero-title">
-  <p class="eyebrow"><span class="badge">v0.1</span> Pre-release · open source, Apache 2.0</p>
+  <p class="eyebrow"><a href="https://github.com/DavidGodefroid/lockmq/releases/tag/v0.1.0"><span class="badge">v0.1</span> Pre-release · open source, Apache 2.0</a></p>
   <h1 id="hero-title">Your AI reads the queue. <br><span class="key">You hold the key.</span></h1>
   <p class="lead">Let Claude Code, Codex, Cursor or Gemini CLI inspect your RabbitMQ brokers without ever handing them a password.</p>
-  <p class="intro">lockmq puts a <strong>human-held console</strong> between your AI agent and RabbitMQ. The console, running in a terminal you keep in view under its own account, holds the broker credentials and the only broker connections, serves an allowlist of read-only operations, masks personal data in messages and waits for <strong>your</strong> approval before any message content leaves it.</p>
+  <p class="intro">lockmq puts a <strong>human-held console</strong> between your AI agent and RabbitMQ. The agent asks; the console, running in a terminal you keep in view under its own account, holds the broker credentials and the only broker connections, serves an allowlist of read-only operations, masks personal data in messages and waits for <strong>your</strong> approval before any message content leaves it. The agent never sees a credential and never opens a connection.</p>
   <div class="actions">
-    <a class="button primary" href="https://github.com/DavidGodefroid/lockmq#quick-start">Quick start</a>
-    <a class="button" href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model</a>
+    <a class="button primary" href="install/">Install</a>
+    <a class="button" href="how-it-works/">How it works</a>
     <a class="button" href="https://github.com/DavidGodefroid/lockmq">View on GitHub</a>
   </div>
   <ul class="facts" aria-label="At a glance">
     <li>Linux and macOS</li>
     <li>amd64 and arm64</li>
-    <li>RabbitMQ 3.13 and 4.x: management API, stream protocol, AMQP 0-9-1</li>
+    <li>RabbitMQ 3.13 and 4.x</li>
+    <li>Management API, stream protocol, AMQP 0-9-1</li>
     <li>Apache 2.0</li>
   </ul>
 </section>
@@ -58,7 +62,7 @@
 <section aria-labelledby="why">
   <h2 id="why">Why lockmq?</h2>
   <div class="prose">
-    <p>“Why does <code>orders.failed</code> fill up?” is a good question for an agent. Answering it means queues, bindings, policies, consumers and, in the end, a few messages. Handing the agent <code>rabbitmqctl</code> or an admin password gives it every write too, and every message body in clear.</p>
+    <p>“Why does <code>orders.failed</code> fill up?” is a good question for an agent. Answering it means looking at queues, bindings, policies, consumers and, in the end, a few messages. Handing the agent <code>rabbitmqctl</code>, the management API or an admin password gives it every write too (purge, delete, publish, shovels), and every message body in clear. lockmq moves the key and the decision <strong>out of the agent</strong>.</p>
   </div>
 <div class="table-wrap" role="region" aria-label="Broker credentials in the agent compared with lockmq" tabindex="0">
 <table>
@@ -66,12 +70,14 @@
 <thead><tr><th scope="col"><span class="visually-hidden">Property</span></th><th scope="col">Agent with credentials</th><th scope="col">lockmq</th></tr></thead>
 <tbody>
 <tr><th scope="row">Agent never sees the broker password</th><td class="no">No</td><td class="yes">Yes</td></tr>
+<tr><th scope="row">Agent has no broker connection</th><td class="no">No</td><td class="yes">Yes</td></tr>
 <tr><th scope="row">Only an allowlist of read operations exists</th><td class="no">No</td><td class="yes">Yes</td></tr>
 <tr><th scope="row">Every message read approved by a human</th><td class="no">No</td><td class="yes">Yes</td></tr>
 <tr><th scope="row">Message bodies, headers and properties masked</th><td class="no">No</td><td class="yes">Yes</td></tr>
 <tr><th scope="row">Stream reads never store an offset</th><td class="no">No</td><td class="yes">Yes</td></tr>
-<tr><th scope="row">Queue peek off by default, refused near the delivery limit</th><td class="no">No</td><td class="yes">Yes</td></tr>
+<tr><th scope="row">Queue peek off by default, never auto-approved, refused near the delivery limit</th><td class="no">No</td><td class="yes">Yes</td></tr>
 <tr><th scope="row">Policy loosening needs a human confirmation</th><td class="no">No</td><td class="yes">Yes</td></tr>
+<tr><th scope="row">Append-only audit log (never message content)</th><td class="no">No</td><td class="yes">Yes</td></tr>
 </tbody>
 </table>
 </div>
@@ -79,6 +85,7 @@
 
 <section aria-labelledby="approve">
   <h2 id="approve">See what you approve</h2>
+  <p class="prose">When the agent asks to read a stream, the console shows you this screen and waits. Nothing is read until you approve; on a production profile you type the profile name, not <code>y</code>.</p>
   <figure>
     <pre tabindex="0" class="term"><code>╭─ PROD · rabbitmq.example.com:15671 / orders · user lockmq-ro · tier read ─────
 │ requested by uid 1000 (alice) · pid 48211 (claude)
@@ -92,29 +99,57 @@
 ╰─ Type the profile name "prod" to approve:</code></pre>
     <figcaption>On approval the console reads, masks, caps the output and hands the messages back to the agent, framed as untrusted data. The audit log keeps who asked what, never the content.</figcaption>
   </figure>
+  <p class="prose">No answer within 5 minutes means denied.</p>
+</section>
+
+<section aria-labelledby="highlights">
+  <h2 id="highlights">Highlights</h2>
+  <ul class="cards">
+    <li><span class="icon" aria-hidden="true">🔑</span><h3>One key holder</h3><p>Credentials are typed at console start, or read from the OS keychain or HashiCorp Vault. Never in argv, env, files, logs, the socket or error messages; URI passwords are stripped from every answer.</p></li>
+    <li><span class="icon" aria-hidden="true">📋</span><h3>Catalogue first, no prompt</h3><p>Overview and alarms, queues, one queue with its arguments, DLX, TTL, delivery limit and policy; exchanges, bindings, consumers, connections, channels, stream offsets and consumer lag.</p></li>
+    <li><span class="icon" aria-hidden="true">👤</span><h3>Messages, approved</h3><p><code>read</code> reads a stream from <code>first</code>, <code>last</code>, an offset or a timestamp with an unnamed consumer: nothing stored, nothing moved. You approve each read.</p></li>
+    <li><span class="icon" aria-hidden="true">🧪</span><h3>Peek, only if you allow it</h3><p>Reading a classic or quorum queue requeues messages. It exists only on a profile you set to tier <code>peek</code>, is approved every time and refused near the delivery limit.</p></li>
+    <li><span class="icon" aria-hidden="true">🕶️</span><h3>Masking for messages</h3><p>JSON bodies masked per leaf (<code>redact-unknown</code> on production), headers and properties by rule and name, value detectors; binary bodies reduced to size and hash.</p></li>
+    <li><span class="icon" aria-hidden="true">🛡️</span><h3>OS separation</h3><p><code>lockmq install</code> runs the console under its own account; the kernel checks every peer on the socket.</p></li>
+    <li><span class="icon" aria-hidden="true">⚖️</span><h3>The AI tightens, the human loosens</h3><p>The agent may add mask rules or tighten a profile; a new tier, limit, vhost or URL waits for your confirmation in the console.</p></li>
+    <li><span class="icon" aria-hidden="true">🏷️</span><h3>Refusals the agent can act on</h3><p>Every refusal carries a stable code, a hint and a retry rule: rewrite, ask the user, or stop.</p></li>
+  </ul>
 </section>
 
 <section aria-labelledby="quick-start">
   <h2 id="quick-start">Quick start</h2>
-  <pre tabindex="0" class="term"><code># 1. Install
+  <pre tabindex="0" class="term"><code># 1. Install (see the Install page for packages, checksums and signatures)
 curl -fsSL https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh | sh
 
 # 2. Separate the console from the agent (once per machine)
 lockmq install
 
-# 3. In your project: a broker profile and your agents
+# 3. In your project: a broker profile, then your agents
 lockmq setup
 lockmq init
 
 # 4. In a session of the lockmq account, start the console and keep it open
 lockmq console --profile dev --project DIR</code></pre>
+  <p class="prose">Then ask your agent: “which queues have no consumer?”. Catalogue calls answer at once; message reads wait for your approval in the console. <code>lockmq doctor</code> checks the setup.</p>
+  <p><a href="install/">Full install options, checksums and signatures</a></p>
+</section>
+
+<section aria-labelledby="family">
+  <h2 id="family">The lock family</h2>
+  <p class="prose">Human-gated tools for AI agents, built on the same console, separation and approval model.</p>
+  <ul class="cards family">
+    <li><h3><a href="https://github.com/DavidGodefroid/locksql">locksql</a></h3><p>Databases: MariaDB, MySQL, PostgreSQL, SQLite. Your AI writes the query; you approve it.</p></li>
+    <li aria-current="page"><h3><a href="./">lockmq</a><span class="here">You are here</span></h3><p>Message queues: RabbitMQ. Your AI reads the queue; you approve each message read.</p></li>
+    <li><h3><a href="https://github.com/DavidGodefroid/lockfile">lockfile</a></h3><p>Files: your AI asks yes/no questions about a file it never reads.</p></li>
+    <li><h3><a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></h3><p>The shared Go framework: console, separation, approval, masking, audit, MCP.</p></li>
+  </ul>
 </section>
 
 <section aria-labelledby="limits">
   <h2 id="limits">Know the limits</h2>
   <div class="prose">
-    <p>The console is the enforcement point; skills and tool descriptions only guide the agent. Masking is best effort. A queue peek is not read-only (messages are requeued), so it is off unless you allow it on a profile. RabbitMQ lets the <code>read</code> permission purge a queue: lockmq never does, but grant <code>read</code> narrowly.</p>
-    <p><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Read the security model</a></p>
+    <p>The console is the enforcement point; skills and tool descriptions only guide the agent. Masking is best effort. A queue peek is not read-only (messages are requeued), so it is off unless you allow it on a profile. RabbitMQ lets the <code>read</code> permission purge a queue: lockmq never does, but grant <code>read</code> narrowly. v0.1 has no writes of any kind.</p>
+    <p><a href="security/">Read the security model</a></p>
   </div>
 </section>
 
@@ -124,10 +159,13 @@ lockmq console --profile dev --project DIR</code></pre>
     <div class="wrap">
       <ul>
         <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
         <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
         <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
       </ul>
       <p>Pre-release (<code>v0.1.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
     </div>
   </footer>
 </body>

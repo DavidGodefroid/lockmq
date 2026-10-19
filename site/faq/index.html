@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lockmq FAQ — brokers, agents, peek, masking, limits</title>
+  <meta name="description" content="Answers on lockmq: supported brokers and platforms, agents, setup, credentials, approval, queue peek, masking limits, the purge caveat of the read permission, audit log and licence.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://davidgodefroid.github.io/lockmq/faq/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="lockmq">
+  <meta property="og:title" content="lockmq FAQ — brokers, agents, peek, masking, limits">
+  <meta property="og:description" content="Answers on lockmq: supported brokers and platforms, agents, setup, credentials, approval, queue peek, masking limits and the purge caveat of the read permission.">
+  <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/faq/">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/anchors.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="../"><img src="../assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lock<span>mq</span></span></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="../">Home</a></li>
+          <li><a href="../install/">Install</a></li>
+          <li><a href="../how-it-works/">How it works</a></li>
+          <li><a href="../security/">Security</a></li>
+          <li><a href="../faq/" aria-current="page">FAQ</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main id="main" tabindex="-1">
+    <div class="wrap">
+
+<h1>Frequently asked questions</h1>
+<p class="lead prose">Short answers, each drawn from the README and the docs. For anything not covered here, see the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">usage guide</a>.</p>
+<div class="faq prose">
+<section aria-labelledby="brokers">
+  <h2 id="brokers">Which brokers does lockmq support?</h2>
+  <p>RabbitMQ, through its management HTTP API (required), the stream protocol and AMQP 0-9-1 (both optional). It is tested against RabbitMQ 3.13 and 4.1. Other brokers are not supported. <a href="../how-it-works/#protocols">Protocols</a>.</p>
+</section>
+<section aria-labelledby="os">
+  <h2 id="os">Which operating systems?</h2>
+  <p>Linux and macOS, on amd64 and arm64. The separation relies on Unix accounts, socket peer credentials and terminals; native Windows is not supported. <a href="../install/">Install options</a>.</p>
+</section>
+<section aria-labelledby="setup">
+  <h2 id="setup">How do I set it up?</h2>
+  <p>Install it, run <code>lockmq install</code> once per machine to create the console account, then <code>lockmq setup</code> (a broker profile) and <code>lockmq init</code> (your agents) in the project, and start <code>lockmq console</code> in the console account’s own session. <code>lockmq doctor</code> checks the setup. <a href="../install/#setup">Setup steps</a>.</p>
+</section>
+<section aria-labelledby="agents">
+  <h2 id="agents">Which AI agents does it work with?</h2>
+  <p>Claude Code, Codex, Gemini CLI and Cursor, wired by <code>lockmq init</code>. An agent talks to the console through the MCP server (<code>lockmq mcp</code>, over stdio) or through the <code>lockmq</code> CLI from a shell.</p>
+</section>
+<section aria-labelledby="password">
+  <h2 id="password">Does the agent ever see the broker password?</h2>
+  <p>No. The agent never sees a credential and never opens a connection. Credentials are typed at console start (no echo), or read from the console account’s OS keychain or from HashiCorp Vault, and never appear in argv, environment, files, logs, the socket or error messages. URI passwords are stripped from every answer, including the URIs of shovels and federation links.</p>
+</section>
+<section aria-labelledby="writes">
+  <h2 id="writes">Can lockmq publish, purge or move messages?</h2>
+  <p>No. v0.1 has no writes of any kind: no publish, purge, delete, move, requeue or shovel. The only operation that changes delivery state is the opt-in queue <a href="#peek">peek</a>.</p>
+</section>
+<section aria-labelledby="peek">
+  <h2 id="peek">Why is reading a queue off by default?</h2>
+  <p>Because RabbitMQ has no read-only way to look at a classic or quorum queue: the management <code>get</code> takes messages and requeues them, so they come back redelivered and a quorum queue’s delivery count grows. lockmq only peeks on a profile you set to tier <code>peek</code>, shows the side effects on the approval screen, never auto-approves a peek, and refuses one near the delivery limit. Streams have no such problem: a stream read moves nothing. <a href="../how-it-works/#peek">More on peek</a>.</p>
+</section>
+<section aria-labelledby="self-approve">
+  <h2 id="self-approve">Can the agent approve its own reads, or turn peek on?</h2>
+  <p>No. Approval comes only from the console terminal: no socket method approves and no socket method loosens the policy. Switching a profile to tier <code>peek</code> is a loosening: written by anyone, it takes effect only after you confirm it in the console. Auto mode switches only from the console’s keyboard, is unavailable on production profiles and never applies to a peek.</p>
+</section>
+<section aria-labelledby="own-account">
+  <h2 id="own-account">Why does the console need its own OS account?</h2>
+  <p>An agent in the console’s own account could read or type into its terminal. Separation is mandatory: without it the console refuses to start. <code>lockmq install</code> sets it up.</p>
+</section>
+<section aria-labelledby="timeout">
+  <h2 id="timeout">What happens if I don’t answer the approval prompt?</h2>
+  <p>No answer within 5 minutes means denied. On a production profile you type the profile name to approve.</p>
+</section>
+<section aria-labelledby="pii">
+  <h2 id="pii">How is personal data in messages protected?</h2>
+  <p>JSON bodies are masked per leaf: on production every string is redacted unless an allow rule names it; elsewhere mask rules, key-name heuristics and value detectors decide. Headers and properties follow rules and heuristics, and binary or compressed bodies are reduced to their size and hash. Masking is best effort: a value in a free-text field that nothing catches comes back in clear. <a href="../how-it-works/#masking">More on masking</a>.</p>
+</section>
+<section aria-labelledby="see-values">
+  <h2 id="see-values">Can I see the real values myself?</h2>
+  <p>Not in v0.1: results are masked for the agent, and the console does not print them in clear yet. Clear results in the console and unmasked output on request, as locksql has, are on the roadmap.</p>
+</section>
+<section aria-labelledby="purge">
+  <h2 id="purge">What permissions should the broker user have?</h2>
+  <p>Tag <code>monitoring</code>, empty <code>configure</code> and <code>write</code>, and <code>read</code> only where needed. RabbitMQ lets the <code>read</code> permission purge a queue, so grant it on the streams, and on queues only for profiles with tier <code>peek</code>. The console refuses an <code>administrator</code> or <code>policymaker</code> user on production. <a href="../security/#broker-user">The broker user</a>.</p>
+</section>
+<section aria-labelledby="injection">
+  <h2 id="injection">Can a message payload manipulate my agent?</h2>
+  <p>It can try: lockmq treats the agent, and anything that can steer it such as message content, as not trusted. Every check runs in the console, every content read needs your approval, and results are framed as untrusted data.</p>
+</section>
+<section aria-labelledby="audit">
+  <h2 id="audit">What is logged?</h2>
+  <p>One JSON line per login, policy change, catalogue call, refusal, decision, run and logout in the console account’s audit log (mode 0600), with the operation, target, message count, the agent’s intent and the client’s uid. Never a message body, header or property value.</p>
+</section>
+<section aria-labelledby="docker">
+  <h2 id="docker">Can the console run in Docker?</h2>
+  <p>Not in v0.1: the console runs on the host, in the separated account. A broker in a container works like any other. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md">lockmq and containers</a>.</p>
+</section>
+<section aria-labelledby="family">
+  <h2 id="family">How does it relate to locksql?</h2>
+  <p>Same model, different target. <a href="https://github.com/DavidGodefroid/locksql">locksql</a> gates databases, lockmq message queues and <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> files; all three are built on <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a>, the shared framework for the console, separation, approval, masking, audit and MCP.</p>
+</section>
+<section aria-labelledby="stable">
+  <h2 id="stable">Is lockmq stable?</h2>
+  <p>It is a pre-release (<code>v0.1.x</code>): any release may still change the config files, the MCP tools or the CLI.</p>
+</section>
+<section aria-labelledby="go">
+  <h2 id="go">Do I need Go to install it?</h2>
+  <p>No. Releases ship static binaries and Linux packages. Building from source needs Go 1.26 or later.</p>
+</section>
+<section aria-labelledby="report">
+  <h2 id="report">How do I report a vulnerability?</h2>
+  <p>Privately, through <a href="https://github.com/DavidGodefroid/lockmq/security/advisories/new">GitHub security advisories</a>, not in a public issue. See <a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+</section>
+<section aria-labelledby="licence">
+  <h2 id="licence">What is the licence?</h2>
+  <p><a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+</section>
+</div>
+
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <ul>
+        <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
+        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
+      </ul>
+      <p>Pre-release (<code>v0.1.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
+    </div>
+  </footer>
+</body>
+</html>
