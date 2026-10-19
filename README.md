@@ -388,8 +388,6 @@ a forged `x-death` can only add masking. The agent may add a mask rule
 | `:review` | show the pending loosening and the change requests of clients, apply or refuse |
 | `:status` | the policy in force, the session |
 | Shift+Tab, `:mode` | auto mode on/off (never on production; never for `peek`) |
-| Ctrl-O, `:results` | show results in clear in the console (the agent still gets them masked) |
-| `:unmask` | let clients ask for unmasked output, each request approved |
 | `:quit`, Ctrl-C | end the session |
 
 The switches are console-only: no client, config file or environment
@@ -416,6 +414,8 @@ variable can set them, and each change is audited.
 
 Not in v0.1, and not promised for a given release:
 
+- clear results in the console (Ctrl-O) and unmasked output on request
+  (`:unmask`), as in locksql;
 - the console in a container, as locksql's Docker mode;
 - body formats beyond JSON and UTF-8 text;
 - an `update` command that checks the release signature, as `locksql update`.
