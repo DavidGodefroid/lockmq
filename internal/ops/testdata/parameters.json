@@ -1,0 +1,19 @@
+[
+  {
+    "component": "shovel",
+    "name": "move-orders",
+    "vhost": "orders",
+    "value": {
+      "src-uri": "amqps://shovel-user:shovel-pass@broker-a.example.com:5671/orders",
+      "dest-uri": ["amqp://only-user@broker-b.example.com", "amqps://broker-c.example.com"],
+      "src-queue": "orders",
+      "nested": {"uris": [{"uri": "amqps://u:p@h:5671/v"}]}
+    }
+  },
+  {
+    "component": "federation-upstream",
+    "name": "up",
+    "vhost": "secret-vhost",
+    "value": {"uri": "amqp://x:y@z"}
+  }
+]

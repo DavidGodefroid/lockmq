@@ -1,0 +1,175 @@
+# lockmq usage
+
+Every command, the console and the MCP tools. For the why, see the
+[README](../README.md); for the boundaries, the
+[security model](security-model.md).
+
+## Setup, once per machine
+
+```sh
+lockmq install [--client USER] [--user lockmq] [--group lockmq-clients] [--print] [--trust-binary] [--yes]
+```
+
+Prints the root commands that separate the console from the agent and, on
+Linux, runs them with sudo once you confirm (`--yes`: without asking;
+`--print`: never). On macOS it prints them for an administrator to run.
+
+- creates the console account (`lockmq`) and the clients group
+  (`lockmq-clients`), and adds the agent's account (`--client`, default you)
+  to the group;
+- writes `/etc/lockmq/system.toml` (root-owned): without it the console
+  refuses to start;
+- creates the socket directory (`/run/lockmq`, setgid, through
+  `systemd-tmpfiles` on Linux);
+- copies lockmq to `/usr/local/bin`, owned by root. A binary another account
+  could change (a `go install` into your home) is refused unless
+  `--trust-binary`, which prints its sha256 and checks the copy against it.
+
+Then: set a password for the console account (`sudo passwd lockmq`), log out
+and in again (the new group applies at login), and open a separate session as
+`lockmq` (switch user; use Wayland).
+
+## Profiles
+
+```sh
+lockmq setup [--project DIR]
+```
+
+Asks for one profile and appends it to the project's `.lockmq/config.toml`:
+the management API URL, the optional AMQP and stream URLs, the vhosts, the
+user, the credentials mode (`ask`, `keychain`, `vault`), production or not,
+and:
+
+```
+Allow reading messages of classic and quorum queues? Not strictly read-only:
+messages are requeued and marked redelivered, and may count toward a quorum
+queue's delivery limit. [y/N]
+```
+
+The default is no: `tier = "read"`. The profile is validated before it is
+written (a URL with a password is refused).
+
+Every key is described in the README's Configuration section. Changing the
+file later: tightenings (a lower limit, `peek` → `read`, a removed vhost, a
+new mask rule) apply at once; loosenings wait for you in the console
+(`:review`).
+
+## Agents
+
+```sh
+lockmq init [claude|codex|cursor|gemini ...]
+```
+
+Writes the project's agent files (default: the agents found on the
+machine): the MCP server entry (`lockmq mcp`), the Claude Code skill, the
+`AGENTS.md` / `GEMINI.md` section, the Cursor rule, and an example
+`.lockmq/config.toml` when there is none. Claude Code may call the catalogue
+tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
+`lockmq_pii_add` always ask.
+
+## The console
+
+```sh
+lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
+```
+
+Run it in the console account's own session. In order: the isolation checks,
+the policy review (first start: describe and approve; later: tightenings
+apply, loosenings are asked), the production banner and the typed profile
+name, the user and the password (or the keychain, or Vault), the connection
+(management API, then the stream readers), the privilege audit of the broker
+user (`administrator` or `policymaker`: refused on production, typed
+`continue` elsewhere), then the socket.
+
+Keys and commands while it runs (lockkit's console):
+
+| Key / command | Does |
+|---|---|
+| `:review` | show the pending loosening and the change requests of clients, apply or refuse |
+| `:status` | the policy in force, the session |
+| Shift+Tab, `:mode` | auto mode on/off (never on production; never for `peek`) |
+| Ctrl-O, `:results` | show results in clear in the console (the agent still gets them masked) |
+| `:unmask` | let clients ask for unmasked output, each request approved |
+| `:quit`, Ctrl-C | end the session |
+
+The session ends after `idle_timeout` without a request, after
+`max_session`, on `lockmq logout` or when a loosening changes where the
+broker is.
+
+## Client commands
+
+Every client command takes `--profile P` (optional when one profile is
+configured) and `--json`. Exit codes: 0 ok, 1 refused, denied or failed, 2 no
+console (the start command is printed), 3 usage or configuration error.
+
+| Command | Does |
+|---|---|
+| `lockmq status` | the console of each profile: running, production, tier, broker version |
+| `lockmq overview` | broker version, nodes and their alarms, feature flags, totals |
+| `lockmq queues [--vhost V] [--filter GLOB] [--sort K] [--page N]` | one page of queues; sort by `name`, `messages`, `messages_ready`, `messages_unacknowledged`, `consumers` |
+| `lockmq queue NAME [--vhost V]` | one queue with its arguments, policy, bindings and consumers |
+| `lockmq exchanges [--vhost V] [--page N]` | one page of exchanges |
+| `lockmq bindings [--vhost V] [--queue Q \| --exchange E]` | bindings of a vhost, a queue, or an exchange (both directions) |
+| `lockmq policies [--vhost V]` | policies, operator policies, runtime parameters (URI passwords removed) |
+| `lockmq consumers [--vhost V]` | consumers with prefetch and ack mode |
+| `lockmq connections [--page N]`, `lockmq channels [--page N]` | on the served vhosts only |
+| `lockmq stream NAME [--vhost V]` | a stream's queue data and first/last offsets |
+| `lockmq stream-offset NAME --consumer REF [--vhost V]` | a named consumer's stored offset and its lag |
+| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--intent TEXT] [--dry-run]` | stream messages, masked; approved in the console |
+| `lockmq peek QUEUE [--count N] [--intent TEXT] [--dry-run]` | NOT read-only; tier `peek` only; approved every time |
+| `lockmq pii list`, `lockmq pii add "RULE"` | the mask and allow rules; add a mask rule |
+| `lockmq request "CHANGE"` | queue a change for the human (`tier=peek`, `limits.read_max=50`) |
+| `lockmq logout` | end the console's session |
+
+`--dry-run` asks the console for its verdict and the approval screen without
+asking you anything and without reading a message: `run`, `auto`, `prompt`,
+`prompt-every-time` or `refused` with its code.
+
+A mask rule's text: `queue=VHOST/GLOB` (or `exchange=`), then one of
+`body=$.json.path`, `header=NAME-GLOB` or `property=NAME`, e.g.
+`queue=orders/* body=$.customer.email`. The vhost `/` is written `//name`.
+
+`--intent` is one line telling you why; it is shown on the approval screen
+and kept in the audit log.
+
+## MCP tools
+
+`lockmq mcp [--profile P]` serves the same operations to the agent on stdio:
+`lockmq_status`, `lockmq_overview`, `lockmq_queues`, `lockmq_queue`,
+`lockmq_exchanges`, `lockmq_bindings`, `lockmq_policies`,
+`lockmq_consumers`, `lockmq_connections`, `lockmq_channels`,
+`lockmq_stream`, `lockmq_stream_offset`, `lockmq_read`, `lockmq_peek`,
+`lockmq_pii_list`, `lockmq_pii_add`, `lockmq_request_change`. Results start
+with an untrusted-data line; refusals come back as tool errors with a
+structured `refusal` (`code`, `retry`, `hint`). While you decide, the server
+sends progress notifications so the client does not time out.
+
+## Refusal codes
+
+| Code | Retry | Means |
+|---|---|---|
+| `E_BAD_ARGS` | rewrite | an argument is missing, out of range or unknown |
+| `E_WRONG_QUEUE_TYPE` | rewrite | `read` on a queue or `peek` on a stream |
+| `E_VHOST_NOT_SERVED` | ask the user | the profile does not serve that vhost |
+| `E_PROTOCOL_NOT_CONFIGURED` | ask the user | set `stream_url` or `amqp_url` |
+| `E_TIER` | ask the user | `peek` on a profile with tier `read` |
+| `E_DELIVERY_LIMIT` | ask the user | a peek could dead-letter or drop messages of this quorum queue |
+| `E_POLICY` | stop | anything else the policy refuses |
+
+## Doctor
+
+```sh
+lockmq doctor [--profile P]
+```
+
+Checks the config, the separated setup, each profile (tier first; `peek`
+flagged NOT READ-ONLY), whether its console runs (with its start command),
+and the agent wiring.
+
+## Audit log
+
+`~/.local/state/lockmq/audit.log` of the console account (mode 0600): one
+JSON line per event (`login`, `policy`, `catalog`, `refused`, `approved`,
+`denied`, `auto`, `timeout`, `run`, `logout`) with the operation, vhost,
+target and message count, the agent's intent and the client's uid. Never a
+message body, header or property value.

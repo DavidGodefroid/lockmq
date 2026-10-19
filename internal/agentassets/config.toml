@@ -1,0 +1,18 @@
+# lockmq profiles of this project. No secret goes here: the console asks
+# for the password, reads it from the OS keychain or from Vault.
+#
+# [profiles.dev]
+# url        = "http://127.0.0.1:15672"                 # management API
+# amqp_url   = "amqp://127.0.0.1:5672"                  # optional: stream reads over AMQP
+# stream_url = "rabbitmq-stream://127.0.0.1:5552"       # optional: stream protocol
+# vhosts     = ["/"]                                    # empty: every vhost the account sees
+# user       = "lockmq-ro"                              # empty: asked at console start
+# tier       = "read"                                   # read | peek (peek is NOT read-only)
+#
+# [profiles.prod]
+# url         = "https://rabbitmq.example.com:15671"
+# amqp_url    = "amqps://rabbitmq.example.com:5671"
+# vhosts      = ["orders"]
+# credentials = "vault"
+# vault_path  = "rabbitmq/creds/lockmq-ro"
+# production  = true
