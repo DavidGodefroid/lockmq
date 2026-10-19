@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "37 3 * * *" # nightly: fuzzing
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee test.log || {
+            # Surface the failures as annotations, readable without the logs.
+            grep -E -- '--- FAIL|_test\.go:[0-9]+:|^FAIL|panic:' test.log | head -40 | sed 's/^/::error::/'
+            exit 1
+          }
+
+  lint:
+    name: lint (gofmt, staticcheck, govulncheck, goreleaser check)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - name: goreleaser check
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
