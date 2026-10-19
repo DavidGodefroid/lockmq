@@ -1,0 +1,5 @@
+---
+description: RabbitMQ inspection through lockmq. Apply when the user explicitly asks to inspect a RabbitMQ broker, gives broker credentials, or when tempted to run rabbitmqctl, rabbitmqadmin, curl on the management API or an AMQP client directly.
+globs:
+alwaysApply: false
+---
