@@ -61,3 +61,18 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: check
+
+  fuzz:
+    name: fuzz (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+      - name: FuzzMaskNoPanic
+        run: go test -run '^$' -fuzz '^FuzzMaskNoPanic$' -fuzztime 120s ./internal/msgmask/
