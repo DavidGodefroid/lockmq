@@ -39,12 +39,14 @@ jobs:
           }
 
   lint:
-    name: lint (gofmt, staticcheck, govulncheck, goreleaser check)
+    name: lint (hygiene, gofmt, staticcheck, govulncheck, goreleaser check)
     runs-on: ubuntu-latest
     env:
       CGO_ENABLED: "0"
     steps:
       - uses: actions/checkout@v7
+      - name: hygiene (no internal names in tracked files)
+        run: sh scripts/hygiene.sh
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26.x"
