@@ -20,6 +20,12 @@ const (
 	streamCount = 30
 	namedRef    = "billing"
 	namedOffset = 5
+
+	classicName = "orders"
+	quorumName  = "payments"
+	dlqName     = "orders.failed"
+	quorumLimit = 5
+	queueCount  = 3
 )
 
 func images() []string {
@@ -78,10 +84,24 @@ func seed(b *broker) error {
 		{"PUT", "/api/permissions/%2F/" + roUser, map[string]any{"configure": "^$", "write": "^$", "read": ".*"}},
 		{"PUT", "/api/queues/%2F/" + streamName, map[string]any{"durable": true, "arguments": map[string]any{"x-queue-type": "stream"}}},
 		{"PUT", "/api/queues/%2F/" + emptyStream, map[string]any{"durable": true, "arguments": map[string]any{"x-queue-type": "stream"}}},
+		{"PUT", "/api/queues/%2F/" + dlqName, map[string]any{"durable": true}},
+		{"PUT", "/api/queues/%2F/" + classicName, map[string]any{"durable": true, "arguments": map[string]any{
+			"x-dead-letter-exchange": "", "x-dead-letter-routing-key": dlqName}}},
+		{"PUT", "/api/queues/%2F/" + quorumName, map[string]any{"durable": true, "arguments": map[string]any{
+			"x-queue-type": "quorum", "x-delivery-limit": quorumLimit, "x-dead-letter-exchange": "", "x-dead-letter-routing-key": dlqName}}},
 	}
 	for _, s := range steps {
 		if err := b.mustAdmin(s.method, s.path, s.body); err != nil {
 			return err
+		}
+	}
+	for i := range queueCount {
+		body := fmt.Sprintf(`{"order_id": %d, "error": "card declined", "customer": {"email": "customer%d@example.com", "name": "Customer %d"}}`, i, i, i)
+		props := map[string]any{"content_type": "application/json", "headers": map[string]any{"x-tenant": "acme"}}
+		for _, q := range []string{classicName, quorumName, dlqName} {
+			if err := b.publish("/", q, body, props); err != nil {
+				return err
+			}
 		}
 	}
 	for i := range streamCount {

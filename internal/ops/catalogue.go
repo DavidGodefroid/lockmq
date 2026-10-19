@@ -363,7 +363,17 @@ func policies(ctx context.Context, d Deps, a Args) (any, error) {
 		return nil, err
 	}
 	if err := d.Mgmt.Get(ctx, mgmt.Path{Kind: "parameters"}, nil, &params); err != nil {
-		return nil, err
+		// The management API shows runtime parameters to policymakers
+		// only: a monitoring account gets 401.
+		var se *mgmt.StatusError
+		if !errors.As(err, &se) || (se.Code != 401 && se.Code != 403) {
+			return nil, err
+		}
+		return map[string]any{
+			"policies":          orEmpty(pick(pol, policyFields)),
+			"operator_policies": orEmpty(pick(opol, policyFields)),
+			"parameters":        "not visible to this account (the management API shows runtime parameters to the policymaker tag only)",
+		}, nil
 	}
 	var mine []any
 	if list, ok := params.([]any); ok {

@@ -22,6 +22,8 @@ import (
 type fakeMgmt struct {
 	calls []string
 	query []url.Values
+	// deny answers these kinds with HTTP 401.
+	deny map[string]bool
 }
 
 func (f *fakeMgmt) load(kind string, into any) error {
@@ -37,7 +39,28 @@ func (f *fakeMgmt) load(kind string, into any) error {
 func (f *fakeMgmt) Get(_ context.Context, p mgmt.Path, q url.Values, into any) error {
 	f.calls = append(f.calls, p.Kind+":"+strings.Join(p.Segs, "|"))
 	f.query = append(f.query, q)
+	if f.deny[p.Kind] {
+		return &mgmt.StatusError{Code: 401}
+	}
 	return f.load(p.Kind, into)
+}
+
+// A monitoring account cannot list runtime parameters: policies still
+// answers, saying so; any other error still fails.
+func TestPoliciesWithoutParameters(t *testing.T) {
+	d := Deps{Mgmt: &fakeMgmt{deny: map[string]bool{"parameters": true}}, Profile: profile("orders")}
+	res, err := Catalogue()["policies"].Run(context.Background(), d, Args{VHost: "orders"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := res.(map[string]any)
+	if s, _ := m["parameters"].(string); !strings.Contains(s, "policymaker") || m["policies"] == nil {
+		t.Errorf("policies: %v", m)
+	}
+	d = Deps{Mgmt: &fakeMgmt{deny: map[string]bool{"policies": true}}, Profile: profile("orders")}
+	if _, err := Catalogue()["policies"].Run(context.Background(), d, Args{VHost: "orders"}); err == nil {
+		t.Error("401 on policies accepted")
+	}
 }
 
 func (f *fakeMgmt) GetPageQ(_ context.Context, p mgmt.Path, page, size int, columns []string, extra url.Values, into any) (int, error) {

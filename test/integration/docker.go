@@ -221,8 +221,22 @@ func (b *broker) publish(vhost, routingKey, payload string, props map[string]any
 	return nil
 }
 
+// waitDepth polls queueDepth until it reads want, for up to 10 s: the
+// count of a quorum queue lags behind a requeue or a publish. It returns
+// the last count read.
+func (b *broker) waitDepth(name string, want int) (int, error) {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		n, err := b.queueDepth(name)
+		if (err == nil && n == want) || time.Now().After(deadline) {
+			return n, err
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
 // queueDepth reads a queue's message count through rabbitmqctl, which
-// does not lag like the management statistics.
+// does not lag like the management statistics (classic queues).
 func (b *broker) queueDepth(name string) (int, error) {
 	out, err := docker("exec", b.Name, "rabbitmqctl", "-q", "list_queues", "name", "messages")
 	if err != nil {
