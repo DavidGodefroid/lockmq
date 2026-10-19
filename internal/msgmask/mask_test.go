@@ -341,6 +341,70 @@ mode = "email"
 	}
 }
 
+// The policy's texts rebuild the same rules, and an appended mask rule
+// reads back from the file with the rules already there.
+func TestFromTextsAndAppendMask(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".lockmq", "pii.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`# kept as is
+[[mask]]
+queue = ["orders/q"]
+body = "$.customer.email"
+mode = "email"
+
+[[allow]]
+queue = ["orders/q"]
+body = "$.items[*].sku"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := LoadRules(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mask, allow, modes := r.Texts()
+	back, err := FromTexts(mask, allow, modes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m2, a2, mo2 := back.Texts()
+	if strings.Join(m2, "|") != strings.Join(mask, "|") || strings.Join(a2, "|") != strings.Join(allow, "|") || mo2[mask[0]] != "email" {
+		t.Errorf("round trip: %v %v %v", m2, a2, mo2)
+	}
+	if _, err := FromTexts([]string{"queue=orders/q body=$..x"}, nil, nil); err == nil {
+		t.Error("invalid text accepted")
+	}
+
+	add, err := ParseRule("queue=*/* header=x-customer-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := AppendMask(path, add); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.HasPrefix(string(raw), "# kept as is") {
+		t.Errorf("file rewritten:\n%s", raw)
+	}
+	r, err = LoadRules(path)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, raw)
+	}
+	mask, allow, _ = r.Texts()
+	if len(mask) != 2 || len(allow) != 1 || mask[0] != "queue=*/* header=x-customer-*" {
+		t.Errorf("after append: %v %v", mask, allow)
+	}
+	fresh := filepath.Join(t.TempDir(), "new", "pii.toml")
+	if err := AppendMask(fresh, add); err != nil {
+		t.Fatal(err)
+	}
+	if r, err := LoadRules(fresh); err != nil || len(r.Mask) != 1 {
+		t.Errorf("new file: %v %v", r, err)
+	}
+}
+
 func TestVHostSlashGlob(t *testing.T) {
 	r := mustRules(t, `
 [[mask]]

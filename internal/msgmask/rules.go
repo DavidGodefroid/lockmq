@@ -5,12 +5,16 @@
 package msgmask
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 
 	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/pii"
@@ -42,12 +46,12 @@ type Rules struct {
 var ruleProperties = []string{"app_id", "cluster_id", "correlation_id", "message_id", "reply_to", "type", "user_id"}
 
 type rawRule struct {
-	Queue    []string `toml:"queue"`
-	Exchange []string `toml:"exchange"`
-	Body     string   `toml:"body"`
-	Header   string   `toml:"header"`
-	Property string   `toml:"property"`
-	Mode     string   `toml:"mode"`
+	Queue    []string `toml:"queue,omitempty"`
+	Exchange []string `toml:"exchange,omitempty"`
+	Body     string   `toml:"body,omitempty"`
+	Header   string   `toml:"header,omitempty"`
+	Property string   `toml:"property,omitempty"`
+	Mode     string   `toml:"mode,omitempty"`
 }
 
 type rawRules struct {
@@ -174,12 +178,75 @@ func (r Rule) String() string {
 
 // ParseRule parses a mask rule's canonical text (mode redact).
 func ParseRule(text string) (Rule, error) {
+	r, err := parseText(text)
+	if err != nil {
+		return Rule{}, err
+	}
+	return build(r, true)
+}
+
+// FromTexts rebuilds rules from their canonical texts and the modes of the
+// mask rules (the policy's form, Texts).
+func FromTexts(mask, allow []string, modes map[string]string) (Rules, error) {
+	var out Rules
+	for _, t := range mask {
+		r, err := parseText(t)
+		if err != nil {
+			return Rules{}, err
+		}
+		r.Mode = modes[t]
+		rule, err := build(r, true)
+		if err != nil {
+			return Rules{}, err
+		}
+		out.Mask = append(out.Mask, rule)
+	}
+	for _, t := range allow {
+		r, err := parseText(t)
+		if err != nil {
+			return Rules{}, err
+		}
+		rule, err := build(r, false)
+		if err != nil {
+			return Rules{}, err
+		}
+		out.Allow = append(out.Allow, rule)
+	}
+	return out, nil
+}
+
+// AppendMask adds r as a [[mask]] table at the end of the rules file at
+// path (created when missing), leaving the rest of the file as it is.
+func AppendMask(path string, r Rule) error {
+	raw := rawRule{Queue: r.Queues, Exchange: r.Exchanges, Body: r.Body, Header: r.Header, Property: r.Property}
+	if r.Mode != "" && r.Mode != pii.ModeRedact {
+		raw.Mode = r.Mode
+	}
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(rawRules{Mask: []rawRule{raw}}); err != nil {
+		return fmt.Errorf("pii rules: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("pii rules: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o644)
+	if err != nil {
+		return fmt.Errorf("pii rules: %w", err)
+	}
+	if _, err := f.Write(append([]byte("\n"), buf.Bytes()...)); err != nil {
+		f.Close()
+		return fmt.Errorf("pii rules: %w", err)
+	}
+	return f.Close()
+}
+
+func parseText(text string) (rawRule, error) {
 	var r rawRule
 	seen := map[string]bool{}
 	for _, f := range strings.Fields(text) {
 		k, v, ok := strings.Cut(f, "=")
 		if !ok || v == "" || seen[k] {
-			return Rule{}, fmt.Errorf("rule: want key=value fields (queue, exchange, body, header, property)")
+			return rawRule{}, fmt.Errorf("rule: want key=value fields (queue, exchange, body, header, property)")
 		}
 		seen[k] = true
 		switch k {
@@ -194,10 +261,10 @@ func ParseRule(text string) (Rule, error) {
 		case "property":
 			r.Property = v
 		default:
-			return Rule{}, fmt.Errorf("rule: unknown field %q", k)
+			return rawRule{}, fmt.Errorf("rule: unknown field %q", k)
 		}
 	}
-	return build(r, true)
+	return r, nil
 }
 
 // Texts returns the canonical texts of the mask and allow rules and the

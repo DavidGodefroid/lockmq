@@ -177,6 +177,9 @@ func LoadFrom(cwd, userConfigPath string) (map[string]Profile, string, error) {
 	return out, root, nil
 }
 
+// LoadFile reads the profiles of one config file.
+func LoadFile(path string) (map[string]Profile, error) { return loadFile(path) }
+
 func loadFile(path string) (map[string]Profile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
