@@ -1,0 +1,48 @@
+{
+  "filtered_count": 3,
+  "item_count": 3,
+  "page": 1,
+  "page_count": 1,
+  "page_size": 100,
+  "total_count": 3,
+  "items": [
+    {
+      "name": "192.0.2.10:53211 -> 192.0.2.1:5671",
+      "vhost": "orders",
+      "user": "order-service",
+      "state": "running",
+      "protocol": "AMQP 0-9-1",
+      "channels": 2,
+      "connected_at": 1760870400000,
+      "peer_host": "192.0.2.10",
+      "host": "192.0.2.1",
+      "ssl": true,
+      "auth_mechanism": "PLAIN",
+      "client_properties": {
+        "product": "amqp091-go",
+        "version": "1.10.0",
+        "platform": "golang",
+        "connection_name": "order-service-7f9",
+        "information": "https://example.com",
+        "capabilities": {"publisher_confirms": true},
+        "custom_token": "abc"
+      }
+    },
+    {
+      "name": "192.0.2.11:53212 -> 192.0.2.1:5671",
+      "vhost": "payments",
+      "user": "payment-service",
+      "state": "running",
+      "protocol": "AMQP 0-9-1",
+      "channels": 1,
+      "client_properties": {"product": "x"}
+    },
+    {
+      "name": "192.0.2.12:53213 -> 192.0.2.1:5671",
+      "vhost": "secret-vhost",
+      "user": "other",
+      "state": "running",
+      "client_properties": {"product": "y"}
+    }
+  ]
+}

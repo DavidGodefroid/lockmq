@@ -119,10 +119,18 @@ type page struct {
 // only columns when set, into into (a slice). It returns the number of
 // items of the whole list.
 func (c *Client) GetPage(ctx context.Context, p Path, pageNo, size int, columns []string, into any) (int, error) {
+	return c.GetPageQ(ctx, p, pageNo, size, columns, nil, into)
+}
+
+// GetPageQ is GetPage with extra query parameters (name filter, sort).
+func (c *Client) GetPageQ(ctx context.Context, p Path, pageNo, size int, columns []string, extra url.Values, into any) (int, error) {
 	if pageNo < 1 || size < 1 || size > MaxPageSize {
 		return 0, fmt.Errorf("mgmt: page %d of size %d out of range (size 1..%d)", pageNo, size, MaxPageSize)
 	}
 	q := url.Values{}
+	for k, v := range extra {
+		q[k] = v
+	}
 	q.Set("page", strconv.Itoa(pageNo))
 	q.Set("page_size", strconv.Itoa(size))
 	if len(columns) > 0 {

@@ -1,0 +1,33 @@
+{
+  "name": "orders.failed",
+  "vhost": "orders",
+  "type": "quorum",
+  "state": "running",
+  "durable": true,
+  "auto_delete": false,
+  "exclusive": false,
+  "node": "rabbit@node-1",
+  "leader": "rabbit@node-1",
+  "members": ["rabbit@node-1", "rabbit@node-2", "rabbit@node-3"],
+  "messages": 1204,
+  "messages_ready": 1204,
+  "messages_unacknowledged": 0,
+  "consumers": 0,
+  "consumer_utilisation": null,
+  "arguments": {"x-queue-type": "quorum", "x-delivery-limit": 20},
+  "effective_policy_definition": {"delivery-limit": 10},
+  "policy": "dlq-limits",
+  "operator_policy": null,
+  "idle_since": "2026-10-19T10:40:00.000+00:00",
+  "message_stats": {
+    "publish": 1300,
+    "publish_details": {"rate": 0.4},
+    "deliver_get_details": {"rate": 0.0},
+    "ack_details": {"rate": 0.0},
+    "redeliver_details": {"rate": 0.0}
+  },
+  "backing_queue_status": {"secret_internal": "drop me"},
+  "garbage_collection": {"max_heap_size": 0},
+  "head_message_timestamp": 1760870400,
+  "exclusive_consumer_tag": "amq.ctag-should-go"
+}
