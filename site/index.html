@@ -14,9 +14,19 @@
   <meta property="og:title" content="lockmq — Your AI reads the queue. You hold the key.">
   <meta property="og:description" content="lockmq puts a human-held console between your AI agent and RabbitMQ. The agent never sees a credential; every message read is approved and masked.">
   <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/">
+  <meta property="og:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="lockmq — Your AI reads the queue. You hold the key.">
   <meta property="og:locale" content="en_US">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="lockmq — Your AI reads the queue. You hold the key.">
+  <meta name="twitter:description" content="lockmq puts a human-held console between your AI agent and RabbitMQ. The agent never sees a credential; every message read is approved and masked.">
+  <meta name="twitter:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
+  <meta name="twitter:image:alt" content="lockmq — Your AI reads the queue. You hold the key.">
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="assets/style.css">
   <script src="assets/anchors.js" defer></script>
 </head>
@@ -59,6 +69,14 @@
   </ul>
 </section>
 
+<section class="demo-section" aria-labelledby="demo">
+  <h2 id="demo" class="visually-hidden">See it run</h2>
+  <figure class="demo">
+    <img src="assets/demo.svg" alt="Claude Code, in the account alice, lists the queues of the vhost orders through lockmq, then asks to read the last 3 messages of the stream order-events. The lockmq console, in its own account, shows the approval screen; the human types y, and Claude Code gets the messages back with the customer's email replaced by a reference." width="1200" height="640" aria-describedby="demo-caption">
+    <figcaption id="demo-caption">Claude Code (left, account <code>alice</code>) lists queues at once: a catalogue call needs no approval. Reading a stream stops in the lockmq console (right, account <code>lockmq</code>) until you type <code>y</code>; the messages come back masked, the customer's email as a <code>&lt;redacted:rN.K&gt;</code> reference.</figcaption>
+  </figure>
+</section>
+
 <section aria-labelledby="why">
   <h2 id="why">Why lockmq?</h2>
   <div class="prose">
@@ -88,10 +106,10 @@
   <p class="prose">When the agent asks to read a stream, the console shows you this screen and waits. Nothing is read until you approve; on a production profile you type the profile name, not <code>y</code>.</p>
   <figure>
     <pre tabindex="0" class="term"><code>╭─ PROD · rabbitmq.example.com:15671 / orders · user lockmq-ro · tier read ─────
-│ requested by uid 1000 (alice) · pid 48211 (claude)
+│ requested by uid 1000 (alice) · pid 48211 · process "lockmq" (self-reported name)
 │ agent: see the order events around 10:42 to explain a missing confirmation
 │
-│   READ stream order-events  from timestamp 2026-10-19T10:40:00Z  max 20
+│ READ stream order-events  from timestamp 2026-10-19T10:40:00Z  max 20
 │
 │ stream: first offset 1200311 · last 1402977 · via stream protocol
 │ no offset stored · no message removed
