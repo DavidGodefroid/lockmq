@@ -32,8 +32,11 @@ const maxDepth = 64
 type Message struct {
 	Properties map[string]any
 	// Headers are the AMQP headers or the stream's application properties.
-	Headers         map[string]any
-	Body            []byte
+	Headers map[string]any
+	Body    []byte
+	// Cut marks a body the source shortened (peek's truncate): it is
+	// opaque, whatever its type, never parsed or read as text.
+	Cut             bool
 	ContentType     string
 	ContentEncoding string
 	// Exchange is the exchange the message was published to, "" if unknown.
@@ -122,6 +125,64 @@ func (m *Masker) Mask(result int, vhost, queue string, msg Message) Masked {
 	return out
 }
 
+// Clear is msg unmasked, for an approved unmask or the console's clear
+// view: headers and properties as read, the body parsed JSON or text, and
+// opaque when binary, encoded, too deep or cut by the source (a cut body
+// still shows as text, marked truncated). The body is capped at maxBody.
+func Clear(msg Message, maxBody int) Masked {
+	if maxBody <= 0 {
+		maxBody = 16384
+	}
+	out := Masked{}
+	if len(msg.Properties) > 0 {
+		out.Properties = map[string]any{}
+		for k, v := range msg.Properties {
+			if k != "headers" {
+				out.Properties[k] = normalize(v)
+			}
+		}
+	}
+	if len(msg.Headers) > 0 {
+		out.Headers, _ = normalize(msg.Headers).(map[string]any)
+	}
+	kind, label := classify(msg)
+	var v any
+	switch {
+	case kind == "opaque":
+		return withBody(out, opaque(msg.Body, label), false)
+	case kind == "json" && !msg.Cut && len(msg.Body) <= 4*maxBody && !tooDeep(msg.Body):
+		if parsed, ok := decodeJSON(msg.Body); ok {
+			v = parsed
+			break
+		}
+		fallthrough
+	default:
+		if !utf8.Valid(msg.Body) || !printable(msg.Body) {
+			return withBody(out, opaque(msg.Body, label), false)
+		}
+		v = string(msg.Body)
+	}
+	if s, ok := v.(string); ok {
+		if len(s) > maxBody {
+			return withBody(out, pii.CutAt(s, maxBody), true)
+		}
+		return withBody(out, s, msg.Cut)
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return withBody(out, opaque(msg.Body, label), false)
+	}
+	if len(b) > maxBody {
+		return withBody(out, pii.CutAt(string(b), maxBody), true)
+	}
+	return withBody(out, v, false)
+}
+
+func withBody(m Masked, body any, truncated bool) Masked {
+	m.Body, m.Truncated = body, truncated
+	return m
+}
+
 // redact replaces a value with its reference.
 func (j *job) redact(v any) any {
 	ref := j.m.refs.PutDistinct(j.result, pii.CellText(v))
@@ -194,6 +255,9 @@ func (j *job) detectText(s string) string {
 
 func (j *job) body(msg Message) (any, bool) {
 	kind, label := classify(msg)
+	if msg.Cut {
+		return opaque(msg.Body, label+"+truncated"), false
+	}
 	var v any
 	switch kind {
 	case "json":
@@ -202,7 +266,10 @@ func (j *job) body(msg Message) (any, bool) {
 		}
 		parsed, ok := decodeJSON(msg.Body)
 		if !ok {
-			if msg.ContentType == "" && utf8.Valid(msg.Body) && printable(msg.Body) {
+			// An undeclared body that looks like JSON but does not parse
+			// is text only in detect mode; redact-unknown cannot tell its
+			// values apart, so it is opaque (fail closed).
+			if msg.ContentType == "" && j.m.bodyMode == ModeDetect && utf8.Valid(msg.Body) && printable(msg.Body) {
 				v = j.detectText(string(msg.Body))
 				break
 			}

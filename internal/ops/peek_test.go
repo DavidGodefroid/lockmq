@@ -82,6 +82,18 @@ func TestCheckPeek(t *testing.T) {
 	_, r = CheckPeek(config.TierPeek, quorum(map[string]any{"x-delivery-limit": 3.0}, nil, nil, 4), -1, 3)
 	refusedWith(t, r, CodeDeliveryLimit, "3")
 
+	// Boundary: seen = limit-2 is the last safe peek (requeue reaches the
+	// limit); seen = limit-1 would requeue past it, whatever the headroom.
+	for _, h := range []int{0, 1} {
+		if _, r := CheckPeek(config.TierPeek, q20, 18, h); r != nil {
+			t.Errorf("limit 20 seen 18 headroom %d refused: %v", h, r)
+		}
+		_, r = CheckPeek(config.TierPeek, q20, 19, h)
+		refusedWith(t, r, CodeDeliveryLimit, "20", "19")
+		_, r = CheckPeek(config.TierPeek, quorum(map[string]any{"x-delivery-limit": 1.0}, nil, nil, 4), -1, h)
+		refusedWith(t, r, CodeDeliveryLimit, "1")
+	}
+
 	_, r = CheckPeek(config.TierPeek, QueueInfo{Name: "order-events", Type: "stream"}, -1, 3)
 	refusedWith(t, r, CodeWrongQueueType, "read")
 

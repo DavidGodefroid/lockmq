@@ -46,6 +46,7 @@ func newBroker(t *testing.T) *fakeBroker {
 		"%2F/orders.failed": {"name": "orders.failed", "vhost": "/", "type": "classic", "messages_ready": 2.0, "messages_unacknowledged": 0.0, "consumers": 0.0},
 		"%2F/payments":      {"name": "payments", "vhost": "/", "type": "quorum", "messages_ready": 4.0, "arguments": map[string]any{"x-delivery-limit": 20.0}},
 		"%2F/tight":         {"name": "tight", "vhost": "/", "type": "quorum", "messages_ready": 1.0, "arguments": map[string]any{"x-delivery-limit": 3.0}},
+		"%2F/orders.dlq":    {"name": "orders.dlq", "vhost": "/", "type": "classic", "messages_ready": 1.0, "messages_unacknowledged": 0.0, "consumers": 0.0},
 	}}
 	b.srv = httptest.NewServer(http.HandlerFunc(b.serve))
 	t.Cleanup(b.srv.Close)
@@ -80,6 +81,22 @@ func (b *fakeBroker) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		b.peeks++
 		key := strings.TrimSuffix(strings.TrimPrefix(path, "/api/queues/"), "/get")
+		if key == "%2F/orders.dlq" {
+			// A large dead-lettered message without content type, cut at
+			// truncate bytes as the management API does.
+			var req struct {
+				Truncate int `json:"truncate"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			full := dlqBody()
+			cut := full
+			if req.Truncate > 0 && len(cut) > req.Truncate {
+				cut = cut[:req.Truncate]
+			}
+			write([]map[string]any{{"payload": cut, "payload_bytes": len(full), "payload_encoding": "string",
+				"redelivered": false, "exchange": "", "routing_key": "orders.dlq", "message_count": 0, "properties": map[string]any{}}})
+			return
+		}
 		headers := map[string]any{"x-customer-ref": "C-778899"}
 		if c, ok := b.counts[key]; ok {
 			headers["x-delivery-count"] = float64(c)
@@ -104,6 +121,13 @@ func (b *fakeBroker) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(404)
 	}
+}
+
+// dlqBody is an ~80 KiB JSON array of order records with names and
+// streets: personal data no detector recognises.
+func dlqBody() string {
+	rec := `{"name":"Jane Doe","street":"12 Elm Road","note":"` + strings.Repeat("x", 200) + `"}`
+	return "[" + strings.TrimSuffix(strings.Repeat(rec+",", 300), ",") + "]"
 }
 
 func (b *fakeBroker) peekCount() int {
@@ -185,6 +209,8 @@ type rigOpts struct {
 	auto       bool
 	pii        string
 	answers    []string
+	// allowUnmask and showResults are the console's switches at start.
+	allowUnmask, showResults bool
 }
 
 func writeProject(t *testing.T, root, url string, o rigOpts) {
@@ -240,7 +266,7 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		t.Fatal(err)
 	}
 	r.srv, err = console.NewServer(console.ServerConfig{Product: product.P, Backend: r.be, Policy: pol, Session: sess,
-		Audit: log, IO: r.io, Auto: o.auto, Sanitizer: Sanitizer()})
+		Audit: log, IO: r.io, Auto: o.auto, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer()})
 	if err != nil {
 		t.Fatal(err)
 	}

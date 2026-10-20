@@ -35,7 +35,7 @@
       "state": "running",
       "protocol": "AMQP 0-9-1",
       "channels": 1,
-      "client_properties": {"product": "x"}
+      "client_properties": {"product": "x", "connection_name": "worker-jane.doe@example.com"}
     },
     {
       "name": "192.0.2.12:53213 -> 192.0.2.1:5671",

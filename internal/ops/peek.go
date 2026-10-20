@@ -182,6 +182,11 @@ func CheckPeek(tier config.Tier, q QueueInfo, seen, headroom int) ([]string, *re
 	if !hasLimit {
 		return warnings, nil
 	}
+	// The get shows a message at seen+1 and its requeue takes it to
+	// seen+2: past the limit it is dead-lettered or dropped. A headroom
+	// under 1 (refused at load) would allow limit-seen = 1: floor it here
+	// too, so a peek can never send a message over the limit.
+	headroom = max(headroom, 1)
 	if limit <= headroom {
 		return nil, refusal.Newf(CodeDeliveryLimit, "%s has delivery-limit %d, at or under the profile's delivery_headroom %d: a peek could dead-letter or drop its messages", q.Name, limit, headroom)
 	}

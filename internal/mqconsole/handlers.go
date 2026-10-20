@@ -31,6 +31,10 @@ type Params struct {
 	// Intent is the agent's one-line reason, shown on approval screens
 	// and kept in the audit log.
 	Intent string `json:"intent,omitempty"`
+	// Unmask asks for the messages in clear (read, peek): refused unless
+	// the human allowed it in the console (:unmask, --allow-unmask), then
+	// approved on its own screen, never auto-approved.
+	Unmask bool `json:"unmask,omitempty"`
 }
 
 // Untrusted frames every result: what the broker holds is data.
@@ -86,6 +90,8 @@ type Record struct {
 	VHost  string `json:"vhost,omitempty"`
 	Target string `json:"target,omitempty"`
 	Count  int    `json:"count,omitempty"`
+	// Unmasked marks a read or peek whose content left in clear.
+	Unmasked bool `json:"unmasked,omitempty"`
 }
 
 // prep is a request checked against the policy in force: a catalogue
@@ -96,7 +102,16 @@ type prep struct {
 	vhost  string
 	target string
 	screen *console.Screen
-	run    func(ctx context.Context) (any, int, error)
+	unmask bool
+	fetch  func(ctx context.Context) (fetched, error)
+}
+
+// fetched is what a read or peek took from the broker, before masking.
+type fetched struct {
+	msgs []msgmask.Message
+	// extra carries the per-message fields of a peek (nil for a read).
+	extra     []Message
+	via, from string
 }
 
 // errConnLost marks a session the console could not give back.
@@ -122,9 +137,15 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 	if pr.Tier < op.Tier {
 		return nil, refusal.Newf(ops.CodeTier, `%s needs tier = "%s" on profile %s; its tier is %s, and only the user can change it`, op.Name, op.Tier, pr.Name, pr.Tier)
 	}
-	pp := &prep{op: op, pol: pol, vhost: p.VHost, target: p.Target}
+	pp := &prep{op: op, pol: pol, vhost: p.VHost, target: p.Target, unmask: p.Unmask}
 	if !op.Prompt {
+		if p.Unmask {
+			return nil, refusal.New(ops.CodeBadArgs, "unmask applies to read and peek only")
+		}
 		return pp, nil
+	}
+	if p.Unmask && !env.UnmaskAllowed() {
+		return nil, refusal.New(ops.CodeUnmaskOff, "unmasked output is off in this console: read masked, or ask the human to allow it in the console (:unmask, or --allow-unmask at start)")
 	}
 	vh, err := ops.ResolveVHost(pr, p.VHost)
 	if err != nil {
@@ -136,6 +157,9 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 	}
 	if len(p.Target) > ops.MaxNameLen {
 		return nil, refusal.Newf(ops.CodeBadArgs, "target is longer than %d bytes", ops.MaxNameLen)
+	}
+	if err := ops.SafeName("target", p.Target); err != nil {
+		return nil, err
 	}
 	if op.Name == "read" {
 		if err := b.checkReadArgs(pr, p); err != nil {
@@ -152,9 +176,18 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 		return nil, errConnLost{errors.New("no broker session")}
 	}
 	if op.Name == "read" {
-		return pp, b.prepareRead(ctx, s, pp, p)
+		err = b.prepareRead(ctx, s, pp, p)
+	} else {
+		err = b.preparePeek(ctx, s, pp, p)
 	}
-	return pp, b.preparePeek(ctx, s, pp, p)
+	if err != nil {
+		return pp, err
+	}
+	pp.screen.Body = append(pp.screen.Body, piiLines(pp, env)...)
+	if pp.unmask {
+		pp.screen.NeverAuto, pp.screen.Red = true, true
+	}
+	return pp, nil
 }
 
 func (b *Backend) checkReadArgs(pr config.Profile, p Params) error {
@@ -222,7 +255,7 @@ func (b *Backend) prepareRead(ctx context.Context, s *session, pp *prep, p Param
 	info := fmt.Sprintf("stream: %v messages", q["messages"])
 	if si := s.streamInfo(); si != nil {
 		if first, last, err := si.Stats(ctx, pp.vhost, pp.target); err == nil {
-			info = fmt.Sprintf("stream: first offset %d · last %d", first, last)
+			info = fmt.Sprintf("stream: first offset %d · last committed chunk at %d", first, last)
 		}
 	}
 	pp.screen = &console.Screen{
@@ -232,19 +265,13 @@ func (b *Backend) prepareRead(ctx context.Context, s *session, pp *prep, p Param
 			fmt.Sprintf("READ stream %s  from %s  max %d", pp.target, from, count), "",
 			info + " · via " + via,
 			"no offset stored · no message removed",
-			piiLine(pp.pol),
 		},
 	}
-	pp.run = func(ctx context.Context) (any, int, error) {
+	pp.fetch = func(ctx context.Context) (fetched, error) {
 		rctx, cancel := context.WithTimeout(ctx, pr.Limits.RequestTimeout)
 		defer cancel()
 		msgs, err := r.Read(rctx, pp.vhost, pp.target, from, count)
-		if err != nil {
-			return nil, 0, err
-		}
-		out := b.mask(pp.pol, pp.vhost, pp.target, msgs, nil)
-		out.Via, out.From = via, from.String()
-		return out, len(msgs), nil
+		return fetched{msgs: msgs, via: via, from: from.String()}, err
 	}
 	return nil
 }
@@ -276,15 +303,15 @@ func (b *Backend) preparePeek(ctx context.Context, s *session, pp *prep, p Param
 	pp.screen = &console.Screen{
 		Header:    b.header(pp.pol, s, pp.vhost),
 		Note:      p.Intent,
-		Body:      []string{fmt.Sprintf("PEEK %s  count %d", pp.target, count), "", piiLine(pp.pol)},
+		Body:      []string{fmt.Sprintf("PEEK %s  count %d", pp.target, count), ""},
 		Warnings:  warnings,
 		NeverAuto: true,
 		Red:       true,
 	}
-	pp.run = func(ctx context.Context) (any, int, error) {
+	pp.fetch = func(ctx context.Context) (fetched, error) {
 		msgs, err := s.mgmt.PeekRequeue(ctx, pp.vhost, pp.target, count, 4*pr.Limits.MaxBodyBytes)
 		if err != nil {
-			return nil, 0, err
+			return fetched{}, err
 		}
 		b.seen.Note(pp.vhost, pp.target, ops.MaxDeliveryCount(msgs))
 		mm := make([]msgmask.Message, len(msgs))
@@ -294,7 +321,7 @@ func (b *Backend) preparePeek(ctx context.Context, s *session, pp *prep, p Param
 			red := m.Redelivered
 			extra[i] = Message{Redelivered: &red, Exchange: m.Exchange, RoutingKey: m.RoutingKey}
 		}
-		return b.mask(pp.pol, pp.vhost, pp.target, mm, extra), len(msgs), nil
+		return fetched{msgs: mm, extra: extra}, nil
 	}
 	return nil
 }
@@ -311,19 +338,80 @@ func fromMgmt(m mgmt.Message) msgmask.Message {
 	ct, _ := props["content_type"].(string)
 	ce, _ := props["content_encoding"].(string)
 	body := []byte(m.Payload)
+	// The management API cuts a payload at the truncate argument and says
+	// so only through payload_bytes: a cut body is never parsed or shown.
+	cut := m.PayloadBytes > len(body)
 	if m.PayloadEncoding == "base64" {
-		if d, err := base64.StdEncoding.DecodeString(m.Payload); err == nil {
-			body = d
+		d, err := base64.StdEncoding.DecodeString(m.Payload)
+		if err != nil {
+			d, cut = nil, true
 		}
+		body = d
+		cut = cut || m.PayloadBytes > len(d)
 	}
-	return msgmask.Message{Properties: props, Headers: headers, Body: body, ContentType: ct, ContentEncoding: ce, Exchange: m.Exchange}
+	return msgmask.Message{Properties: props, Headers: headers, Body: body, Cut: cut, ContentType: ct, ContentEncoding: ce, Exchange: m.Exchange}
 }
 
-// piiLine sums the masking on an approval screen.
-func piiLine(pol Policy) string {
-	pr := pol.Policy.Profile
-	return fmt.Sprintf("PII: masked (%d mask rules, %d allow rules; body %s; detectors: %s)",
-		len(pol.Mask), len(pol.Allow), pr.BodyMode, strings.Join(pr.Detectors, ", "))
+// piiLines sum the masking on an approval screen.
+func piiLines(pp *prep, env console.Env) []string {
+	if pp.unmask {
+		return []string{"PII: UNMASKED: the messages leave in clear, to the agent (asked with unmask; never auto-approved)"}
+	}
+	pr := pp.pol.Policy.Profile
+	out := []string{fmt.Sprintf("PII: masked (%d mask rules, %d allow rules; body %s; detectors: %s)",
+		len(pp.pol.Mask), len(pp.pol.Allow), pr.BodyMode, strings.Join(pr.Detectors, ", "))}
+	if env.ShowResults() {
+		out = append(out, "result: shown here in clear (results on, Ctrl-O); the agent gets it masked")
+	}
+	return out
+}
+
+// output turns fetched messages into a client's data: masked, or in clear
+// for an approved unmask. With results on (Ctrl-O), a masked read also
+// prints the clear messages in the console, never to the client.
+func (b *Backend) output(env console.Env, pp *prep, f fetched) Messages {
+	pr := pp.pol.Policy.Profile
+	var out Messages
+	if pp.unmask {
+		out = clearMessages(pp.vhost, pp.target, f, pr.Limits.MaxBodyBytes)
+		capOutput(&out, pr.Limits.MaxOutputBytes)
+		env.Println(env.Safe(fmt.Sprintf("PII: UNMASKED result sent to the client: %d messages", len(out.Messages))))
+	} else {
+		out = b.mask(pp.pol, pp.vhost, pp.target, f.msgs, f.extra)
+		if env.ShowResults() {
+			showClear(env, clearMessages(pp.vhost, pp.target, f, pr.Limits.MaxBodyBytes))
+		}
+	}
+	out.Via, out.From = f.via, f.from
+	return out
+}
+
+// clearMessages are the fetched messages unmasked: headers and properties
+// as read, the body parsed JSON, text, or opaque when binary, encoded or
+// cut by the source.
+func clearMessages(vhost, queue string, f fetched, maxBody int) Messages {
+	out := Messages{VHost: vhost, Queue: queue, Messages: make([]Message, 0, len(f.msgs))}
+	for i, msg := range f.msgs {
+		var e Message
+		if f.extra != nil {
+			e = f.extra[i]
+		}
+		e.Masked = msgmask.Clear(msg, maxBody)
+		out.Messages = append(out.Messages, e)
+	}
+	return out
+}
+
+// showClear prints clear messages in the console, escaped.
+func showClear(env console.Env, m Messages) {
+	env.Println(env.Safe(fmt.Sprintf("result in clear (shown here only; the agent got it masked): %d messages", len(m.Messages))))
+	for i, msg := range m.Messages {
+		raw, err := json.Marshal(msg)
+		if err != nil {
+			continue
+		}
+		env.Println(env.Safe(fmt.Sprintf("  [%d] %s", i+1, raw)))
+	}
 }
 
 // mask masks msgs with the rules in force; extra carries per-message
@@ -402,6 +490,7 @@ func (b *Backend) record(ctx context.Context, env console.Env, base audit.Base, 
 	base.Intent = p.Intent
 	console.StampPeer(ctx, &base)
 	rec := Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Count: count}
+	rec.Unmasked = pp != nil && pp.unmask && base.Event == audit.EventRun && base.Decision == "ok"
 	if pp != nil {
 		rec.VHost, rec.Target = pp.vhost, pp.target
 	}
@@ -452,16 +541,21 @@ func (b *Backend) run(ctx context.Context, req ipc.Request, env console.Env) ipc
 	}
 	sc := *pp.screen
 	sc.Record = func(base audit.Base) audit.Record {
-		return Record{Base: base, Op: p.Op, VHost: pp.vhost, Target: pp.target}
+		return Record{Base: base, Op: p.Op, VHost: pp.vhost, Target: pp.target, Unmasked: pp.unmask}
 	}
 	if a := env.Approve(ctx, req.ID, sc); !a.Approved {
 		return a.Refusal
 	}
-	data, n, err := pp.run(ctx)
+	// Unmasked output may have been turned off while the screen waited.
+	if pp.unmask && !env.UnmaskAllowed() {
+		return b.errResp(ctx, env, req.ID, p, pp, refusal.New(ops.CodeUnmaskOff, "unmasked output was turned off in this console: read masked"))
+	}
+	f, err := pp.fetch(ctx)
 	if err != nil {
 		return b.errResp(ctx, env, req.ID, p, pp, brokerErr(err, fmt.Sprintf("queue %q in vhost %q", pp.target, pp.vhost)))
 	}
-	b.record(ctx, env, audit.Base{Event: audit.EventRun, Decision: "ok"}, pp, p, n)
+	data := b.output(env, pp, f)
+	b.record(ctx, env, audit.Base{Event: audit.EventRun, Decision: "ok"}, pp, p, len(f.msgs))
 	return console.OKResp(req.ID, Result{Op: p.Op, Untrusted: Untrusted, Data: data})
 }
 

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DavidGodefroid/lockkit/pii"
 	"github.com/DavidGodefroid/lockkit/refusal"
 
 	"github.com/DavidGodefroid/lockmq/internal/broker/mgmt"
@@ -27,6 +28,8 @@ const (
 	CodeBadArgs               refusal.Code = "E_BAD_ARGS"
 	CodeWrongQueueType        refusal.Code = "E_WRONG_QUEUE_TYPE"
 	CodeTier                  refusal.Code = "E_TIER"
+	CodeUnsafeName            refusal.Code = "E_UNSAFE_NAME"
+	CodeUnmaskOff             refusal.Code = "E_UNMASK_OFF"
 )
 
 func init() {
@@ -40,6 +43,10 @@ func init() {
 		"the operation does not apply to this queue type", "use the operation named in the reason")
 	refusal.Register(CodeTier, refusal.RetryAskUser,
 		"the profile's tier does not allow this operation", "only the user can change the profile's tier")
+	refusal.Register(CodeUnsafeName, refusal.RetryStop,
+		`a vhost or name that is, or holds, a "." or ".." path segment`, "lockmq cannot address it; do not retry")
+	refusal.Register(CodeUnmaskOff, refusal.RetryAskUser,
+		"unmasked output is off in this console", "read masked, or ask the user to allow it in the console (:unmask)")
 }
 
 // Protocols an operation needs.
@@ -144,6 +151,9 @@ func ResolveVHost(p config.Profile, arg string) (string, error) {
 			return "", refusal.Newf(CodeBadArgs, "name a vhost: the profile serves %s", strings.Join(p.VHosts, ", "))
 		}
 	}
+	if err := SafeName("vhost", arg); err != nil {
+		return "", err
+	}
 	if len(p.VHosts) > 0 && !slices.Contains(p.VHosts, arg) {
 		return "", refusal.Newf(CodeVHostNotServed, "vhost %q is not served by profile %s", arg, p.Name)
 	}
@@ -164,7 +174,24 @@ func needName(what, s string) error {
 	if len(s) > MaxNameLen {
 		return refusal.Newf(CodeBadArgs, "%s is longer than %d bytes", what, MaxNameLen)
 	}
+	return SafeName(what, s)
+}
+
+// SafeName refuses, before any I/O, a name that would be a "." or ".."
+// segment of a management API path (mgmt.DotSegment): such a path could
+// reach an endpoint outside the allowlist.
+func SafeName(what, s string) error {
+	if mgmt.DotSegment(s) {
+		return refusal.Newf(CodeUnsafeName, `%s %q is or holds a "." or ".." path segment: refused`, what, clipName(s))
+	}
 	return nil
+}
+
+func clipName(s string) string {
+	if len(s) > 64 {
+		return s[:64] + "…"
+	}
+	return s
 }
 
 func pageOf(a Args) int {
@@ -266,28 +293,22 @@ func queue(ctx context.Context, d Deps, a Args) (any, error) {
 		return nil, err
 	}
 	segs := []string{vh, a.Target}
-	var q, binds, cons any
+	var q, binds any
 	if err := d.Mgmt.Get(ctx, mgmt.Path{Kind: "queue", Segs: segs}, nil, &q); err != nil {
 		return nil, err
 	}
 	if err := d.Mgmt.Get(ctx, mgmt.Path{Kind: "queue-bindings", Segs: segs}, nil, &binds); err != nil {
 		return nil, err
 	}
-	if err := d.Mgmt.Get(ctx, mgmt.Path{Kind: "consumers", Segs: []string{vh}}, nil, &cons); err != nil {
-		return nil, err
-	}
-	var mine []any
-	if list, ok := cons.([]any); ok {
-		for _, c := range list {
-			if m, ok := c.(map[string]any); ok {
-				if qm, ok := m["queue"].(map[string]any); ok && qm["name"] == a.Target {
-					mine = append(mine, c)
-				}
-			}
-		}
+	// The queue object lists its own consumers (consumer_details): no
+	// vhost-wide /api/consumers, which is not paginated and can exceed
+	// the response cap on a large vhost.
+	var cons any
+	if m, ok := q.(map[string]any); ok {
+		cons = m["consumer_details"]
 	}
 	out := map[string]any{"queue": pick(q, queueFields), "bindings": orEmpty(pick(binds, bindingFields))}
-	out["consumers"] = orEmpty(pick(mine, consumerFields))
+	out["consumers"] = orEmpty(pick(cons, consumerFields))
 	return out, nil
 }
 
@@ -405,11 +426,45 @@ func consumers(ctx context.Context, d Deps, a Args) (any, error) {
 // connections and channels are broker-wide: only those of served vhosts
 // are kept.
 func connections(ctx context.Context, d Deps, a Args) (any, error) {
-	return listPage(ctx, d, mgmt.Path{Kind: "connections"}, a, connectionFields, nil, vhostFilter(d.Profile))
+	return detected(d, "user", "client_properties")(listPage(ctx, d, mgmt.Path{Kind: "connections"}, a, connectionFields, nil, vhostFilter(d.Profile)))
 }
 
 func channels(ctx context.Context, d Deps, a Args) (any, error) {
-	return listPage(ctx, d, mgmt.Path{Kind: "channels"}, a, channelFields, nil, vhostFilter(d.Profile))
+	return detected(d, "user")(listPage(ctx, d, mgmt.Path{Kind: "channels"}, a, channelFields, nil, vhostFilter(d.Profile)))
+}
+
+// detected runs the profile's detectors over the free text the client
+// sets (a connection name such as "worker-jane.doe@example.com", a user
+// name): the string values of keys, or of the maps under them, of every
+// item of a list page.
+func detected(d Deps, keys ...string) func(any, error) (any, error) {
+	return func(v any, err error) (any, error) {
+		l, ok := v.(List)
+		if err != nil || !ok {
+			return v, err
+		}
+		ds, _ := pii.Detectors(d.Profile.Detectors)
+		items, _ := l.Items.([]any)
+		for _, it := range items {
+			m, ok := it.(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, k := range keys {
+				switch x := m[k].(type) {
+				case string:
+					m[k] = pii.Detect(x, ds)
+				case map[string]any:
+					for sk, sv := range x {
+						if s, ok := sv.(string); ok {
+							x[sk] = pii.Detect(s, ds)
+						}
+					}
+				}
+			}
+		}
+		return l, nil
+	}
 }
 
 func vhostFilter(p config.Profile) func(map[string]any) bool {
@@ -460,9 +515,13 @@ func streamInfo(ctx context.Context, d Deps, a Args) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	out["stats"] = map[string]any{"first_offset": first, "last_offset": last}
+	out["stats"] = map[string]any{"first_offset": first, "last_offset": last, "precision": chunkPrecision}
 	return out, nil
 }
+
+// chunkPrecision qualifies the stream protocol's offsets: the broker
+// reports chunk ids, not message offsets.
+const chunkPrecision = "chunk: last_offset is the first offset of the stream's last committed chunk; the stream can hold up to one chunk more, and lag can be that much higher"
 
 func streamOffset(ctx context.Context, d Deps, a Args) (any, error) {
 	vh, err := ResolveVHost(d.Profile, a.VHost)
@@ -486,7 +545,7 @@ func streamOffset(ctx context.Context, d Deps, a Args) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"consumer": a.Consumer, "stored_offset": stored, "last_offset": last, "lag": max(last-stored, 0)}, nil
+	return map[string]any{"consumer": a.Consumer, "stored_offset": stored, "last_offset": last, "lag": max(last-stored, 0), "precision": chunkPrecision}, nil
 }
 
 func sortStrings(s []string) { sort.Strings(s) }

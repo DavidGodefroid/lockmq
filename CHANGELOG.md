@@ -6,6 +6,29 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### v0.1.1
+
+Fixes from the v0.1.0 spec audit.
+
+- Security: a body without content type that looks like JSON but does not
+  parse is opaque under `redact-unknown` (it was masked as text, detectors
+  only), and a body the broker cut short on peek is always opaque: names and
+  addresses of a large dead-lettered message no longer come back in clear.
+- Security: a vhost or name that is, or holds, a `.` or `..` path segment is
+  refused before any request (`E_UNSAFE_NAME`) and in the config, so a
+  management path cannot be normalised outside the endpoint allowlist.
+- `limits.delivery_headroom = 0` is refused (a peek could dead-letter a
+  message); the peek guard never goes below 1.
+- Ctrl-O / `:results` prints results in clear in the console, and
+  `--unmask` (MCP `unmask`) returns them unmasked when the human allowed it
+  with `:unmask`: approved every time, audited `"unmasked":true`; refused
+  otherwise (`E_UNMASK_OFF`). Both were documented but did nothing.
+- `status` shows the profile's tier.
+- Stream offsets and lag say they are precise to one chunk (`precision`).
+- Connection and channel user names and client properties go through the
+  detectors.
+- `queue` reads its own consumers instead of the whole vhost's.
+
 ### v0.1.0
 
 First release.

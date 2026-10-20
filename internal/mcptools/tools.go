@@ -125,6 +125,7 @@ type OpIn struct {
 	Consumer string `json:"consumer,omitempty" jsonschema:"named consumer reference (stream_offset)"`
 	Intent   string `json:"intent,omitempty" jsonschema:"one line telling the human why (read, peek)"`
 	DryRun   bool   `json:"dry_run,omitempty" jsonschema:"only check: the verdict and the approval screen, no approval and no content (read, peek)"`
+	Unmask   bool   `json:"unmask,omitempty" jsonschema:"ask the human to approve the messages in clear (read, peek). Only when the user explicitly needs the raw values. Refused unless the human allowed it in the console (--allow-unmask or :unmask; see lockmq_status)"`
 }
 
 // PIIAddIn proposes a mask rule.
@@ -147,7 +148,7 @@ type Out struct {
 
 // Params turns a tool's input into the console's params.
 func Params(op string, in OpIn) (mqconsole.Params, error) {
-	p := mqconsole.Params{Op: op, Intent: in.Intent}
+	p := mqconsole.Params{Op: op, Intent: in.Intent, Unmask: in.Unmask}
 	p.Args = ops.Args{VHost: in.VHost, Target: in.Name, Filter: in.Filter, Sort: in.Sort, Page: in.Page, From: in.From, Count: in.Count, Consumer: in.Consumer}
 	if op == "bindings" {
 		switch {

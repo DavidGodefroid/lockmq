@@ -20,6 +20,7 @@ import (
 	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/pii"
 
+	"github.com/DavidGodefroid/lockmq/internal/broker/mgmt"
 	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
@@ -303,6 +304,9 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		if v == "" {
 			return Profile{}, errf("vhosts: an empty vhost name")
 		}
+		if mgmt.DotSegment(v) {
+			return Profile{}, errf(`vhosts: a vhost that is, or holds, a "." or ".." path segment cannot be addressed safely`)
+		}
 		if err := kconfig.CheckValue(product.P, "vhosts", v); err != nil {
 			return Profile{}, errf("%v", err)
 		}
@@ -402,13 +406,17 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		}
 		p.CredentialsTTL = d
 	}
+	// An explicit delivery_headroom of 0 would let a peek requeue a message
+	// past its delivery limit (design §5.4): the floor is 1.
+	if headroomSet && p.Limits.DeliveryHeadroom < 1 {
+		return Profile{}, errf("limits.delivery_headroom must be at least 1: at 0 a peek can dead-letter or drop a message")
+	}
 	for _, f := range []struct {
 		key      string
 		val, max int
 	}{
 		{"read_max", p.Limits.ReadMax, ReadMaxCeiling},
 		{"peek_max", p.Limits.PeekMax, PeekMaxCeiling},
-		{"delivery_headroom", p.Limits.DeliveryHeadroom, 0},
 		{"max_body_bytes", p.Limits.MaxBodyBytes, 0},
 		{"max_output_bytes", p.Limits.MaxOutputBytes, 0},
 		{"list_page_size", p.Limits.ListPageSize, 0},

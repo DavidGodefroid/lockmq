@@ -76,6 +76,26 @@ func TestEscaping(t *testing.T) {
 	}
 }
 
+// A dot segment would let the server's path normalisation route outside
+// the allowlist (/api/queues/../definitions): refused before any I/O.
+func TestDotSegmentsRefusedWithoutIO(t *testing.T) {
+	c, rec := newServer(t, okJSON(`{}`))
+	var out any
+	for _, segs := range [][]string{{"..", "definitions"}, {".", "q"}, {"/", ".."}, {"/..", "q"}, {"a/../b", "q"}, {"/", "x/./y"}} {
+		if err := c.Get(context.Background(), Path{Kind: "queue", Segs: segs}, nil, &out); !errors.Is(err, errPath) {
+			t.Errorf("%q: err = %v, want errPath", segs, err)
+		}
+	}
+	if n := len(rec.all()); n != 0 {
+		t.Fatalf("%d requests sent", n)
+	}
+	for _, ok := range []string{"/", "...", "a..b", ".hidden", "orders.dlq"} {
+		if DotSegment(ok) {
+			t.Errorf("%q refused", ok)
+		}
+	}
+}
+
 func TestBasePathPrefix(t *testing.T) {
 	rec := &recorder{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { rec.add(r); io.WriteString(w, `{}`) }))

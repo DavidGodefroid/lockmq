@@ -8,11 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/console"
 	"github.com/DavidGodefroid/lockkit/fingerprint"
 	"github.com/DavidGodefroid/lockkit/ipc"
 	"github.com/DavidGodefroid/lockkit/sysconf"
 
+	"github.com/DavidGodefroid/lockmq/internal/ops"
 	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
@@ -117,6 +119,98 @@ func TestPeekRefusedBeforeScreen(t *testing.T) {
 	}
 }
 
+// A peeked body cut by the management API (payload_bytes above the
+// payload) comes back opaque, never as clear text: the cut JSON does not
+// parse, and as text only the detectors would see it (names, streets).
+func TestPeekCutBodyOpaque(t *testing.T) {
+	r := newRig(t, rigOpts{tier: "peek", production: true, answers: []string{"prod"}})
+	out := mustOK(t, r.call(MethodRun, peekParams("orders.dlq")))
+	if r.broker.peekCount() != 1 {
+		t.Fatalf("peeks %d", r.broker.peekCount())
+	}
+	for _, leak := range []string{"Jane", "Elm Road"} {
+		if strings.Contains(out, leak) {
+			t.Fatalf("clear text %q in %.300s", leak, out)
+		}
+	}
+	if !strings.Contains(out, "bytes:65536 sha256:") || !strings.Contains(out, "type:unknown+truncated") {
+		t.Errorf("body not opaque: %.300s", out)
+	}
+}
+
+// Names that are or hold a dot segment are refused before any I/O: the
+// broker never sees a path that could leave the allowlist.
+func TestDotSegmentsRefusedBeforeIO(t *testing.T) {
+	r := newRig(t, rigOpts{tier: "peek"})
+	before := len(r.broker.requests)
+	for _, p := range []Params{
+		{Op: "queues", Args: ops.Args{VHost: ".."}},
+		{Op: "queue", Args: ops.Args{VHost: "..", Target: "definitions"}},
+		{Op: "queue", Args: ops.Args{Target: ".."}},
+		{Op: "bindings", Args: ops.Args{Target: "queue:../../users"}},
+		{Op: "exchanges", Args: ops.Args{VHost: "/.."}},
+		{Op: "peek", Args: ops.Args{Target: "..", Count: 1}},
+		{Op: "read", Args: ops.Args{VHost: ".", Target: "order-events", From: "first", Count: 1}},
+	} {
+		mustRefused(t, r.call(MethodRun, p), "E_UNSAFE_NAME")
+	}
+	if n := len(r.broker.requests); n != before || r.io.promptCount() != 0 {
+		t.Fatalf("broker saw %v, prompts %d", r.broker.requests[before:], r.io.promptCount())
+	}
+}
+
+// unmask is refused unless the human allowed it in the console; allowed,
+// it is approved every time (auto mode or not), sends the messages in
+// clear and is audited as such.
+func TestUnmask(t *testing.T) {
+	unmasked := readParams()
+	unmasked.Unmask = true
+	off := newRig(t, rigOpts{auto: true})
+	mustRefused(t, off.call(MethodRun, unmasked), "E_UNMASK_OFF")
+	if off.reader.reads != 0 || off.io.promptCount() != 0 {
+		t.Fatalf("off: reads %d prompts %d", off.reader.reads, off.io.promptCount())
+	}
+	mustRefused(t, off.call(MethodRun, Params{Op: "queues", Unmask: true}), "E_BAD_ARGS")
+
+	r := newRig(t, rigOpts{auto: true, allowUnmask: true, answers: []string{"y"}})
+	var pl Plan
+	if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodPlan, unmasked))), &pl); err != nil {
+		t.Fatal(err)
+	}
+	if pl.Verdict != "prompt-every-time" || !strings.Contains(strings.Join(pl.Screen, "\n"), "UNMASKED") {
+		t.Fatalf("plan %+v", pl)
+	}
+	out := mustOK(t, r.call(MethodRun, unmasked))
+	if r.io.promptCount() != 1 || !strings.Contains(out, "alice@example.com") || !strings.Contains(out, "C-778899") {
+		t.Fatalf("prompts %d out %s", r.io.promptCount(), out)
+	}
+	if !strings.Contains(r.auditLog(), `"unmasked":true`) || strings.Contains(r.auditLog(), "alice") {
+		t.Errorf("audit: %s", r.auditLog())
+	}
+	// A masked read in the same console stays masked and unprompted.
+	if out := mustOK(t, r.call(MethodRun, readParams())); strings.Contains(out, "alice@example.com") || r.io.promptCount() != 1 {
+		t.Errorf("masked read: prompts %d out %s", r.io.promptCount(), out)
+	}
+}
+
+// With results on (Ctrl-O), the console prints the clear messages; the
+// client still gets them masked.
+func TestShowResults(t *testing.T) {
+	r := newRig(t, rigOpts{auto: true, showResults: true})
+	out := mustOK(t, r.call(MethodRun, readParams()))
+	if strings.Contains(out, "alice@example.com") {
+		t.Fatalf("client got clear text: %s", out)
+	}
+	if !strings.Contains(r.io.output(), "alice@example.com") || !strings.Contains(r.io.output(), "shown here only") {
+		t.Errorf("console:\n%s", r.io.output())
+	}
+	hidden := newRig(t, rigOpts{auto: true})
+	mustOK(t, hidden.call(MethodRun, readParams()))
+	if strings.Contains(hidden.io.output(), "alice@example.com") {
+		t.Errorf("results off, console shows clear text:\n%s", hidden.io.output())
+	}
+}
+
 // op.plan is a dry run: a verdict, the screen, no prompt, no broker write.
 func TestPlanIsDryRun(t *testing.T) {
 	r := newRig(t, rigOpts{tier: "peek"})
@@ -206,6 +300,40 @@ func TestPIIAdd(t *testing.T) {
 	}
 	if out := mustOK(t, r.call(MethodRun, readParams())); !strings.Contains(out, `"total":12.5`) {
 		t.Errorf("allowed path masked: %s", out)
+	}
+}
+
+// status shows the profile's tier, from the approved policy: an edit of
+// the files to tier peek awaits the human and does not show.
+func TestStatusShowsTier(t *testing.T) {
+	tier := func(r *rig) string {
+		t.Helper()
+		var st struct {
+			Product map[string]any `json:"product"`
+		}
+		if err := json.Unmarshal([]byte(mustOK(t, r.call(ipc.MethodStatus, nil))), &st); err != nil {
+			t.Fatal(err)
+		}
+		s, _ := st.Product["tier"].(string)
+		return s
+	}
+	if got := tier(newRig(t, rigOpts{tier: "peek"})); got != "peek" {
+		t.Errorf("peek profile: tier %q", got)
+	}
+	r := newRig(t, rigOpts{})
+	if got := tier(r); got != "read" {
+		t.Errorf("read profile: tier %q", got)
+	}
+	pol, err := r.be.LoadPolicy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := kconfig.SaveApproved(product.P, r.state, kconfig.ApprovedKey(r.root, "uat"), pol); err != nil {
+		t.Fatal(err)
+	}
+	writeProject(t, r.root, r.broker.srv.URL, rigOpts{tier: "peek"})
+	if got := tier(r); got != "read" {
+		t.Errorf("unapproved edit to peek shows tier %q", got)
 	}
 }
 

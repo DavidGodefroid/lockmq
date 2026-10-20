@@ -65,12 +65,12 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("body_mode on production = %q, want redact-unknown", prod.BodyMode)
 	}
 
-	explicit, err := parseOne(t, minimal+"detectors = []\n[profiles.main.limits]\ndelivery_headroom = 0\n")
+	explicit, err := parseOne(t, minimal+"detectors = []\n[profiles.main.limits]\ndelivery_headroom = 1\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(explicit.Detectors) != 0 || explicit.Limits.DeliveryHeadroom != 0 {
-		t.Errorf("explicit empty detectors / headroom 0 not kept: %v %d", explicit.Detectors, explicit.Limits.DeliveryHeadroom)
+	if len(explicit.Detectors) != 0 || explicit.Limits.DeliveryHeadroom != 1 {
+		t.Errorf("explicit empty detectors / headroom 1 not kept: %v %d", explicit.Detectors, explicit.Limits.DeliveryHeadroom)
 	}
 }
 
@@ -130,6 +130,11 @@ func TestRefusals(t *testing.T) {
 		{"body_mode", minimal + `body_mode = "clear"` + "\n", "body_mode"},
 		{"detector", minimal + `detectors = ["shoe_size"]` + "\n", "detector"},
 		{"negative", minimal + "[profiles.main.limits]\nlist_page_size = -1\n", "list_page_size"},
+		{"headroom 0", minimal + "[profiles.main.limits]\ndelivery_headroom = 0\n", "delivery_headroom"},
+		{"headroom negative", minimal + "[profiles.main.limits]\ndelivery_headroom = -1\n", "delivery_headroom"},
+		{"vhost dot-dot", minimal + "vhosts = [\"..\"]\n", "vhosts"},
+		{"vhost dot", minimal + "vhosts = [\".\"]\n", "vhosts"},
+		{"vhost dot-dot inside", minimal + "vhosts = [\"a/../b\"]\n", "vhosts"},
 		{"vault without path", minimal + `credentials = "vault"` + "\n", "vault_path"},
 		{"prod name", "[profiles.y]\nurl = \"https://h\"\nproduction = true\n", "production"},
 		{"control char", minimal + "vhosts = [\"a\\u001bb\"]\n", "vhosts"},

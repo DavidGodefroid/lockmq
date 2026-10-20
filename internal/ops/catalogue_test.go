@@ -138,14 +138,20 @@ func TestFieldsFiltered(t *testing.T) {
 	}
 	b, _ := json.Marshal(res)
 	out := string(b)
-	for _, gone := range []string{"backing_queue_status", "secret_internal", "garbage_collection", "exclusive_consumer_tag", "amq.ctag-should-go", "head_message_timestamp"} {
+	for _, gone := range []string{"backing_queue_status", "secret_internal", "garbage_collection", "exclusive_consumer_tag", "amq.ctag-should-go", "head_message_timestamp", "192.0.2.10", "drop me too"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("%q kept: %s", gone, out)
 		}
 	}
-	for _, kept := range []string{`"messages_ready":1204`, `"x-delivery-limit":20`, `"delivery-limit":10`, `"policy":"dlq-limits"`, `"rate":0.4`, `"type":"quorum"`} {
+	for _, kept := range []string{`"messages_ready":1204`, `"x-delivery-limit":20`, `"delivery-limit":10`, `"policy":"dlq-limits"`, `"rate":0.4`, `"type":"quorum"`, `"consumer_tag":"retry-worker-1"`} {
 		if !strings.Contains(out, kept) {
 			t.Errorf("%q dropped: %s", kept, out)
+		}
+	}
+	// The queue's own consumer_details, never the vhost-wide consumer list.
+	for _, c := range f.calls {
+		if strings.HasPrefix(c, "consumers:") {
+			t.Errorf("vhost-wide consumers fetched: %v", f.calls)
 		}
 	}
 }
@@ -168,6 +174,49 @@ func TestConnectionsFiltered(t *testing.T) {
 		if !strings.Contains(out, kept) {
 			t.Errorf("%q dropped: %s", kept, out)
 		}
+	}
+}
+
+// Free text a client sets on its connection goes through the profile's
+// detectors.
+func TestConnectionTextDetected(t *testing.T) {
+	p := profile("orders", "payments")
+	p.Detectors = []string{"email"}
+	res, err := Catalogue()["connections"].Run(context.Background(), Deps{Mgmt: &fakeMgmt{}, Profile: p}, Args{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(res)
+	if out := string(b); strings.Contains(out, "jane.doe@example.com") || !strings.Contains(out, "order-service-7f9") {
+		t.Errorf("out: %s", out)
+	}
+}
+
+// Names that are or hold a dot segment are refused before any call, on a
+// profile that serves every vhost too.
+func TestDotSegmentsRefused(t *testing.T) {
+	f := &fakeMgmt{}
+	d := Deps{Mgmt: f, Profile: profile()}
+	for _, c := range []struct {
+		op string
+		a  Args
+	}{
+		{"queues", Args{VHost: ".."}},
+		{"queue", Args{VHost: "..", Target: "definitions"}},
+		{"queue", Args{Target: ".."}},
+		{"exchanges", Args{VHost: "."}},
+		{"bindings", Args{Target: "exchange:.."}},
+		{"policies", Args{VHost: "a/../b"}},
+		{"stream", Args{Target: "../users"}},
+	} {
+		_, err := Catalogue()[c.op].Run(context.Background(), d, c.a)
+		var re *refusal.Error
+		if !errors.As(err, &re) || re.Code != CodeUnsafeName {
+			t.Errorf("%s %+v: error = %v", c.op, c.a, err)
+		}
+	}
+	if len(f.calls) != 0 {
+		t.Errorf("calls made: %v", f.calls)
 	}
 }
 
