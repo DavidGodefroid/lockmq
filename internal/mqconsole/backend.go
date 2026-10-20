@@ -180,7 +180,9 @@ func (b *Backend) Checks(_ context.Context, _ console.Session) []console.Finding
 	return out
 }
 
-// Status implements console.Backend.
+// Status implements console.Backend: the broker side of the session and
+// the profile's tier (design §5.4), read from the approved policy the
+// console keeps up to date as it tightens or applies a change.
 func (b *Backend) Status(console.Session) any {
 	s := b.session()
 	if s == nil {
@@ -188,6 +190,9 @@ func (b *Backend) Status(console.Session) any {
 	}
 	_, via := s.reader()
 	out := map[string]any{"broker_version": s.version, "user": s.user, "tags": slices.Clone(s.tags)}
+	if pol, err := b.inForce(); err == nil {
+		out["tier"] = pol.Policy.Profile.Tier.String()
+	}
 	if via != "" {
 		out["stream_reads_via"] = via
 	}

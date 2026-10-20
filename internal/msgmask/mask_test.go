@@ -192,6 +192,66 @@ func TestOpaqueBodies(t *testing.T) {
 	}
 }
 
+// TestUndeclaredBrokenJSONFailsClosed: a body without content type that
+// looks like JSON but does not parse (a DLQ message cut by peek, or just
+// malformed) is opaque under redact-unknown: names and streets are no
+// detector's business, so text masking would leave them in clear.
+func TestUndeclaredBrokenJSONFailsClosed(t *testing.T) {
+	refs := &pii.RefStore{}
+	record := `{"name":"Jane Doe","street":"12 Elm Road","note":"` + strings.Repeat("x", 300) + `"},`
+	full := "[" + strings.Repeat(record, 300) // ~100 KiB, unterminated
+	for name, msg := range map[string]Message{
+		"malformed": {Body: []byte(`{"name":"Jane Doe","street":"12 Elm Road"`)},
+		"large cut": {Body: []byte(full[:4*16384])},
+	} {
+		res := NewMasker(Rules{}, detectors(t), "redact-unknown", refs, 16384).Mask(refs.Begin(), "orders", "orders.dlq", msg)
+		body, ok := res.Body.(string)
+		if !ok || !strings.HasPrefix(body, "<bytes:") || !strings.Contains(body, "type:unknown") {
+			t.Errorf("%s: body = %.80v", name, res.Body)
+		}
+		if s := out(t, res); strings.Contains(s, "Jane") || strings.Contains(s, "Elm") {
+			t.Errorf("%s: clear text: %.200s", name, s)
+		}
+	}
+	// detect mode keeps the text fallback: detectors only, as for text.
+	res := NewMasker(Rules{}, detectors(t), "detect", refs, 16384).Mask(refs.Begin(), "orders", "q",
+		Message{Body: []byte(`{"mail":"alice@example.com"`)})
+	if s, ok := res.Body.(string); !ok || strings.Contains(s, "alice@example.com") || !strings.Contains(s, `{"mail":`) {
+		t.Errorf("detect fallback: body = %v", res.Body)
+	}
+}
+
+// TestCutBodyOpaque: a body the source shortened is opaque whatever its
+// declared type and the body mode.
+func TestCutBodyOpaque(t *testing.T) {
+	refs := &pii.RefStore{}
+	for _, mode := range []string{"redact-unknown", "detect"} {
+		for _, ct := range []string{"", "text/plain", "application/json"} {
+			msg := Message{Body: []byte(`{"name":"Jane Doe"}`), ContentType: ct, Cut: true}
+			res := NewMasker(Rules{}, detectors(t), mode, refs, 16384).Mask(refs.Begin(), "orders", "q", msg)
+			body, ok := res.Body.(string)
+			if !ok || !strings.HasPrefix(body, "<bytes:") || !strings.Contains(body, "+truncated") {
+				t.Errorf("%s %q: body = %.80v", mode, ct, res.Body)
+			}
+		}
+	}
+}
+
+func TestClear(t *testing.T) {
+	msg := jsonMsg(`{"email":"alice@example.com"}`)
+	msg.Headers = map[string]any{"x-customer-ref": "C-1"}
+	res := Clear(msg, 16384)
+	if b, ok := res.Body.(map[string]any); !ok || b["email"] != "alice@example.com" || res.Headers["x-customer-ref"] != "C-1" {
+		t.Errorf("clear = %+v", res)
+	}
+	if res := Clear(Message{Body: []byte(`{"name":"Jane`), Cut: true}, 16384); res.Body != `{"name":"Jane` || !res.Truncated {
+		t.Errorf("cut = %+v", res)
+	}
+	if s, _ := Clear(Message{Body: []byte{0xff, 0x00}}, 16384).Body.(string); !strings.HasPrefix(s, "<bytes:") {
+		t.Errorf("binary = %q", s)
+	}
+}
+
 func TestTextBody(t *testing.T) {
 	refs := &pii.RefStore{}
 	m := NewMasker(Rules{}, detectors(t), "redact-unknown", refs, 16384)

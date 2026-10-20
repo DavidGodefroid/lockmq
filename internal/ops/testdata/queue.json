@@ -29,5 +29,10 @@
   "backing_queue_status": {"secret_internal": "drop me"},
   "garbage_collection": {"max_heap_size": 0},
   "head_message_timestamp": 1760870400,
-  "exclusive_consumer_tag": "amq.ctag-should-go"
+  "exclusive_consumer_tag": "amq.ctag-should-go",
+  "consumer_details": [
+    {"queue": {"name": "orders.failed", "vhost": "orders"}, "consumer_tag": "retry-worker-1", "ack_required": true,
+     "prefetch_count": 10, "active": true, "activity_status": "up", "exclusive": false, "arguments": {},
+     "channel_details": {"peer_host": "192.0.2.10", "connection_name": "drop me too"}}
+  ]
 }

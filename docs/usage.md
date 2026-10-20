@@ -88,8 +88,8 @@ Keys and commands while it runs (lockkit's console):
 | `:review` | show the pending loosening and the change requests of clients, apply or refuse |
 | `:status` | the policy in force, the session |
 | Shift+Tab, `:mode` | auto mode on/off (never on production; never for `peek`) |
-| Ctrl-O, `:results` | show results in clear in the console (the agent still gets them masked) |
-| `:unmask` | let clients ask for unmasked output, each request approved |
+| Ctrl-O, `:results` | print each read and peek result in clear in the console (the agent still gets it masked) |
+| `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved here, never auto-approved |
 | `:quit`, Ctrl-C | end the session |
 
 The session ends after `idle_timeout` without a request, after
@@ -104,19 +104,19 @@ console (the start command is printed), 3 usage or configuration error.
 
 | Command | Does |
 |---|---|
-| `lockmq status` | the console of each profile: running, production, tier, broker version |
+| `lockmq status` | the console of each profile: running, production, tier (of a running console, from the approved policy), broker version |
 | `lockmq overview` | broker version, nodes and their alarms, feature flags, totals |
 | `lockmq queues [--vhost V] [--filter GLOB] [--sort K] [--page N]` | one page of queues; sort by `name`, `messages`, `messages_ready`, `messages_unacknowledged`, `consumers` |
-| `lockmq queue NAME [--vhost V]` | one queue with its arguments, policy, bindings and consumers |
+| `lockmq queue NAME [--vhost V]` | one queue with its arguments, policy, bindings and its own consumers |
 | `lockmq exchanges [--vhost V] [--page N]` | one page of exchanges |
 | `lockmq bindings [--vhost V] [--queue Q \| --exchange E]` | bindings of a vhost, a queue, or an exchange (both directions) |
 | `lockmq policies [--vhost V]` | policies, operator policies, runtime parameters (URI passwords removed) |
-| `lockmq consumers [--vhost V]` | consumers with prefetch and ack mode |
-| `lockmq connections [--page N]`, `lockmq channels [--page N]` | on the served vhosts only |
+| `lockmq consumers [--vhost V]` | consumers with prefetch and ack mode (one unpaginated call: on a very large vhost use `queue NAME`) |
+| `lockmq connections [--page N]`, `lockmq channels [--page N]` | on the served vhosts only; user and connection names through the detectors |
 | `lockmq stream NAME [--vhost V]` | a stream's queue data and first/last offsets |
 | `lockmq stream-offset NAME --consumer REF [--vhost V]` | a named consumer's stored offset and its lag |
-| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--intent TEXT] [--dry-run]` | stream messages, masked; approved in the console |
-| `lockmq peek QUEUE [--count N] [--intent TEXT] [--dry-run]` | NOT read-only; tier `peek` only; approved every time |
+| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--intent TEXT] [--unmask] [--dry-run]` | stream messages, masked; approved in the console |
+| `lockmq peek QUEUE [--count N] [--intent TEXT] [--unmask] [--dry-run]` | NOT read-only; tier `peek` only; approved every time |
 | `lockmq pii list`, `lockmq pii add "RULE"` | the mask and allow rules; add a mask rule |
 | `lockmq request "CHANGE"` | queue a change for the human (`tier=peek`, `limits.read_max=50`) |
 | `lockmq logout` | end the console's session |
@@ -128,6 +128,15 @@ asking you anything and without reading a message: `run`, `auto`, `prompt`,
 A mask rule's text: `queue=VHOST/GLOB` (or `exchange=`), then one of
 `body=$.json.path`, `header=NAME-GLOB` or `property=NAME`, e.g.
 `queue=orders/* body=$.customer.email`. The vhost `/` is written `//name`.
+
+The broker reports stream positions per chunk: `last_offset` is the first
+offset of the stream's last committed chunk, so the stream can hold up to one
+chunk more and a lag can be that much higher (`precision` in the output).
+
+`--unmask` asks for the messages in clear. It is refused (`E_UNMASK_OFF`)
+unless you allowed it in the console (`:unmask` or `--allow-unmask`); allowed,
+the request shows `PII: UNMASKED` on its screen, is approved every time, even
+in auto mode, and its audit record says `"unmasked":true`.
 
 `--intent` is one line telling you why; it is shown on the approval screen
 and kept in the audit log.
@@ -154,6 +163,8 @@ sends progress notifications so the client does not time out.
 | `E_PROTOCOL_NOT_CONFIGURED` | ask the user | set `stream_url` or `amqp_url` |
 | `E_TIER` | ask the user | `peek` on a profile with tier `read` |
 | `E_DELIVERY_LIMIT` | ask the user | a peek could dead-letter or drop messages of this quorum queue |
+| `E_UNMASK_OFF` | ask the user | `--unmask` while unmasked output is off in the console |
+| `E_UNSAFE_NAME` | stop | a vhost or name that is, or holds, a `.` or `..` path segment |
 | `E_POLICY` | stop | anything else the policy refuses |
 
 ## Doctor

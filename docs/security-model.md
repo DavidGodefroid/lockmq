@@ -50,7 +50,11 @@ Never: `/api/definitions`, `/api/users*` (password hashes), other users'
 `/api/permissions*`, any other non-GET endpoint, `basic.get`,
 `basic.publish`, a declare, a delete, a purge, `store_offset`,
 `ack_requeue_false` or `reject_requeue_false`. Every management URL path
-segment is escaped (a queue `a/b` on vhost `/` is `/api/queues/%2F/a%2Fb`).
+segment is escaped (a queue `a/b` on vhost `/` is `/api/queues/%2F/a%2Fb`),
+and a vhost or name that is, or holds between slashes, a `.` or `..` segment
+is refused before any request (`E_UNSAFE_NAME`; in the config, at load): an
+HTTP server or proxy that removes dot segments would otherwise route
+`/api/queues/../definitions` outside the allowlist.
 
 ## The broker user
 
@@ -95,12 +99,26 @@ federation) lose their userinfo before they reach a client.
   Headers and properties follow rules and heuristics; `x-death` keeps its
   structure with routing keys through the detectors. Bodies that are binary,
   compressed, invalid JSON, deeper than 64 levels or larger than four times
-  `max_body_bytes` become `<bytes:N sha256:H type:T>`. Redacted values become
+  `max_body_bytes` become `<bytes:N sha256:H type:T>`; so does a body without
+  content type that looks like JSON but does not parse, under
+  `redact-unknown` (under `detect` it is text, through the detectors), and
+  any body the broker cut short (a peek asks for at most four times
+  `max_body_bytes`): `type:…+truncated`. Properties (`message_id`,
+  `correlation_id`, …) follow rules, the name heuristic and the detectors,
+  not `redact-unknown`. Redacted values become
   `<redacted:rN.K>` references (same value, same reference within a result);
   the values stay in the console's memory.
 - **Dead-letter queues.** Mask rules of the queue read, of the origin queue
   in a message's first `x-death` and of its exchange apply; allow rules only
   from the queue read: a forged header can only add masking.
+- **Clear output.** With results on (Ctrl-O, `--show-results`) the console
+  prints each read and peek result in clear in its own terminal; the agent
+  still gets it masked. Unmasked output to a client (`--unmask`) is refused
+  unless the human allowed it in the console (`:unmask`,
+  `--allow-unmask`); each such request shows `PII: UNMASKED`, is approved
+  every time, never by auto mode, and is audited `"unmasked":true`.
+- **Free text in the catalogue.** Connection and channel user names and
+  client properties (a connection name) go through the profile's detectors.
 - **Size.** At most `read_max` (≤ 200) or `peek_max` (≤ 20) messages, each
   body cut at `max_body_bytes`, the answer cut at `max_output_bytes`
   (messages dropped from the end and counted).
@@ -121,7 +139,9 @@ the profile's tier is `peek` (setting it is a loosening the human confirms;
   peek when `limit - highest seen <= delivery_headroom` or when the limit
   itself is at or under the headroom. Each requeue raises the count by one,
   and the message leaves the queue on the requeue that takes it over the
-  limit (verified on 3.13 and 4.1);
+  limit (verified on 3.13 and 4.1): the next get shows `seen + 1` and its
+  requeue makes it `seen + 2`, so `delivery_headroom` is at least 1 (0 is
+  refused at load) and the last peek allowed is at `seen = limit - 2`;
 - the first peek of a queue is blind on the count (it is only known after a
   `get`); the screen says so.
 
@@ -136,7 +156,8 @@ the profile's tier is `peek` (setting it is a loosening the human confirms;
 | Password hashes or URI passwords leak | those endpoints never called; userinfo stripped from every URI |
 | PII in bodies of unknown shape | `redact-unknown` on production; detectors; proposals of mask rules |
 | Prompt injection in payloads | results framed as untrusted data |
-| Broker overload | paginated lists with selected columns, one request at a time, `request_timeout`, `read_max` |
+| Endpoint allowlist escaped through `.`/`..` path segments | such names refused before any request, and in the config |
+| Broker overload | paginated lists with selected columns, one request at a time, `request_timeout`, `read_max`; `queue` reads its own consumers, not the vhost's |
 | Agent reads the console's terminal or types into it | separate account and session; same-user mode refused |
 
 ## Limits
@@ -150,6 +171,10 @@ the profile's tier is `peek` (setting it is a loosening the human confirms;
   unacked messages are invisible to a peek, and a peek cannot know the next
   message's delivery count before taking it.
 - Through an ssh tunnel streams are read over AMQP; offsets and lag need the
-  stream protocol and are unavailable.
+  stream protocol and are unavailable. The stream protocol reports chunk ids:
+  the last offset and a lag are precise to one chunk.
+- `consumers` and vhost-wide `bindings` are single unpaginated management
+  calls (the API does not page them): on a very large vhost they can exceed
+  the response cap; use `queue NAME` or `bindings --queue/--exchange`.
 - The audit log is append-only by convention (`chattr +a` on Linux makes it
   so for the console account too); there is no hash chain.

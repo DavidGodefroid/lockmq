@@ -89,7 +89,7 @@
 </section>
 <section aria-labelledby="see-values">
   <h2 id="see-values">Can I see the real values myself?</h2>
-  <p>Not in v0.1: results are masked for the agent, and the console does not print them in clear yet. Clear results in the console and unmasked output on request, as locksql has, are on the roadmap.</p>
+  <p>Yes, in the console only. Press Ctrl-O (or type <code>:results</code>) and the console prints each read and peek result in clear in its own terminal, while the agent still gets it masked. To let the agent itself receive clear values, type <code>:unmask</code>: a request with <code>--unmask</code> then shows <code>PII: UNMASKED</code> on its screen and is approved by you every time, never by auto mode. Both switches are console-only and audited.</p>
 </section>
 <section aria-labelledby="purge">
   <h2 id="purge">What permissions should the broker user have?</h2>

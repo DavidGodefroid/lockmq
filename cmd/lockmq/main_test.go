@@ -130,11 +130,13 @@ func TestCLIRequests(t *testing.T) {
 	conn := &fakeConn{}
 	_, out, _ := runWith(t, root, conn, nil, "", "bindings", "--exchange", "orders")
 	_, _, _ = runWith(t, root, conn, nil, "", "peek", "orders.failed", "--count", "2", "--intent", "why", "--dry-run")
+	_, _, _ = runWith(t, root, conn, nil, "", "read", "order-events", "--from", "first", "--unmask")
 	_, _, _ = runWith(t, root, conn, nil, "", "pii", "add", "queue=*/* header=x-ref")
 	_, _, _ = runWith(t, root, conn, nil, "", "request", "tier=peek")
 	want := []string{
 		`op.run {"op":"bindings","target":"exchange:orders"}`,
 		`op.plan {"op":"peek","target":"orders.failed","count":2,"intent":"why"}`,
+		`op.run {"op":"read","target":"order-events","from":"first","unmask":true}`,
 		`pii.add {"pattern":"queue=*/* header=x-ref"}`,
 		`change.request {"change":"tier=peek"}`,
 	}

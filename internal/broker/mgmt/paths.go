@@ -34,7 +34,7 @@ func fill(tmpl string, segs []string) (string, error) {
 		if part != "{v}" && part != "{n}" {
 			continue
 		}
-		if i >= len(segs) || segs[i] == "" {
+		if i >= len(segs) || segs[i] == "" || DotSegment(segs[i]) {
 			return "", errPath
 		}
 		parts[j] = url.PathEscape(segs[i])
@@ -44,4 +44,17 @@ func fill(tmpl string, segs []string) (string, error) {
 		return "", errPath
 	}
 	return strings.Join(parts, "/"), nil
+}
+
+// DotSegment reports a name that is, or holds between slashes, a "." or
+// ".." path segment. url.PathEscape leaves dots alone, and an HTTP server
+// or proxy that removes dot segments (after decoding %2F, for some) would
+// route such a path outside the allowlist: it is refused, never escaped.
+func DotSegment(s string) bool {
+	for _, part := range strings.Split(s, "/") {
+		if part == "." || part == ".." {
+			return true
+		}
+	}
+	return false
 }
