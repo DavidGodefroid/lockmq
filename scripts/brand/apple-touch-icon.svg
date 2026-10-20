@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <defs><linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F97316"/><stop offset="1" stop-color="#C2410C"/></linearGradient><linearGradient id="shackle" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5EEAD4"/><stop offset="1" stop-color="#14B8A6"/></linearGradient></defs>
+  <rect width="180" height="180" fill="#0F172A"/>
+  <g transform="translate(13 13) scale(1.2)"><path d="M42 54 V38 a22 22 0 0 1 44 0 V54" fill="none" stroke="url(#shackle)" stroke-width="11" stroke-linecap="round"/><rect x="20" y="54" width="88" height="58" rx="12" fill="url(#body)"/><rect x="32" y="70" width="14" height="10" rx="2" fill="#FFEDD5"/><rect x="50" y="70" width="14" height="10" rx="2" fill="#FFEDD5" fill-opacity=".8"/><rect x="68" y="70" width="14" height="10" rx="2" fill="#FFEDD5" fill-opacity=".6"/><rect x="86" y="70" width="10" height="10" rx="2" fill="#FFEDD5" fill-opacity=".4"/><circle cx="64" cy="92" r="6" fill="#0F172A"/><path d="M61 95 L59.5 104 H68.5 L67 95 Z" fill="#0F172A"/></g>
+</svg>

@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="lockmq: Claude Code lists RabbitMQ queues through lockmq, then asks to read a stream; the lockmq console, in its own account, asks the human to approve, and the agent gets the messages back with the customer's email masked.">
+<title>lockmq: your AI reads the queue, you hold the key</title>
+<style>@keyframes k1{0.00%{opacity:0} 2.14%{opacity:0} 3.57%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k1{animation:k1 14.0s linear infinite}
+@keyframes k2{0.00%{opacity:0} 7.86%{opacity:0} 9.29%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k2{animation:k2 14.0s linear infinite}
+@keyframes k3{0.00%{opacity:0} 15.00%{opacity:0} 16.43%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k3{animation:k3 14.0s linear infinite}
+@keyframes k4{0.00%{opacity:0} 15.00%{opacity:0} 16.43%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k4{animation:k4 14.0s linear infinite}
+@keyframes k5{0.00%{opacity:0} 15.00%{opacity:0} 16.43%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k5{animation:k5 14.0s linear infinite}
+@keyframes k6{0.00%{opacity:0} 20.00%{opacity:0} 21.43%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k6{animation:k6 14.0s linear infinite}
+@keyframes k7{0.00%{opacity:0} 20.00%{opacity:0} 21.43%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k7{animation:k7 14.0s linear infinite}
+@keyframes k8{0.00%{opacity:0} 26.43%{opacity:0} 27.86%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k8{animation:k8 14.0s linear infinite}
+@keyframes k9{0.00%{opacity:0} 26.43%{opacity:0} 27.86%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k9{animation:k9 14.0s linear infinite}
+@keyframes k10{0.00%{opacity:0} 28.57%{opacity:0} 30.00%{opacity:1} 50.00%{opacity:1} 51.43%{opacity:0} 100.00%{opacity:0}}
+.k10{animation:k10 14.0s linear infinite}
+@keyframes k11{0.00%{opacity:0} 52.14%{opacity:0} 53.57%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k11{animation:k11 14.0s linear infinite}
+@keyframes k12{0.00%{opacity:0} 53.57%{opacity:0} 55.00%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k12{animation:k12 14.0s linear infinite}
+@keyframes k13{0.00%{opacity:0} 53.57%{opacity:0} 55.00%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k13{animation:k13 14.0s linear infinite}
+@keyframes k14{0.00%{opacity:0} 53.57%{opacity:0} 55.00%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k14{animation:k14 14.0s linear infinite}
+@keyframes k15{0.00%{opacity:0} 54.29%{opacity:0} 55.71%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k15{animation:k15 14.0s linear infinite}
+@keyframes k16{0.00%{opacity:0} 61.43%{opacity:0} 62.86%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k16{animation:k16 14.0s linear infinite}
+@keyframes k17{0.00%{opacity:0} 61.43%{opacity:0} 62.86%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k17{animation:k17 14.0s linear infinite}
+@keyframes k18{0.00%{opacity:0} 61.43%{opacity:0} 62.86%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k18{animation:k18 14.0s linear infinite}
+@keyframes k19{0.00%{opacity:0} 31.43%{opacity:0} 32.86%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k19{animation:k19 14.0s linear infinite}
+@keyframes k20{0.00%{opacity:0} 32.86%{opacity:0} 34.29%{opacity:1} 95.71%{opacity:1} 97.14%{opacity:0} 100.00%{opacity:0}}
+.k20{animation:k20 14.0s linear infinite}
+@keyframes k21{0.00%{opacity:0} 44.29%{opacity:0} 44.64%{opacity:1} 95.71%{opacity:1} 96.07%{opacity:0} 100.00%{opacity:0}}
+.k21{animation:k21 14.0s linear infinite}
+@keyframes k22{0.00%{opacity:0} 33.57%{opacity:0} 33.64%{opacity:1} 37.14%{opacity:1} 37.21%{opacity:0} 40.00%{opacity:0} 40.07%{opacity:1} 44.21%{opacity:1} 44.29%{opacity:0} 100.00%{opacity:0}}
+.k22{animation:k22 14.0s linear infinite}
+@keyframes k23{0.00%{opacity:0} 34.29%{opacity:0} 35.00%{opacity:1} 44.29%{opacity:1} 45.00%{opacity:0} 100.00%{opacity:0}}
+.k23{animation:k23 14.0s linear infinite}
+@keyframes k24{0.00%{transform:translate(440px,100px);opacity:0} 8.57%{transform:translate(440px,100px);opacity:0} 8.93%{transform:translate(440px,100px);opacity:1} 12.14%{transform:translate(760px,100px);opacity:1} 13.21%{transform:translate(760px,100px);opacity:0} 100.00%{transform:translate(760px,100px);opacity:0}}
+.k24{animation:k24 14.0s linear infinite}
+@keyframes k25{0.00%{transform:translate(760px,100px);opacity:0} 12.86%{transform:translate(760px,100px);opacity:0} 13.21%{transform:translate(760px,100px);opacity:1} 15.00%{transform:translate(420px,150px);opacity:1} 16.07%{transform:translate(420px,150px);opacity:0} 100.00%{transform:translate(420px,150px);opacity:0}}
+.k25{animation:k25 14.0s linear infinite}
+@keyframes k26{0.00%{transform:translate(440px,210px);opacity:0} 27.14%{transform:translate(440px,210px);opacity:0} 27.50%{transform:translate(440px,210px);opacity:1} 30.71%{transform:translate(760px,230px);opacity:1} 31.79%{transform:translate(760px,230px);opacity:0} 100.00%{transform:translate(760px,230px);opacity:0}}
+.k26{animation:k26 14.0s linear infinite}
+@keyframes k27{0.00%{transform:translate(760px,470px);opacity:0} 45.71%{transform:translate(760px,470px);opacity:0} 46.07%{transform:translate(760px,470px);opacity:1} 48.57%{transform:translate(760px,300px);opacity:1} 49.64%{transform:translate(760px,300px);opacity:0} 100.00%{transform:translate(760px,300px);opacity:0}}
+.k27{animation:k27 14.0s linear infinite}
+@keyframes k28{0.00%{transform:translate(760px,300px);opacity:0} 49.29%{transform:translate(760px,300px);opacity:0} 49.64%{transform:translate(760px,300px);opacity:1} 52.14%{transform:translate(420px,260px);opacity:1} 53.21%{transform:translate(420px,260px);opacity:0} 100.00%{transform:translate(420px,260px);opacity:0}}
+.k28{animation:k28 14.0s linear infinite}
+@keyframes k29{0.00%{opacity:0} 0.36%{opacity:0} 1.79%{opacity:1} 24.29%{opacity:1} 25.71%{opacity:0} 100.00%{opacity:0}}
+.k29{animation:k29 14.0s linear infinite}
+@keyframes k30{0.00%{opacity:0} 26.07%{opacity:0} 27.50%{opacity:1} 44.29%{opacity:1} 45.71%{opacity:0} 100.00%{opacity:0}}
+.k30{animation:k30 14.0s linear infinite}
+@keyframes k31{0.00%{opacity:0} 46.07%{opacity:0} 47.50%{opacity:1} 94.29%{opacity:1} 95.71%{opacity:0} 100.00%{opacity:0}}
+.k31{animation:k31 14.0s linear infinite}
+@media (prefers-reduced-motion: reduce){*{animation-delay:-8.8s!important;animation-play-state:paused!important}}</style>
+<rect width="1200" height="640" rx="24" fill="#0b1120"/>
+<rect x="24" y="32" width="500" height="516" rx="12" fill="#020617" stroke="#253047" stroke-width="1.5"/>
+<path d="M24 44 a12 12 0 0 1 12 -12 h476 a12 12 0 0 1 12 12 v18 h-500 z" fill="#0f172a"/>
+<circle cx="42" cy="47" r="5" fill="#f87171" fill-opacity=".7"/>
+<circle cx="58" cy="47" r="5" fill="#facc15" fill-opacity=".7"/>
+<circle cx="74" cy="47" r="5" fill="#4ade80" fill-opacity=".7"/>
+<text x="94" y="52" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#94a3b8" font-weight="600" text-anchor="start" xml:space="preserve">✻ Claude Code</text>
+<text x="510" y="52" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#64748b" font-weight="400" text-anchor="end" xml:space="preserve">account alice</text>
+<text x="40" y="90" class="k1" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">&gt; </tspan><tspan fill="#e2e8f0">which queues in orders have no consumer?</tspan></text>
+<text x="40" y="109" class="k2" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#4ade80">● </tspan><tspan fill="#e2e8f0">lockmq_queues</tspan><tspan fill="#94a3b8">(vhost: "orders")</tspan></text>
+<text x="40" y="128" class="k3" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">  └ </tspan><tspan fill="#94a3b8">orders.failed   quorum   ready 1204  consumers 0</tspan></text>
+<text x="40" y="147" class="k4" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">    </tspan><tspan fill="#94a3b8">orders.retry    classic  ready 0     consumers 1</tspan></text>
+<text x="40" y="166" class="k5" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">    </tspan><tspan fill="#94a3b8">order-events    stream             consumers 2</tspan></text>
+<text x="40" y="185" class="k6" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#e2e8f0">● </tspan><tspan fill="#e2e8f0">orders.failed has no consumer: 1204 waiting.</tspan></text>
+<text x="40" y="204" class="k7" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#e2e8f0">  </tspan><tspan fill="#e2e8f0">Reading the last order events to see why.</tspan></text>
+<text x="40" y="223" class="k8" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#4ade80">● </tspan><tspan fill="#e2e8f0">lockmq_read</tspan><tspan fill="#94a3b8">(name: "order-events", from: "last",</tspan></text>
+<text x="40" y="242" class="k9" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#e2e8f0">             </tspan><tspan fill="#94a3b8">count: 3)</tspan></text>
+<text x="40" y="261" class="k10" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">  └ </tspan><tspan fill="#facc15">waiting for approval in the lockmq console…</tspan></text>
+<text x="40" y="261" class="k11" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">  └ </tspan><tspan fill="#94a3b8">3 messages · untrusted data from the broker</tspan></text>
+<text x="40" y="280" class="k12" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">    </tspan><tspan fill="#e2e8f0">{"order_id": "A-1042", "status": "payment_failed",</tspan></text>
+<text x="40" y="299" class="k13" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">    </tspan><tspan fill="#e2e8f0"> "customer": {"email": </tspan><tspan fill="#5eead4">"&lt;redacted:r1.1&gt;"</tspan><tspan fill="#e2e8f0">},</tspan></text>
+<text x="40" y="318" class="k14" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">    </tspan><tspan fill="#e2e8f0"> "reason": "card_declined"}</tspan></text>
+<text x="40" y="337" class="k15" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#64748b">    </tspan><tspan fill="#64748b">… 2 more, same reason</tspan></text>
+<text x="40" y="356" class="k16" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#e2e8f0">● </tspan><tspan fill="#e2e8f0">The last 3 orders failed on card_declined, and</tspan></text>
+<text x="40" y="375" class="k17" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#e2e8f0">  </tspan><tspan fill="#e2e8f0">nothing consumes orders.failed. I never saw the</tspan></text>
+<text x="40" y="394" class="k18" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" xml:space="preserve"><tspan fill="#e2e8f0">  </tspan><tspan fill="#e2e8f0">customers' emails, only references.</tspan></text>
+<rect x="548" y="32" width="628" height="516" rx="12" fill="#020617" stroke="#253047" stroke-width="1.5"/>
+<path d="M548 44 a12 12 0 0 1 12 -12 h604 a12 12 0 0 1 12 12 v18 h-628 z" fill="#0f172a"/>
+<circle cx="566" cy="47" r="5" fill="#f87171" fill-opacity=".7"/>
+<circle cx="582" cy="47" r="5" fill="#facc15" fill-opacity=".7"/>
+<circle cx="598" cy="47" r="5" fill="#4ade80" fill-opacity=".7"/>
+<text x="618" y="52" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#94a3b8" font-weight="600" text-anchor="start" xml:space="preserve">lockmq console</text>
+<text x="1162" y="52" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#64748b" font-weight="400" text-anchor="end" xml:space="preserve">account lockmq · its own session</text>
+<text x="564" y="90" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#64748b">$ </tspan><tspan fill="#e2e8f0">lockmq console --profile dev --project ~/shop</tspan></text>
+<text x="564" y="109" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#4ade80">✓ </tspan><tspan fill="#e2e8f0">profile </tspan><tspan fill="#e2e8f0">dev</tspan><tspan fill="#e2e8f0"> · mq.example.com:15671 </tspan><tspan fill="#64748b">(approved policy)</tspan></text>
+<text x="564" y="128" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#e2e8f0"></tspan></text>
+<text x="564" y="147" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#fb923c">› </tspan><tspan fill="#e2e8f0">Listening on /run/lockmq/3f9a0c1d-dev.sock</tspan></text>
+<g class="k19"><text x="564" y="185" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">╭─ </tspan><tspan fill="#a78bfa">DEV</tspan><tspan fill="#e2e8f0"> · mq.example.com:15671 / orders · user lockmq-ro · tier read </tspan><tspan fill="#a78bfa">─────</tspan></text><text x="564" y="204" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│ </tspan><tspan fill="#64748b">requested by uid 1000 (alice) · pid 48211 · process "lockmq" (self-reported name)</tspan></text><text x="564" y="223" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│ </tspan><tspan fill="#64748b">agent: see why orders end in orders.failed</tspan></text><text x="564" y="242" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│</tspan></text><text x="564" y="261" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│ </tspan><tspan fill="#e2e8f0">READ stream order-events  from last  max 3</tspan></text><text x="564" y="280" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│</tspan></text><text x="564" y="299" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│ </tspan><tspan fill="#e2e8f0">stream: first offset 0 · last 18342 · via stream protocol</tspan></text><text x="564" y="318" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│ </tspan><tspan fill="#e2e8f0">no offset stored · no message removed</tspan></text><text x="564" y="337" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">│ </tspan><tspan fill="#e2e8f0">PII: masked (1 mask rules, 0 allow rules; body detect; detectors: card, email)</tspan></text></g>
+<text x="564" y="356" class="k20" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" xml:space="preserve"><tspan fill="#a78bfa">╰─ </tspan><tspan fill="#e2e8f0">Approve? [y/N] </tspan></text>
+<text x="694.032" y="356" class="k21" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12" fill="#4ade80" font-weight="700" text-anchor="start" xml:space="preserve">y</text>
+<rect x="694.0" y="345" width="7.2" height="14" fill="#e2e8f0" class="k22"/>
+<g class="k23"><rect x="980" y="341" width="180" height="22" rx="6" fill="#a78bfa"/><text x="1070" y="356" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#020617" font-weight="700" text-anchor="middle" xml:space="preserve">only you can answer</text></g>
+<rect x="564" y="474" width="596" height="58" rx="10" fill="#0f172a" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="580" y="499" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="14" fill="#fb923c" font-weight="700" text-anchor="start" xml:space="preserve">RabbitMQ</text>
+<text x="580" y="518" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#94a3b8" font-weight="400" text-anchor="start" xml:space="preserve">management API · stream protocol · AMQP 0-9-1</text>
+<text x="1144" y="509" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="12" fill="#94a3b8" font-weight="400" text-anchor="end" xml:space="preserve">credentials stay here, in the console</text>
+<rect x="526" y="250.0" width="20" height="80" rx="4" fill="#5eead4" fill-opacity=".85"/>
+<text x="536" y="240.0" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="11" fill="#5eead4" font-weight="700" text-anchor="middle" xml:space="preserve">socket</text>
+<circle r="6" cx="0" cy="0" fill="#5eead4" class="k24"/>
+<circle r="6" cx="0" cy="0" fill="#5eead4" class="k25"/>
+<circle r="6" cx="0" cy="0" fill="#a78bfa" class="k26"/>
+<circle r="6" cx="0" cy="0" fill="#fb923c" class="k27"/>
+<circle r="6" cx="0" cy="0" fill="#5eead4" class="k28"/>
+<text x="600.0" y="600" class="k29" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="26" fill="#e2e8f0" font-weight="650" text-anchor="middle" xml:space="preserve">Your agent asks lockmq. It never holds a password.</text>
+<text x="600.0" y="600" class="k30" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="26" fill="#e2e8f0" font-weight="650" text-anchor="middle" xml:space="preserve">Every message read waits for you, in a console it can't touch.</text>
+<text x="600.0" y="600" class="k31" font-family="Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif" font-size="26" fill="#e2e8f0" font-weight="650" text-anchor="middle" xml:space="preserve">It gets the messages back, masked.</text>
+</svg>
