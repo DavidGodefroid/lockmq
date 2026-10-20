@@ -72,7 +72,10 @@
 <section class="demo-section" aria-labelledby="demo">
   <h2 id="demo" class="visually-hidden">See it run</h2>
   <figure class="demo">
-    <img src="assets/demo.svg" alt="Claude Code, in the account alice, lists the queues of the vhost orders through lockmq, then asks to read the last 3 messages of the stream order-events. The lockmq console, in its own account, shows the approval screen; the human types y, and Claude Code gets the messages back with the customer's email replaced by a reference." width="1200" height="640" aria-describedby="demo-caption">
+    <div class="demo-frame" role="region" aria-label="Animated demo" tabindex="0">
+      <img src="assets/demo.svg" alt="Claude Code, in the account alice, lists the queues of the vhost orders through lockmq, then asks to read the last 3 messages of the stream order-events. The lockmq console, in its own account, shows the approval screen; the human types y, and Claude Code gets the messages back with the customer's email replaced by a reference." width="1200" height="640" aria-describedby="demo-caption">
+    </div>
+    <p class="demo-hint">Swipe sideways to see both terminals.</p>
     <figcaption id="demo-caption">Claude Code (left, account <code>alice</code>) lists queues at once: a catalogue call needs no approval. Reading a stream stops in the lockmq console (right, account <code>lockmq</code>) until you type <code>y</code>; the messages come back masked, the customer's email as a <code>&lt;redacted:rN.K&gt;</code> reference.</figcaption>
   </figure>
 </section>
