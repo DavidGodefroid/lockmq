@@ -422,15 +422,19 @@ figure.demo {
   margin: 0 0 1.5rem;
   transform: translateX(-50%);
 }
+.demo-frame {
+  border-radius: var(--radius);
+  background: var(--term-bg);
+  box-shadow: var(--shadow-lg);
+}
 figure.demo img {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 1200 / 640;
   border-radius: var(--radius);
-  background: var(--term-bg);
-  box-shadow: var(--shadow-lg);
 }
+.demo-hint { display: none; }
 figure.demo figcaption { max-width: 52rem; margin: 1rem auto 0; text-align: center; }
 
 /* Cards */
@@ -583,6 +587,9 @@ td.no::before { content: "✕"; background: var(--no-bg); }
 }
 .site-footer li + li { margin-top: 0; }
 .site-footer p { margin: 0; }
+/* The footer's inline links stand alone, not in running text: a taller
+   line gives them a 44px tap target too. */
+.site-footer p a { display: inline-block; padding: 0.75rem 0; line-height: 1.4; }
 
 @media (min-width: 48rem) {
   .site-header { position: sticky; top: 0; }
@@ -590,10 +597,60 @@ td.no::before { content: "✕"; background: var(--no-bg); }
   pre { font-size: 0.9rem; }
 }
 
+/* Phones: brand on the first row, the navigation on a second row that
+   scrolls sideways (no scrollbar, a fade on the right edge); anchors.js
+   scrolls the current page's link into view. */
+@media (max-width: 47.99rem) {
+  .site-header .wrap { row-gap: 0; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+  .site-nav { width: calc(100% + 2rem); margin: 0 -1rem; }
+  .site-nav ul {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0 2.5rem 0 1rem;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  }
+  .site-nav ul::-webkit-scrollbar { display: none; }
+  .site-nav li { flex: none; }
+  .site-nav a { white-space: nowrap; }
+}
+
 @media (max-width: 40rem) {
   .hero { padding-top: 2.5rem; }
   .hero h1 br { display: none; }
   h2 { margin-top: 3.25rem; }
+
+  /* Scaled to a phone, the demo's terminal text would be 3px high: keep
+     it at a readable 900px and let it scroll sideways inside its frame. */
+  figure.demo { left: 0; width: 100%; transform: none; }
+  .demo-frame { overflow-x: auto; overscroll-behavior-x: contain; }
+  figure.demo img { width: 56.25rem; max-width: none; }
+  .demo-hint { display: block; margin: 0.5rem 0 0; color: var(--muted); font-size: 0.9rem; text-align: center; }
+
+  /* Tables: tighter cells so the yes/no columns fit beside the labels. */
+  th, td { padding: 0.55rem 0.6rem; }
+  td.yes::before, td.no::before { margin-right: 0.3rem; }
+}
+
+/* Every link and control that is not inside a sentence gets a tap target
+   of at least 44 x 44 px; not tied to (pointer: coarse), which hybrid
+   devices do not always report. */
+.brand, .site-nav a, .eyebrow a, .site-footer li a, .skip-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.site-nav a { padding: 0 0.85rem; }
+.site-footer ul { gap: 0 1.25rem; }
+.heading-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -0.75rem 0 -0.75rem 0.1em;
+  vertical-align: middle;
 }
 
 @media (prefers-reduced-motion: no-preference) {
