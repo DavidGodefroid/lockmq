@@ -275,8 +275,7 @@ with the broker's own rights.
 Inside Docker the boundary is the same as on a host: the agent's container
 holds no credential, has no broker connection and reaches the console only
 through the socket; a process that is neither the console account nor in
-`lockmq-clients` (nor in `ALLOWED_UIDS`) is refused, and so is the console
-account itself as a client.
+`lockmq-clients` (nor in `ALLOWED_UIDS`) is refused.
 
 Your own account is another matter. Whoever can run `docker` commands can
 `docker attach` to the console and type an approval, `docker exec` into it

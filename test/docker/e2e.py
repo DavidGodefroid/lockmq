@@ -203,8 +203,10 @@ def main():
         check(r.returncode != 0, f"uid 4242, no group: refused (exit {r.returncode})")
         r = agent(project, "status", user="4242", extra=["--group-add", "10010"])
         check(r.returncode != 0, f"uid 4242 with gid 10010 but no account: refused by the console (exit {r.returncode}) {r.stderr.strip()}")
-        r = agent(project, "status", user="lockmq")
-        check(r.returncode != 0, f"the console account itself is not a client (exit {r.returncode})")
+        # The console's own account may connect (lockkit's peer check: it
+        # already holds the credentials); no other account outside the group.
+        r = agent(project, "status", user="10011")
+        check(r.returncode == 0, f"the console's own uid is accepted, as lockkit allows (exit {r.returncode})")
         check(agent(project, "status").returncode == 0, "console still serves the agent")
 
         # No credential reaches the agent's side.
