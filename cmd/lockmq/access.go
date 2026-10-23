@@ -84,8 +84,7 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		out = append(out, projectCheck{
 			line: fmt.Sprintf("project %s/%s: %04o, not readable by %s; run: chmod 0644 %s",
 				product.P.ProjectDir(), name, fi.Mode().Perm(), svc.name, separate.ShellQuote(filepath.Join(dir, name))),
-			// chmod follows a symbolic link: never on one.
-			repair: inDirScript(dir, fmt.Sprintf("test ! -L %s && chmod 0644 %s", separate.ShellQuote(name), separate.ShellQuote(name))),
+			repair: chmodFileScript(dir, name, svc.uid),
 		})
 	}
 	return out
@@ -94,6 +93,18 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 // giveDirScript is the root script that gives dir to uid, mode 0755.
 func giveDirScript(dir string, uid int) string {
 	return inDirScript(dir, fmt.Sprintf("chown %d . && chmod 0755 .", uid))
+}
+
+// chmodFileScript is the root script that makes dir/name readable, 0644.
+// chmod follows a symbolic link, and test ! -L then chmod is a race in a
+// directory the agent's account can write: the script first checks that
+// the directory it entered belongs to uid (the console account; the
+// repair of the directory runs before it) and that neither its group nor
+// others may write it, nor an ACL entry, so no other account can swap the
+// file between the test and the chmod.
+func chmodFileScript(dir, name string, uid int) string {
+	n := separate.ShellQuote(name)
+	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && case "$1" in ?????w*|????????w*|*+) false;; esac && test ! -L %s && chmod 0644 %s`, uid, n, n))
 }
 
 // inDirScript runs cmds as root inside dir, in a subshell. The agent's

@@ -27,7 +27,9 @@ with locksql.
   [--yes]` repairs it as root, without `sudo` when it already is root
   (`docker run --user 0 … lockmq doctor --fix --yes`). The repair enters the
   directory and changes `.`, so a symbolic link swapped in by the agent's
-  account redirects nothing; a `.lockmq` that is a link is reported only.
+  account redirects nothing; a file is made readable only once the
+  directory belongs to the console account and no other account may write
+  it; a `.lockmq` that is a link is reported only.
 - docs/docker.md is the setup guide (build, project, console, Vault, agent
   wiring, agent in its own container, broker in a container, what Docker
   does and does not separate). The README, docs/usage.md and the site
