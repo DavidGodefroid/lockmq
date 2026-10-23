@@ -94,8 +94,9 @@ so run the repair there, as root:
 docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes
 ```
 
-It makes uid 10011 the owner of `.lockmq/` (mode 0755) and of `pii.toml`,
-and makes `config.toml` readable; `config.toml` stays yours to edit (the console shows
+It makes uid 10011 the owner of `.lockmq/` (mode 0755), replaces a
+`pii.toml` it does not own with a copy it owns (review its rules: the agent
+may have changed them), and makes `config.toml` readable; `config.toml` stays yours to edit (the console shows
 any change to the policy and asks you to approve it). The repair enters the
 directory and never follows a symbolic link. The checks of the console fail
 from this container, which runs no console: read the `project` lines. Run

@@ -105,9 +105,9 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		case name == "pii.toml":
 			// The masking rules: an account other than the console's that
 			// owns the file can rewrite them.
-			line = fmt.Sprintf("project %s/%s: owned by uid %d, not by the console account (%s, uid %d): that account can rewrite the masking rules; run: sudo chown %d %s && sudo chmod 0644 %s",
-				product.P.ProjectDir(), name, owner, svc.name, svc.uid, svc.uid, path, path)
-			action = fmt.Sprintf("chown %d", svc.uid)
+			line = fmt.Sprintf("project %s/%s: owned by uid %d, not by the console account (%s, uid %d): that account can rewrite the masking rules (review them); lockmq doctor --fix replaces it with a copy the console account owns",
+				product.P.ProjectDir(), name, owner, svc.name, svc.uid)
+			action = "copy"
 		case fi.Mode().Perm()&0o004 == 0:
 			line = fmt.Sprintf("project %s/%s: %04o, not readable by %s; run: chmod 0644 %s",
 				product.P.ProjectDir(), name, fi.Mode().Perm(), svc.name, path)
@@ -132,9 +132,10 @@ func giveDirScript(dir string, uid, owner int) string {
 	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && test "$3" != 0 && chown %d . && chmod 0755 .`, owner, uid))
 }
 
-// fileScript is the root script that runs action (empty, or "chown UID")
-// on dir/name, then makes it readable, 0644. chown and chmod follow a
-// symbolic link, and test ! -L then chmod is a race in a
+// fileScript is the root script that makes dir/name readable, 0644, or
+// with action "copy" replaces it with a copy of its own owned by uid: a
+// chown would keep the inode, which a process of the old owner may hold
+// open for writing. chmod follows a symbolic link, and test ! -L then chmod is a race in a
 // directory the agent's account can write: the script first checks that
 // the directory it entered belongs to uid (the console account; the
 // repair of the directory runs before it) and that neither its group nor
@@ -144,12 +145,16 @@ func giveDirScript(dir string, uid, owner int) string {
 // before the repair could name any file of the filesystem.
 func fileScript(dir, name string, uid, owner int, action string) string {
 	n := separate.ShellQuote(name)
-	if action != "" {
-		action += " " + n + " && "
+	change := "chmod 0644 " + n
+	if action == "copy" {
+		// The directory is the console account's: once the temporary name
+		// is removed, no other account can put anything there.
+		tmp := separate.ShellQuote("." + name + ".doctor")
+		change = fmt.Sprintf("rm -f -- %[1]s && cp -- %[2]s %[1]s && chown %[3]d %[1]s && chmod 0644 %[1]s && mv -f -- %[1]s %[2]s", tmp, n, uid)
 	}
 	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && case "$1" in ?????w*|????????w*|*+) false;; esac && `+
-		`test ! -L %s && set -- $(ls -ln -- %s) && case "$1" in -*) ;; *) false;; esac && test "$2" = 1 && test "$3" = %d && test "$3" != 0 && %schmod 0644 %s`,
-		uid, n, n, owner, action, n))
+		`test ! -L %s && set -- $(ls -ln -- %s) && case "$1" in -*) ;; *) false;; esac && test "$2" = 1 && test "$3" = %d && test "$3" != 0 && %s`,
+		uid, n, n, owner, change))
 }
 
 // inDirScript runs cmds as root inside dir, in a subshell. The agent's

@@ -296,7 +296,8 @@ func TestProjectChecksPIIOwner(t *testing.T) {
 	if err := os.Mkdir(dot, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dot, "pii.toml"), nil, 0o644); err != nil {
+	piiPath := filepath.Join(dot, "pii.toml")
+	if err := os.WriteFile(piiPath, []byte("[[mask]]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	me := os.Getuid()
@@ -307,12 +308,31 @@ func TestProjectChecksPIIOwner(t *testing.T) {
 			pii = &c
 		}
 	}
-	if pii == nil || pii.ok || !strings.Contains(pii.line, "can rewrite the masking rules") || pii.repair != fileScript(dot, "pii.toml", svc.uid, me, "chown "+strconv.Itoa(svc.uid)) {
+	if pii == nil || pii.ok || !strings.Contains(pii.line, "can rewrite the masking rules") || pii.repair != fileScript(dot, "pii.toml", svc.uid, me, "copy") {
 		t.Fatalf("pii.toml check: %+v", pii)
 	}
-	// The script runs: here the console account is this uid.
-	if err := exec.Command("sh", "-c", "set -eu\n"+fileScript(dot, "pii.toml", me, me, "chown "+strconv.Itoa(me))).Run(); err != nil {
+	// The script runs (here the console account is this uid): a new
+	// inode, so a descriptor held open on the old file writes nowhere.
+	held, err := os.OpenFile(piiPath, os.O_WRONLY, 0)
+	if err != nil {
 		t.Fatal(err)
+	}
+	defer held.Close()
+	if out, err := exec.Command("sh", "-c", "set -eu\n"+fileScript(dot, "pii.toml", me, me, "copy")).CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if _, err := held.WriteString("loosened"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(piiPath)
+	if err != nil || string(got) != "[[mask]]\n" {
+		t.Errorf("pii.toml after the repair: %q %v", got, err)
+	}
+	if fi, err := os.Stat(piiPath); err != nil || fi.Mode().Perm() != 0o644 {
+		t.Errorf("pii.toml mode: %v %v", fi, err)
+	}
+	if _, err := os.Lstat(filepath.Join(dot, ".pii.toml.doctor")); err == nil {
+		t.Error("temporary file left")
 	}
 	for _, c := range projectChecks(root, svcAccount{name: "lockmq", uid: me}) {
 		if !c.ok {

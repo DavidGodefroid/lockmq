@@ -31,7 +31,8 @@ with locksql.
   account redirects nothing; a file is made readable only once the
   directory belongs to the console account and no other account may write
   it, and only a regular file of its checked, non-root owner with one link;
-  `pii.toml` is given to the console account. A `.lockmq` that is a link,
+  a `pii.toml` the console account does not own is replaced by a copy it
+  owns (a new inode: a descriptor held open on the old file writes nowhere). A `.lockmq` that is a link,
   and a directory or file owned by root, are reported only.
 - docs/docker.md is the setup guide (build, project, console, Vault, agent
   wiring, agent in its own container, broker in a container, what Docker
