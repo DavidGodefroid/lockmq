@@ -121,6 +121,9 @@ binary and compressed bodies reduced to size and hash.
 **🛡️ OS separation**<br>
 The Docker image runs the console under its own account; the kernel checks
 every peer on the socket, and the console refuses to start without it.
+⚠️ An agent that can run `docker` (the default MCP wiring is a `docker run`)
+can attach to the console: see
+[what Docker does and does not separate](docs/docker.md#what-docker-does-and-does-not-separate).
 
 </td>
 </tr>

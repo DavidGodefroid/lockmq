@@ -73,15 +73,21 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		return out
 	}
 	perm := fi.Mode().Perm()
-	if uid != svc.uid || perm&0o022 != 0 || perm&0o005 != 0o005 {
+	switch {
+	case uid != svc.uid && uid == 0:
+		// Root's directory: not handed to the console account by a
+		// repair, as for root's files below.
+		out = append(out, projectCheck{line: fmt.Sprintf("project %s: owned by root: not repaired; the console account (%s, uid %d) must own it: replace it with a directory of your own, then run lockmq doctor --fix",
+			product.P.ProjectDir(), svc.name, svc.uid)})
+	case uid != svc.uid || perm&0o022 != 0 || perm&0o005 != 0o005:
 		// The uid, not the name: in Docker the console account exists only
 		// in the image.
 		out = append(out, projectCheck{
 			line: fmt.Sprintf("project %s: %04o, owner uid %d; the console account (%s, uid %d) must own it (it writes pii.toml there) and every account read it; run: sudo chown %d %s && sudo chmod 0755 %s",
 				product.P.ProjectDir(), perm, uid, svc.name, svc.uid, svc.uid, separate.ShellQuote(dir), separate.ShellQuote(dir)),
-			repair: giveDirScript(dir, svc.uid),
+			repair: giveDirScript(dir, svc.uid, uid),
 		})
-	} else {
+	default:
 		out = append(out, projectCheck{ok: true, line: fmt.Sprintf("project %s: %04o, owned by %s", product.P.ProjectDir(), perm, svc.name)})
 	}
 	for _, name := range []string{"config.toml", "pii.toml"} {
@@ -90,44 +96,60 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 			continue
 		}
 		owner, ok := separate.FileOwner(fi)
-		if !ok || owner == svc.uid || fi.Mode().Perm()&0o004 != 0 {
+		if !ok || owner == svc.uid {
+			continue
+		}
+		path := separate.ShellQuote(filepath.Join(dir, name))
+		var line, action string
+		switch {
+		case name == "pii.toml":
+			// The masking rules: an account other than the console's that
+			// owns the file can rewrite them.
+			line = fmt.Sprintf("project %s/%s: owned by uid %d, not by the console account (%s, uid %d): that account can rewrite the masking rules; run: sudo chown %d %s && sudo chmod 0644 %s",
+				product.P.ProjectDir(), name, owner, svc.name, svc.uid, svc.uid, path, path)
+			action = fmt.Sprintf("chown %d", svc.uid)
+		case fi.Mode().Perm()&0o004 == 0:
+			line = fmt.Sprintf("project %s/%s: %04o, not readable by %s; run: chmod 0644 %s",
+				product.P.ProjectDir(), name, fi.Mode().Perm(), svc.name, path)
+		default:
 			continue
 		}
 		if links, ok := separate.FileLinks(fi); !ok || links != 1 || owner == 0 {
 			// A second name, or root's file: it may be another file linked
-			// here, which a chmod as root would expose.
-			out = append(out, projectCheck{line: fmt.Sprintf("project %s/%s: not readable by %s, and owned by uid %d with %d links: not repaired; replace it with a file of your own",
-				product.P.ProjectDir(), name, svc.name, owner, links)})
+			// here, which a chown or chmod as root would hand over.
+			out = append(out, projectCheck{line: fmt.Sprintf("project %s/%s: owned by uid %d with %d links: not repaired; replace it with a file of your own",
+				product.P.ProjectDir(), name, owner, links)})
 			continue
 		}
-		out = append(out, projectCheck{
-			line: fmt.Sprintf("project %s/%s: %04o, not readable by %s; run: chmod 0644 %s",
-				product.P.ProjectDir(), name, fi.Mode().Perm(), svc.name, separate.ShellQuote(filepath.Join(dir, name))),
-			repair: chmodFileScript(dir, name, svc.uid, owner),
-		})
+		out = append(out, projectCheck{line: line, repair: fileScript(dir, name, svc.uid, owner, action)})
 	}
 	return out
 }
 
-// giveDirScript is the root script that gives dir to uid, mode 0755.
-func giveDirScript(dir string, uid int) string {
-	return inDirScript(dir, fmt.Sprintf("chown %d . && chmod 0755 .", uid))
+// giveDirScript is the root script that gives dir, owned by owner (never
+// root), to uid, mode 0755.
+func giveDirScript(dir string, uid, owner int) string {
+	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && test "$3" != 0 && chown %d . && chmod 0755 .`, owner, uid))
 }
 
-// chmodFileScript is the root script that makes dir/name readable, 0644.
-// chmod follows a symbolic link, and test ! -L then chmod is a race in a
+// fileScript is the root script that runs action (empty, or "chown UID")
+// on dir/name, then makes it readable, 0644. chown and chmod follow a
+// symbolic link, and test ! -L then chmod is a race in a
 // directory the agent's account can write: the script first checks that
 // the directory it entered belongs to uid (the console account; the
 // repair of the directory runs before it) and that neither its group nor
 // others may write it, nor an ACL entry, so no other account can swap the
-// file between the test and the chmod. The file must then be a regular
+// file between the test and the change. The file must then be a regular
 // file of owner (never root) with a single link: a hard link planted
 // before the repair could name any file of the filesystem.
-func chmodFileScript(dir, name string, uid, owner int) string {
+func fileScript(dir, name string, uid, owner int, action string) string {
 	n := separate.ShellQuote(name)
+	if action != "" {
+		action += " " + n + " && "
+	}
 	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && case "$1" in ?????w*|????????w*|*+) false;; esac && `+
-		`test ! -L %s && set -- $(ls -ln -- %s) && case "$1" in -*) ;; *) false;; esac && test "$2" = 1 && test "$3" = %d && test "$3" != 0 && chmod 0644 %s`,
-		uid, n, n, owner, n))
+		`test ! -L %s && set -- $(ls -ln -- %s) && case "$1" in -*) ;; *) false;; esac && test "$2" = 1 && test "$3" = %d && test "$3" != 0 && %schmod 0644 %s`,
+		uid, n, n, owner, action, n))
 }
 
 // inDirScript runs cmds as root inside dir, in a subshell. The agent's

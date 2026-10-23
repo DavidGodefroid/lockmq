@@ -35,12 +35,16 @@ FROM alpine:3.22@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52
 # ALLOWED_UIDS: comma-separated uids that may reach the console besides the
 # members of lockmq-clients, for an agent in a container of its own whose
 # uid has no account here (docs/docker.md#agent-in-its-own-container).
+# Never root (0) nor the console's own uid (10011).
 ARG ALLOWED_UIDS=""
 # The ids differ from locksql's image (10000-10002), so that one agent
 # image can hold the client setup of both.
 # ca-certificates: https, amqps and rabbitmq-stream+tls URLs check the
 # broker's certificate against them.
 RUN case "$ALLOWED_UIDS" in *[!0-9,]*|,*|*,|*,,*) echo "ALLOWED_UIDS: comma-separated uids, got '$ALLOWED_UIDS'" >&2; exit 1;; esac \
+ && for u in $(echo "$ALLOWED_UIDS" | tr ',' ' '); do \
+      case "$u" in 0*|10011) echo "ALLOWED_UIDS: $u is root or the console account (or has a leading zero)" >&2; exit 1;; esac; \
+    done \
  && apk add --no-cache ca-certificates \
  && addgroup -S -g 10010 lockmq-clients \
  && adduser -D -u 10011 -s /bin/sh -g "lockmq console" lockmq \

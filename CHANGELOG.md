@@ -18,7 +18,8 @@ with locksql.
   root-owns the binary and `/etc/lockmq/system.toml`, no `sudo`, and
   `/run/lockmq` (2710) and `/home/lockmq` as volumes. `--build-arg
   ALLOWED_UIDS=` names the uid of an agent in a container of its own; a
-  `vault` target adds the Vault CLI checked against pinned sums.
+  `vault` target adds the Vault CLI checked against pinned sums. The build
+  refuses root (0) and the console's uid (10011) in `ALLOWED_UIDS`.
 - `lockmq setup` knows when it runs in a container: the management URL
   defaults to `host.docker.internal`, `localhost`, `127.0.0.1` and `::1`
   are refused, and the keychain is not offered.
@@ -29,7 +30,9 @@ with locksql.
   directory and changes `.`, so a symbolic link swapped in by the agent's
   account redirects nothing; a file is made readable only once the
   directory belongs to the console account and no other account may write
-  it; a `.lockmq` that is a link is reported only.
+  it, and only a regular file of its checked, non-root owner with one link;
+  `pii.toml` is given to the console account. A `.lockmq` that is a link,
+  and a directory or file owned by root, are reported only.
 - docs/docker.md is the setup guide (build, project, console, Vault, agent
   wiring, agent in its own container, broker in a container, what Docker
   does and does not separate). The README, docs/usage.md and the site

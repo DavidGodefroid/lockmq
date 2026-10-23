@@ -108,7 +108,7 @@ func TestDoctorFix(t *testing.T) {
 		t.Errorf("--yes alone: exit %d", code)
 	}
 	_, _, scripts = doctor("", false, "--fix", "--yes")
-	if len(scripts) != 1 || !strings.Contains(scripts[0], giveDirScript(dot, svc.uid)) || !strings.Contains(scripts[0], chmodFileScript(dot, "config.toml", svc.uid, os.Getuid())) {
+	if len(scripts) != 1 || !strings.Contains(scripts[0], giveDirScript(dot, svc.uid, os.Getuid())) || !strings.Contains(scripts[0], fileScript(dot, "config.toml", svc.uid, os.Getuid(), "")) {
 		t.Fatalf("scripts %q", scripts)
 	}
 	// The repaired state passes.
@@ -155,11 +155,26 @@ func TestInDirScript(t *testing.T) {
 	if err := os.Mkdir(dot, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := sh(giveDirScript(dot, os.Getuid())); err != nil {
+	if err := sh(giveDirScript(dot, os.Getuid(), os.Getuid())); err != nil {
 		t.Fatal(err)
 	}
 	if got := mode(dot); got != 0o755 {
 		t.Errorf("mode %04o, want 0755", got)
+	}
+	// Never a directory of another owner than the one checked, nor root's.
+	if err := os.Chmod(dot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, owner := range []int{0, os.Getuid() + 7} {
+		if err := sh(giveDirScript(dot, os.Getuid(), owner)); err == nil {
+			t.Errorf("directory handed over with owner %d checked", owner)
+		}
+	}
+	if got := mode(dot); got != 0o700 {
+		t.Errorf("mode changed to %04o", got)
+	}
+	if err := sh(giveDirScript(dot, os.Getuid(), os.Getuid())); err != nil {
+		t.Fatal(err)
 	}
 	cfg := dot + "/config.toml"
 	if err := os.WriteFile(cfg, nil, 0o600); err != nil {
@@ -167,13 +182,13 @@ func TestInDirScript(t *testing.T) {
 	}
 	// Not when the directory belongs to another uid, or another account
 	// may write it: the file could be swapped between test and chmod.
-	if err := sh(chmodFileScript(dot, "config.toml", os.Getuid()+7, os.Getuid())); err == nil {
+	if err := sh(fileScript(dot, "config.toml", os.Getuid()+7, os.Getuid(), "")); err == nil {
 		t.Error("chmod in a directory of another uid")
 	}
 	if err := os.Chmod(dot, 0o775); err != nil {
 		t.Fatal(err)
 	}
-	if err := sh(chmodFileScript(dot, "config.toml", os.Getuid(), os.Getuid())); err == nil {
+	if err := sh(fileScript(dot, "config.toml", os.Getuid(), os.Getuid(), "")); err == nil {
 		t.Error("chmod in a group-writable directory")
 	}
 	if got := mode(cfg); got != 0o600 {
@@ -182,7 +197,7 @@ func TestInDirScript(t *testing.T) {
 	if err := os.Chmod(dot, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := sh(chmodFileScript(dot, "config.toml", os.Getuid(), os.Getuid())); err != nil {
+	if err := sh(fileScript(dot, "config.toml", os.Getuid(), os.Getuid(), "")); err != nil {
 		t.Fatal(err)
 	}
 	if got := mode(cfg); got != 0o644 {
@@ -201,7 +216,7 @@ func TestInDirScript(t *testing.T) {
 	if err := os.Link(victim, cfg); err != nil {
 		t.Log("no hard link here:", err)
 	} else {
-		if err := sh(chmodFileScript(dot, "config.toml", os.Getuid(), os.Getuid())); err == nil {
+		if err := sh(fileScript(dot, "config.toml", os.Getuid(), os.Getuid(), "")); err == nil {
 			t.Error("chmod through a hard link")
 		}
 		if got := mode(victim); got != 0o600 {
@@ -226,7 +241,7 @@ func TestInDirScript(t *testing.T) {
 	if err := os.WriteFile(cfg, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := sh(chmodFileScript(dot, "config.toml", os.Getuid(), os.Getuid()+7)); err == nil {
+	if err := sh(fileScript(dot, "config.toml", os.Getuid(), os.Getuid()+7, "")); err == nil {
 		t.Error("chmod of a file of another owner")
 	}
 	if err := os.Remove(cfg); err != nil {
@@ -244,7 +259,7 @@ func TestInDirScript(t *testing.T) {
 	if err := os.Symlink(other, dot); err != nil {
 		t.Fatal(err)
 	}
-	if err := sh(giveDirScript(dot, os.Getuid())); err == nil {
+	if err := sh(giveDirScript(dot, os.Getuid(), os.Getuid())); err == nil {
 		t.Error("script ran through a symbolic link")
 	}
 	if got := mode(other); got != 0o700 {
@@ -265,10 +280,43 @@ func TestInDirScript(t *testing.T) {
 	if err := os.Symlink(secret, dot+"/pii.toml"); err != nil {
 		t.Fatal(err)
 	}
-	if err := sh(chmodFileScript(dot, "pii.toml", os.Getuid(), os.Getuid())); err == nil {
+	if err := sh(fileScript(dot, "pii.toml", os.Getuid(), os.Getuid(), "")); err == nil {
 		t.Error("chmod ran through a symbolic link")
 	}
 	if got := mode(secret); got != 0o600 {
 		t.Errorf("link target changed to %04o", got)
+	}
+}
+
+// A pii.toml the console account does not own is reported: its owner can
+// rewrite the masking rules. The repair gives it to the console account.
+func TestProjectChecksPIIOwner(t *testing.T) {
+	root := t.TempDir()
+	dot := filepath.Join(root, ".lockmq")
+	if err := os.Mkdir(dot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dot, "pii.toml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	me := os.Getuid()
+	svc := svcAccount{name: "lockmq", uid: me + 7}
+	var pii *projectCheck
+	for _, c := range projectChecks(root, svc) {
+		if strings.Contains(c.line, "pii.toml") {
+			pii = &c
+		}
+	}
+	if pii == nil || pii.ok || !strings.Contains(pii.line, "can rewrite the masking rules") || pii.repair != fileScript(dot, "pii.toml", svc.uid, me, "chown "+strconv.Itoa(svc.uid)) {
+		t.Fatalf("pii.toml check: %+v", pii)
+	}
+	// The script runs: here the console account is this uid.
+	if err := exec.Command("sh", "-c", "set -eu\n"+fileScript(dot, "pii.toml", me, me, "chown "+strconv.Itoa(me))).Run(); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range projectChecks(root, svcAccount{name: "lockmq", uid: me}) {
+		if !c.ok {
+			t.Errorf("after the repair: %+v", c)
+		}
 	}
 }

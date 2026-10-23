@@ -76,7 +76,7 @@
 <caption>Boundaries and what enforces them</caption>
 <thead><tr><th scope="col">Boundary</th><th scope="col">Enforced by</th></tr></thead>
 <tbody>
-<tr><th scope="row">Agent ↔ console</th><td>a separate OS account (the console container runs as <code>lockmq</code>, the agent as <code>agent</code>); a Unix socket in a directory only the clients group reaches; the kernel’s peer credentials checked on every connection; the console refuses to start without the separated setup</td></tr>
+<tr><th scope="row">Agent ↔ console</th><td>a separate OS account (the console container runs as <code>lockmq</code>, the agent as <code>agent</code>); a Unix socket in a directory only the clients group reaches; the kernel’s peer credentials checked on every connection; the console refuses to start without the separated setup. <strong>⚠️ Void when the agent can run <code>docker</code></strong> (the default MCP wiring is a <code>docker run</code>): it can attach to or exec into the console; run the agent in a container without the Docker socket for a hard boundary (<a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md#what-docker-does-and-does-not-separate">what Docker does and does not separate</a>)</td></tr>
 <tr><th scope="row">Console ↔ human</th><td>approval screens in the console’s own terminal; on production the typed profile name; a 5-minute timeout means denied</td></tr>
 <tr><th scope="row">Console ↔ broker</th><td>an allowlist of operations and endpoints; one broker user; TLS <code>verify-full</code> by default; an optional ssh tunnel opened by the console</td></tr>
 <tr><th scope="row">Policy</th><td>config files read every 2 s; loosenings held until confirmed; the approved policy stored in the console account’s state</td></tr>

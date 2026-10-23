@@ -156,14 +156,16 @@ lockmq doctor [--profile P] [--fix [--yes]]
 ```
 
 Checks the config, the separated setup, the project's `.lockmq` (owned by
-the console account, mode 0755, its files readable), each profile (tier
+the console account, mode 0755, `pii.toml` owned by the console account,
+the files readable), each profile (tier
 first; `peek` flagged NOT READ-ONLY), whether its console runs (with its
 start command), and the agent wiring.
 
 `--fix` repairs `.lockmq` as root: run it as root in the image
 (`docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix
 --yes`). The repair enters the directory and never follows a symbolic link;
-a `.lockmq` that is itself a link is reported, not repaired. `--yes` skips
+a `.lockmq` that is itself a link, a directory or file owned by root and a
+file with more than one link are reported, not repaired. `--yes` skips
 the question.
 
 ## Audit log

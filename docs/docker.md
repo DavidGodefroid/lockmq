@@ -94,8 +94,8 @@ so run the repair there, as root:
 docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes
 ```
 
-It makes uid 10011 the owner of `.lockmq/` (mode 0755) and makes
-`config.toml` readable; `config.toml` stays yours to edit (the console shows
+It makes uid 10011 the owner of `.lockmq/` (mode 0755) and of `pii.toml`,
+and makes `config.toml` readable; `config.toml` stays yours to edit (the console shows
 any change to the policy and asks you to approve it). The repair enters the
 directory and never follows a symbolic link. The checks of the console fail
 from this container, which runs no console: read the `project` lines. Run
@@ -201,7 +201,8 @@ docker build -t lockmq --build-arg ALLOWED_UIDS=1000 .
 ```
 
 `ALLOWED_UIDS` is a comma-separated list of uids, written to `allowed_uids`
-in the image's `/etc/lockmq/system.toml`. It is the uid the kernel reports
+in the image's `/etc/lockmq/system.toml`; the build refuses root (0) and the
+console's own uid (10011). It is the uid the kernel reports
 for the agent's process, as the console sees it: the agent container's uid
 when neither container remaps user namespaces. Every process of that uid,
 in any container that mounts the socket volume, may then use the console:
