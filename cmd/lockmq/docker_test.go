@@ -87,14 +87,13 @@ func TestDoctorFix(t *testing.T) {
 	if err := os.Chmod(root, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	code, out, scripts := doctor("", false)
-	if !strings.Contains(out, "✗ project access: "+root+" is 0700") {
-		t.Errorf("no project access failure:\n%s", out)
+	if code, out, _ := doctor("", false); code != exitFail || !strings.Contains(out, "✗ project access: "+root+" is 0700") {
+		t.Errorf("no project access failure: exit %d\n%s", code, out)
 	}
 	if err := os.Chmod(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	code, out, scripts = doctor("", false)
+	code, out, scripts := doctor("", false)
 	if strings.Contains(out, "project access") || code != exitFail || len(scripts) != 0 || !strings.Contains(out, "✗ project .lockmq: 0700") || !strings.Contains(out, "console account (lockmq, uid "+strconv.Itoa(svc.uid)+")") ||
 		!strings.Contains(out, "lockmq doctor --fix") || !strings.Contains(out, "config.toml: 0600, not readable") {
 		t.Errorf("check: exit %d scripts %d\n%s", code, len(scripts), out)
