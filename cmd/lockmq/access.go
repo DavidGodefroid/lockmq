@@ -44,22 +44,34 @@ func lookupService(name string) (svcAccount, bool) {
 // agent's account owns would let it replace that file, and with it the
 // masking rules), and to read the files in it.
 func projectChecks(root string, svc svcAccount) []projectCheck {
+	var out []projectCheck
+	// The console account must enter the project and list it (in Docker
+	// only the mounted directory itself keeps its host mode). No repair:
+	// opening a directory to others is the human's choice.
+	if fi, err := os.Stat(root); err == nil {
+		if uid, ok := separate.FileOwner(fi); ok {
+			perm := fi.Mode().Perm()
+			if (uid == svc.uid && perm&0o500 != 0o500) || (uid != svc.uid && perm&0o005 != 0o005) {
+				out = append(out, projectCheck{line: fmt.Sprintf("project access: %s is %04o: the console account (%s, uid %d) cannot enter it and finds no profile; run: chmod o+rx %s (or setfacl -m u:%d:rx %s)",
+					root, perm, svc.name, svc.uid, separate.ShellQuote(root), svc.uid, separate.ShellQuote(root))})
+			}
+		}
+	}
 	dir := filepath.Join(root, product.P.ProjectDir())
 	fi, err := os.Lstat(dir)
 	if err != nil {
-		return nil
+		return out
 	}
 	if fi.Mode()&fs.ModeSymlink != 0 {
-		return []projectCheck{{line: dir + " is a symbolic link: the console account must own a directory of the project itself; replace it with a directory"}}
+		return append(out, projectCheck{line: dir + " is a symbolic link: the console account must own a directory of the project itself; replace it with a directory"})
 	}
 	if !fi.IsDir() {
-		return []projectCheck{{line: dir + " is not a directory"}}
+		return append(out, projectCheck{line: dir + " is not a directory"})
 	}
 	uid, ok := separate.FileOwner(fi)
 	if !ok {
-		return nil
+		return out
 	}
-	var out []projectCheck
 	perm := fi.Mode().Perm()
 	if uid != svc.uid || perm&0o022 != 0 || perm&0o005 != 0o005 {
 		// The uid, not the name: in Docker the console account exists only

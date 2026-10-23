@@ -42,7 +42,10 @@ The base images are pinned by digest in the `Dockerfile`.
 
 Mount the project at its own path (`-v "$PWD:$PWD" -w "$PWD"`): the socket name
 is derived from the project path, so the console and the agent must see the
-same one, and the console's hints then name real paths.
+same one, and the console's hints then name real paths. The console account
+must enter and list the project directory, the only one of the path that
+keeps its host mode in the container: mode 0755, the usual, does it (`lockmq
+doctor` reports a project it cannot enter).
 
 In the project directory, `init` writes `.lockmq/config.toml` with a
 commented example profile, and the agent files (here Claude Code's):

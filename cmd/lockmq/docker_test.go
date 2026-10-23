@@ -84,8 +84,18 @@ func TestDoctorFix(t *testing.T) {
 		code := run(e, append([]string{"doctor"}, args...))
 		return code, out.String() + errb.String(), scripts
 	}
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	code, out, scripts := doctor("", false)
-	if code != exitFail || len(scripts) != 0 || !strings.Contains(out, "✗ project .lockmq: 0700") || !strings.Contains(out, "console account (lockmq, uid "+strconv.Itoa(svc.uid)+")") ||
+	if !strings.Contains(out, "✗ project access: "+root+" is 0700") {
+		t.Errorf("no project access failure:\n%s", out)
+	}
+	if err := os.Chmod(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	code, out, scripts = doctor("", false)
+	if strings.Contains(out, "project access") || code != exitFail || len(scripts) != 0 || !strings.Contains(out, "✗ project .lockmq: 0700") || !strings.Contains(out, "console account (lockmq, uid "+strconv.Itoa(svc.uid)+")") ||
 		!strings.Contains(out, "lockmq doctor --fix") || !strings.Contains(out, "config.toml: 0600, not readable") {
 		t.Errorf("check: exit %d scripts %d\n%s", code, len(scripts), out)
 	}
@@ -117,6 +127,9 @@ func TestDoctorFix(t *testing.T) {
 func TestProjectChecksSymlinkedDotDir(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Symlink(t.TempDir(), filepath.Join(root, ".lockmq")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	cs := projectChecks(root, svcAccount{name: "lockmq", uid: os.Getuid() + 7})

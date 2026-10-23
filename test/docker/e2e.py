@@ -66,10 +66,11 @@ def cleanup():
 
 
 def image_checks():
-    def in_image(script, user="0"):
-        return sh("docker", "run", "--rm", "--user", user, "--entrypoint", "sh", IMAGE, "-c", script).stdout.strip()
+    def in_image(script):
+        return sh("docker", "run", "--rm", "--user", "0", "--entrypoint", "sh", IMAGE, "-c", script).stdout.strip()
 
-    check(in_image("id -un") == "agent", "default user is agent")
+    who = sh("docker", "run", "--rm", "--entrypoint", "id", IMAGE, "-un").stdout.strip()
+    check(who == "agent", f"default user is agent ({who})")
     check(in_image("stat -c '%a %U:%G' /run/lockmq") == "2710 lockmq:lockmq-clients", "socket dir 2710 lockmq:lockmq-clients")
     check(in_image("stat -c '%a %U' /home/lockmq") == "700 lockmq", "console home 0700")
     check(in_image("stat -c '%a %U:%G' /usr/local/bin/lockmq /etc/lockmq/system.toml") == "755 root:root\n644 root:root",
@@ -161,6 +162,7 @@ def main():
         image_checks()
         start_broker()
         project = tempfile.mkdtemp(prefix="lockmq-e2e-")
+        os.chmod(project, 0o755)  # the console account enters the project
         me = f"{os.getuid()}:{os.getgid()}"
         mount = ["-v", f"{project}:{project}", "-w", project]
 
@@ -187,7 +189,7 @@ def main():
         check(up, "lockmq status from the agent's container")
         if not up:
             print(con.text()[-4000:])
-            return
+            raise SystemExit("the console did not come up")
 
         r = agent(project, "queues", "--json")
         check(r.returncode == 0 and "orders" in r.stdout, f"catalogue call (queues)\n{r.stdout}{r.stderr}")
@@ -209,6 +211,8 @@ def main():
         r = agent(project, "sh", "-c", "grep -rl " + RO_PASS + " /run/lockmq . 2>/dev/null; true", extra=["--entrypoint", ""])
         check(r.stdout.strip() == "", "no password in the socket volume or the project")
         con.stop()
+        if failures:
+            print(con.text()[-4000:])
     finally:
         cleanup()
     if failures:
