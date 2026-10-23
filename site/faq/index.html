@@ -63,7 +63,7 @@
 </section>
 <section aria-labelledby="setup">
   <h2 id="setup">How do I set it up?</h2>
-  <p>Install it, run <code>lockmq install</code> once per machine to create the console account, then <code>lockmq setup</code> (a broker profile) and <code>lockmq init</code> (your agents) in the project, and start <code>lockmq console</code> in the console account’s own session. <code>lockmq doctor</code> checks the setup. <a href="../install/#setup">Setup steps</a>.</p>
+  <p>Build the Docker image, run <code>lockmq init</code> (your agents) and <code>lockmq setup</code> (a broker profile) in the project from throwaway containers, give <code>.lockmq</code> to the console account with <code>lockmq doctor --fix</code>, start <code>lockmq console</code> in its own container and wire the agent to <code>lockmq mcp</code> in another. <a href="../install/">Setup steps</a>.</p>
 </section>
 <section aria-labelledby="agents">
   <h2 id="agents">Which AI agents does it work with?</h2>
@@ -71,7 +71,7 @@
 </section>
 <section aria-labelledby="password">
   <h2 id="password">Does the agent ever see the broker password?</h2>
-  <p>No. The agent never sees a credential and never opens a connection. Credentials are typed at console start (no echo), or read from the console account’s OS keychain or from HashiCorp Vault, and never appear in argv, environment, files, logs, the socket or error messages. URI passwords are stripped from every answer, including the URIs of shovels and federation links.</p>
+  <p>No. The agent never sees a credential and never opens a connection. Credentials are typed at console start (no echo), or read from HashiCorp Vault, and never appear in argv, environment, files, logs, the socket or error messages. URI passwords are stripped from every answer, including the URIs of shovels and federation links.</p>
 </section>
 <section aria-labelledby="writes">
   <h2 id="writes">Can lockmq publish, purge or move messages?</h2>
@@ -87,7 +87,7 @@
 </section>
 <section aria-labelledby="own-account">
   <h2 id="own-account">Why does the console need its own OS account?</h2>
-  <p>An agent in the console’s own account could read or type into its terminal. Separation is mandatory: without it the console refuses to start. <code>lockmq install</code> sets it up.</p>
+  <p>An agent in the console’s own account could read or type into its terminal. Separation is mandatory: without it the console refuses to start. The Docker image holds it: the console runs as <code>lockmq</code>, the agent as <code>agent</code>.</p>
 </section>
 <section aria-labelledby="timeout">
   <h2 id="timeout">What happens if I don’t answer the approval prompt?</h2>

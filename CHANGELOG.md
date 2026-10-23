@@ -6,6 +6,36 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Docker image
+
+Docker is now the default and only documented way to run lockmq, at parity
+with locksql.
+
+- A multi-stage `Dockerfile` (base images pinned by digest): a static
+  build, then the console image with the separated setup of `lockmq
+  install` baked in: `lockmq` (uid 10011) runs the console, `agent` (uid
+  10012, in `lockmq-clients`, gid 10010) runs the MCP server and the CLI,
+  root-owns the binary and `/etc/lockmq/system.toml`, no `sudo`, and
+  `/run/lockmq` (2710) and `/home/lockmq` as volumes. `--build-arg
+  ALLOWED_UIDS=` names the uid of an agent in a container of its own; a
+  `vault` target adds the Vault CLI checked against pinned sums.
+- `lockmq setup` knows when it runs in a container: the management URL
+  defaults to `host.docker.internal`, `localhost`, `127.0.0.1` and `::1`
+  are refused, and the keychain is not offered.
+- `lockmq doctor` checks the project's `.lockmq` (owned by the console
+  account, by uid, mode 0755, its files readable) and `doctor --fix
+  [--yes]` repairs it as root, without `sudo` when it already is root
+  (`docker run --user 0 … lockmq doctor --fix --yes`). The repair enters the
+  directory and changes `.`, so a symbolic link swapped in by the agent's
+  account redirects nothing; a `.lockmq` that is a link is reported only.
+- docs/docker.md is the setup guide (build, project, console, Vault, agent
+  wiring, agent in its own container, broker in a container, what Docker
+  does and does not separate). The README, docs/usage.md and the site
+  describe only the Docker setup; the other deployment modes stay in the
+  code, no longer documented.
+- CI builds both targets, checks `ALLOWED_UIDS`, and runs an end-to-end
+  test of the guide against RabbitMQ (`test/docker/e2e.py`).
+
 ### v0.1.1
 
 Fixes from the v0.1.0 spec audit.

@@ -114,12 +114,17 @@ Done. Next:
 }
 
 // asRoot runs a shell script as root: e.root when set (tests), else sudo
-// sh -c on the human's terminal. The script holds no secret.
+// sh -c on the human's terminal, or sh -c when this already is root (a
+// container run with --user 0, which has no sudo). The script holds no
+// secret.
 func (e env) asRoot(script string) error {
 	if e.root != nil {
 		return e.root(script)
 	}
 	cmd := exec.Command("sudo", "sh", "-c", script)
+	if e.geteuid() == 0 {
+		cmd = exec.Command("sh", "-c", script)
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, e.stdout, e.stderr
 	return cmd.Run()
 }

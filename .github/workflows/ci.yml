@@ -88,6 +88,35 @@ jobs:
       - name: go test -tags integration
         run: go test -tags integration -count=1 -timeout 25m ./test/integration/
 
+  # The image of docs/docker.md: both targets build, ALLOWED_UIDS is
+  # checked, and test/docker/e2e.py follows the guide against a RabbitMQ
+  # container (console in a pseudo-terminal, agent in throwaway containers,
+  # peers outside the setup refused).
+  docker:
+    name: docker (build, vault target, end to end)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker build
+        run: docker build --build-arg VERSION=ci -t lockmq .
+      - name: docker build --target vault
+        run: |
+          docker build --target vault -t lockmq-vault .
+          docker run --rm --entrypoint vault lockmq-vault version
+      - name: ALLOWED_UIDS
+        run: |
+          docker build --build-arg ALLOWED_UIDS=4242,4243 -t lockmq-allowed .
+          docker run --rm --entrypoint cat lockmq-allowed /etc/lockmq/system.toml | grep -x 'allowed_uids = \[4242,4243\]'
+          if docker build --build-arg ALLOWED_UIDS='1,,2' . >/dev/null 2>&1; then echo "ALLOWED_UIDS=1,,2 accepted" >&2; exit 1; fi
+      - name: docker build from the repository URL
+        if: github.event_name == 'push'
+        run: docker build -t lockmq-url "https://github.com/${{ github.repository }}.git#${{ github.sha }}"
+      - name: pull rabbitmq
+        run: docker pull --quiet rabbitmq:4.1-management
+      - name: end to end
+        run: python3 test/docker/e2e.py lockmq
+
   fuzz:
     name: fuzz (nightly)
     if: github.event_name == 'schedule'

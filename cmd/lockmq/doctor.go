@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -22,12 +24,14 @@ import (
 // runDoctor is `lockmq doctor`: the config, each profile's tier, whether
 // its console runs, and the agent wiring.
 func runDoctor(e env, args []string) int {
-	const usage = "lockmq doctor [--profile P]"
+	const usage = "lockmq doctor [--profile P] [--fix [--yes]]"
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	only := fs.String("profile", "", "check one profile")
+	fix := fs.Bool("fix", false, "repair the project's .lockmq as root (sudo, or directly when run as root)")
+	yes := fs.Bool("yes", false, "with --fix: repair without asking")
 	pos, err := parseInterleaved(fs, args)
-	if err != nil || len(pos) > 0 {
+	if err != nil || len(pos) > 0 || (*yes && !*fix) {
 		return usageFail(e, "doctor", usage, "wrong arguments")
 	}
 	code := exitOK
@@ -50,6 +54,11 @@ func runDoctor(e env, args []string) int {
 		code = exitFail
 	default:
 		fmt.Fprintf(e.stdout, "✓ separated setup: console account %s, clients group %s\n", sys.ServiceUser, sys.ClientGroup)
+		if root != "" {
+			if c := doctorProject(e, root, sys.ServiceUser, *fix, *yes); c != exitOK {
+				code = c
+			}
+		}
 	}
 	names := profileNames(ps)
 	if *only != "" {
@@ -79,6 +88,85 @@ func runDoctor(e env, args []string) int {
 		}
 	}
 	return code
+}
+
+// doctorProject checks the project's .lockmq for the console account and,
+// with fix, repairs it as root.
+func doctorProject(e env, root, service string, fix, yes bool) int {
+	svc, ok := e.service(service)
+	if !ok {
+		fmt.Fprintf(e.stdout, "- project %s: account %s not found on this machine; not checked\n", product.P.ProjectDir(), service)
+		return exitOK
+	}
+	checks := projectChecks(root, svc)
+	var repairs []string
+	failed := false
+	for _, c := range checks {
+		mark := "✓"
+		if !c.ok {
+			mark, failed = "✗", true
+		}
+		fmt.Fprintln(e.stdout, mark, c.line)
+		if c.repair != "" {
+			repairs = append(repairs, c.repair)
+		}
+	}
+	if !failed {
+		return exitOK
+	}
+	if !fix || len(repairs) == 0 {
+		if len(repairs) > 0 {
+			fmt.Fprintln(e.stdout, "  repair: lockmq doctor --fix (as root in the image: see docs/docker.md)")
+		}
+		return exitFail
+	}
+	script := "set -eu\n" + strings.Join(repairs, "\n") + "\n"
+	fmt.Fprintf(e.stdout, "These repairs run as root:\n    %s\n", strings.ReplaceAll(strings.TrimRight(script, "\n"), "\n", "\n    "))
+	if !yes {
+		if !e.tty {
+			fmt.Fprintln(e.stderr, "lockmq doctor: confirm in a terminal, or run with --fix --yes")
+			return exitUsage
+		}
+		q := "Run them now with sudo? [y/N] "
+		if e.geteuid() == 0 {
+			q = "Run them now? [y/N] "
+		}
+		fmt.Fprint(e.stdout, q)
+		ans, _ := bufio.NewReader(e.stdin).ReadString('\n')
+		if !strings.EqualFold(strings.TrimSpace(ans), "y") {
+			fmt.Fprintln(e.stdout, "root repairs not made")
+			return exitFail
+		}
+	}
+	if err := e.asRoot(script); err != nil {
+		fmt.Fprintln(e.stderr, "lockmq doctor:", err)
+		return exitFail
+	}
+	code := exitOK
+	for _, c := range projectChecks(root, svc) {
+		mark := "✓"
+		if !c.ok {
+			mark, code = "✗", exitFail
+		}
+		fmt.Fprintln(e.stdout, mark, c.line)
+	}
+	return code
+}
+
+// service is the console account; false when there is none.
+func (e env) service(name string) (svcAccount, bool) {
+	if e.svc != nil {
+		return e.svc(name)
+	}
+	return lookupService(name)
+}
+
+// geteuid is the effective uid.
+func (e env) geteuid() int {
+	if e.euid != nil {
+		return e.euid()
+	}
+	return os.Geteuid()
 }
 
 // agents is the account the agents are wired for.
