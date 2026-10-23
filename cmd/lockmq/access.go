@@ -81,10 +81,17 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		if !ok || owner == svc.uid || fi.Mode().Perm()&0o004 != 0 {
 			continue
 		}
+		if links, ok := separate.FileLinks(fi); !ok || links != 1 || owner == 0 {
+			// A second name, or root's file: it may be another file linked
+			// here, which a chmod as root would expose.
+			out = append(out, projectCheck{line: fmt.Sprintf("project %s/%s: not readable by %s, and owned by uid %d with %d links: not repaired; replace it with a file of your own",
+				product.P.ProjectDir(), name, svc.name, owner, links)})
+			continue
+		}
 		out = append(out, projectCheck{
 			line: fmt.Sprintf("project %s/%s: %04o, not readable by %s; run: chmod 0644 %s",
 				product.P.ProjectDir(), name, fi.Mode().Perm(), svc.name, separate.ShellQuote(filepath.Join(dir, name))),
-			repair: chmodFileScript(dir, name, svc.uid),
+			repair: chmodFileScript(dir, name, svc.uid, owner),
 		})
 	}
 	return out
@@ -101,10 +108,14 @@ func giveDirScript(dir string, uid int) string {
 // the directory it entered belongs to uid (the console account; the
 // repair of the directory runs before it) and that neither its group nor
 // others may write it, nor an ACL entry, so no other account can swap the
-// file between the test and the chmod.
-func chmodFileScript(dir, name string, uid int) string {
+// file between the test and the chmod. The file must then be a regular
+// file of owner (never root) with a single link: a hard link planted
+// before the repair could name any file of the filesystem.
+func chmodFileScript(dir, name string, uid, owner int) string {
 	n := separate.ShellQuote(name)
-	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && case "$1" in ?????w*|????????w*|*+) false;; esac && test ! -L %s && chmod 0644 %s`, uid, n, n))
+	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && case "$1" in ?????w*|????????w*|*+) false;; esac && `+
+		`test ! -L %s && set -- $(ls -ln -- %s) && case "$1" in -*) ;; *) false;; esac && test "$2" = 1 && test "$3" = %d && test "$3" != 0 && chmod 0644 %s`,
+		uid, n, n, owner, n))
 }
 
 // inDirScript runs cmds as root inside dir, in a subshell. The agent's

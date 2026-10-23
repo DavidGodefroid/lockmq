@@ -204,3 +204,6 @@ systemd-tmpfiles --create /etc/tmpfiles.d/%[8]s.conf 2>/dev/null || install -d -
 
 // FileOwner returns the owner of a file (ok false off Unix).
 func FileOwner(fi os.FileInfo) (uid int, ok bool) { return fileOwner(fi) }
+
+// FileLinks returns the hard link count of a file (ok false off Unix).
+func FileLinks(fi os.FileInfo) (n int, ok bool) { return fileLinks(fi) }
