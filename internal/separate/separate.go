@@ -201,3 +201,9 @@ printf 'd %[6]s 2710 %[2]s %[3]s -\n' > /etc/tmpfiles.d/%[8]s.conf
 systemd-tmpfiles --create /etc/tmpfiles.d/%[8]s.conf 2>/dev/null || install -d -m 2710 -o %[2]s -g %[3]s %[6]s
 `, o.Client, o.Service, o.Group, copyBinary(p, bin, pin, src, "root"), SystemTOML(p, o.Service, o.Group, dir), dir, prefix, n)
 }
+
+// FileOwner returns the owner of a file (ok false off Unix).
+func FileOwner(fi os.FileInfo) (uid int, ok bool) { return fileOwner(fi) }
+
+// FileLinks returns the hard link count of a file (ok false off Unix).
+func FileLinks(fi os.FileInfo) (n int, ok bool) { return fileLinks(fi) }

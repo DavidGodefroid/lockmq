@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,7 +75,11 @@ func runSetup(e env, args []string) int {
 		}
 		return line, nil
 	}
-	name, sp, err := askProfile(ask)
+	container := e.inContainer()
+	if container {
+		fmt.Fprintln(e.stdout, "In a container, localhost is the container itself: a broker on your machine is "+containerHostGateway+",\na broker in another container is its name on a network shared with the console's container.")
+	}
+	name, sp, err := askProfile(ask, container)
 	if err != nil {
 		fmt.Fprintln(e.stderr, "lockmq setup:", err)
 		return exitFail
@@ -110,13 +115,36 @@ func runSetup(e env, args []string) int {
 		return exitFail
 	}
 	fmt.Fprintf(e.stdout, "\nProfile %s written to %s (tier %s; no secret in the file).\n", name, path, sp.Tier)
-	fmt.Fprintf(e.stdout, "Start its console in a terminal of the lockmq account: lockmq console --profile %s --project %s\n", name, root)
-	fmt.Fprintln(e.stdout, "Wire your agents with: lockmq init")
+	if container {
+		fmt.Fprintln(e.stdout, "Give .lockmq to the console account, then start the console: see docs/docker.md.")
+	} else {
+		fmt.Fprintf(e.stdout, "Start its console in a terminal of the lockmq account: lockmq console --profile %s --project %s\n", name, root)
+		fmt.Fprintln(e.stdout, "Wire your agents with: lockmq init")
+	}
 	return exitOK
 }
 
-// askProfile asks the profile's questions.
-func askProfile(ask func(prompt, def string) (string, error)) (string, setupProfile, error) {
+// containerHostGateway is the host a container reaches its own machine by
+// (Docker Desktop, or --add-host=host.docker.internal:host-gateway).
+const containerHostGateway = "host.docker.internal"
+
+// inContainer reports a process in a Docker or Podman container.
+func (e env) inContainer() bool {
+	if e.container != nil {
+		return e.container()
+	}
+	for _, f := range []string{"/.dockerenv", "/run/.containerenv"} {
+		if _, err := os.Stat(f); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// askProfile asks the profile's questions. In a container the defaults
+// name the machine by containerHostGateway, and the keychain, which a
+// container does not have, is not offered.
+func askProfile(ask func(prompt, def string) (string, error), container bool) (string, setupProfile, error) {
 	var sp setupProfile
 	var err error
 	q := func(dst *string, prompt, def string) {
@@ -126,12 +154,16 @@ func askProfile(ask func(prompt, def string) (string, error)) (string, setupProf
 	}
 	var name, vhosts, prod, peek string
 	q(&name, "Profile name [dev]: ", "dev")
-	q(&sp.URL, "Management API URL [http://127.0.0.1:15672]: ", "http://127.0.0.1:15672")
+	mgmt, creds := "http://127.0.0.1:15672", "ask, keychain or vault"
+	if container {
+		mgmt, creds = "http://"+containerHostGateway+":15672", "ask or vault"
+	}
+	q(&sp.URL, "Management API URL ["+mgmt+"]: ", mgmt)
 	q(&sp.AMQPURL, "AMQP URL for stream reads (empty: none), such as amqps://rabbitmq.example.com:5671: ", "")
 	q(&sp.StreamURL, "Stream protocol URL (empty: none), such as rabbitmq-stream+tls://rabbitmq.example.com:5551: ", "")
 	q(&vhosts, "Vhosts, comma-separated (empty: every vhost the account sees): ", "")
 	q(&sp.User, "Broker user (empty: asked when the console starts): ", "")
-	q(&sp.Credentials, "Credentials: ask, keychain or vault [ask]: ", "ask")
+	q(&sp.Credentials, "Credentials: "+creds+" [ask]: ", "ask")
 	if sp.Credentials == kconfig.CredentialsVault {
 		q(&sp.VaultPath, "Vault path of the login, such as rabbitmq/creds/lockmq-ro: ", "")
 	}
@@ -142,6 +174,16 @@ func askProfile(ask func(prompt, def string) (string, error)) (string, setupProf
 	}
 	if sanitize.Terminal(name, false) != name {
 		return "", sp, errors.New("invalid profile name")
+	}
+	if container && sp.Credentials == kconfig.CredentialsKeychain {
+		return "", sp, errors.New("a container has no keychain: use ask or vault")
+	}
+	if container {
+		for _, u := range []string{sp.URL, sp.AMQPURL, sp.StreamURL} {
+			if h := urlHost(u); h != "" && kconfig.IsLoopback(h) {
+				return "", sp, fmt.Errorf("%s is the console's own container: name the broker by %s or by its container name", h, containerHostGateway)
+			}
+		}
 	}
 	for _, v := range strings.Split(vhosts, ",") {
 		if v = strings.TrimSpace(v); v != "" {
@@ -154,6 +196,15 @@ func askProfile(ask func(prompt, def string) (string, error)) (string, setupProf
 		sp.Tier = config.TierPeek.String()
 	}
 	return name, sp, nil
+}
+
+// urlHost is the host of a URL, or "" when it does not parse.
+func urlHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 func yes(s string) bool {

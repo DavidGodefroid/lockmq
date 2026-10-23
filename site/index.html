@@ -126,12 +126,12 @@
 <section aria-labelledby="highlights">
   <h2 id="highlights">Highlights</h2>
   <ul class="cards">
-    <li><span class="icon" aria-hidden="true">🔑</span><h3>One key holder</h3><p>Credentials are typed at console start, or read from the OS keychain or HashiCorp Vault. Never in argv, env, files, logs, the socket or error messages; URI passwords are stripped from every answer.</p></li>
+    <li><span class="icon" aria-hidden="true">🔑</span><h3>One key holder</h3><p>Credentials are typed at console start, or read from HashiCorp Vault. Never in argv, env, files, logs, the socket or error messages; URI passwords are stripped from every answer.</p></li>
     <li><span class="icon" aria-hidden="true">📋</span><h3>Catalogue first, no prompt</h3><p>Overview and alarms, queues, one queue with its arguments, DLX, TTL, delivery limit and policy; exchanges, bindings, consumers, connections, channels, stream offsets and consumer lag.</p></li>
     <li><span class="icon" aria-hidden="true">👤</span><h3>Messages, approved</h3><p><code>read</code> reads a stream from <code>first</code>, <code>last</code>, an offset or a timestamp with an unnamed consumer: nothing stored, nothing moved. You approve each read.</p></li>
     <li><span class="icon" aria-hidden="true">🧪</span><h3>Peek, only if you allow it</h3><p>Reading a classic or quorum queue requeues messages. It exists only on a profile you set to tier <code>peek</code>, is approved every time and refused near the delivery limit.</p></li>
     <li><span class="icon" aria-hidden="true">🕶️</span><h3>Masking for messages</h3><p>JSON bodies masked per leaf (<code>redact-unknown</code> on production), headers and properties by rule and name, value detectors; binary bodies reduced to size and hash.</p></li>
-    <li><span class="icon" aria-hidden="true">🛡️</span><h3>OS separation</h3><p><code>lockmq install</code> runs the console under its own account; the kernel checks every peer on the socket.</p></li>
+    <li><span class="icon" aria-hidden="true">🛡️</span><h3>OS separation</h3><p>The Docker image runs the console under its own account; the kernel checks every peer on the socket.</p></li>
     <li><span class="icon" aria-hidden="true">⚖️</span><h3>The AI tightens, the human loosens</h3><p>The agent may add mask rules or tighten a profile; a new tier, limit, vhost or URL waits for your confirmation in the console.</p></li>
     <li><span class="icon" aria-hidden="true">🏷️</span><h3>Refusals the agent can act on</h3><p>Every refusal carries a stable code, a hint and a retry rule: rewrite, ask the user, or stop.</p></li>
   </ul>
@@ -139,20 +139,23 @@
 
 <section aria-labelledby="quick-start">
   <h2 id="quick-start">Quick start</h2>
-  <pre tabindex="0" class="term"><code># 1. Install (see the Install page for packages, checksums and signatures)
-curl -fsSL https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh | sh
+  <pre tabindex="0" class="term"><code># 1. Build the image
+docker build -t lockmq https://github.com/DavidGodefroid/lockmq.git
 
-# 2. Separate the console from the agent (once per machine)
-lockmq install
+# 2. In your project: the agent files, a broker profile, .lockmq for the console
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq init claude
+docker run -it --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq setup
+docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes
 
-# 3. In your project: a broker profile, then your agents
-lockmq setup
-lockmq init
+# 3. Start the console in a terminal you keep in view
+docker run -it --rm --name lockmq-console --user lockmq -v "$PWD:$PWD" \
+  -v lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq lockmq console --project "$PWD"
 
-# 4. In a session of the lockmq account, start the console and keep it open
-lockmq console --profile dev --project DIR</code></pre>
-  <p class="prose">Then ask your agent: “which queues have no consumer?”. Catalogue calls answer at once; message reads wait for your approval in the console. <code>lockmq doctor</code> checks the setup.</p>
-  <p><a href="install/">Full install options, checksums and signatures</a></p>
+# 4. Wire Claude Code to the MCP server in a throwaway container
+claude mcp add --scope user lockmq -- \
+  sh -c 'exec docker run -i --rm -v "$PWD:$PWD" -w "$PWD" -v lockmq-run:/run/lockmq lockmq mcp'</code></pre>
+  <p class="prose">Then ask your agent: “which queues have no consumer?”. Catalogue calls answer at once; message reads wait for your approval in the console.</p>
+  <p><a href="install/">The Docker setup, step by step</a></p>
 </section>
 
 <section aria-labelledby="family">

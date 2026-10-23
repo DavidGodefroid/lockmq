@@ -52,100 +52,50 @@
 
 <h1>Install lockmq</h1>
 <div class="prose">
-  <p class="lead">Every release ships a static binary for Linux and macOS (amd64, arm64), <code>.deb</code>, <code>.rpm</code> and <code>.apk</code> packages, an SPDX SBOM per archive, a <code>checksums.txt</code> and its keyless cosign signature. No Go toolchain is needed.</p>
-  <p>lockmq is a pre-release (<code>v0.1.x</code>): the CLI, the MCP tools and the config files may still change before v1. The current release is <a href="https://github.com/DavidGodefroid/lockmq/releases/tag/v0.1.0">v0.1.0</a>.</p>
+  <p class="lead">lockmq runs in Docker: nothing to install on your machine but Docker. The image holds the separated setup: the console as <code>lockmq</code>, the agent as <code>agent</code> in <code>lockmq-clients</code>, a root-owned <code>/etc/lockmq/system.toml</code> and the socket directory shared through a named volume. Other deployment modes exist in the code but are no longer documented.</p>
+  <p>lockmq is a pre-release (<code>v0.1.x</code>): the CLI, the MCP tools and the config files may still change before v1.</p>
 </div>
 
-<section aria-labelledby="script">
-  <h2 id="script">Install script (Linux, macOS)</h2>
-  <p class="prose">Downloads the archive for your OS and architecture, checks it against <code>checksums.txt</code> (and the signature of <code>checksums.txt</code> when <code>cosign</code> is on PATH), then installs <code>/usr/local/bin/lockmq</code>, with <code>sudo</code> if needed:</p>
-  <pre tabindex="0"><code>curl -fsSLO https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh
-less install.sh                     # read it first
-sh install.sh                       # LOCKMQ_VERSION=v0.1.0 to pin a version</code></pre>
-  <p>Or, in one line:</p>
-  <pre tabindex="0"><code>curl -fsSL https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh | sh</code></pre>
-  <div class="prose">
-    <p><code>LOCKMQ_REQUIRE_COSIGN=1</code> makes the script fail instead of warning when <code>cosign</code> is missing. <code>LOCKMQ_INSTALL_DIR</code> installs elsewhere, but a binary your account owns cannot serve the separated console: <code>lockmq install</code> copies only a binary the agent’s account cannot replace.</p>
-    <p><a href="https://github.com/DavidGodefroid/lockmq/blob/main/scripts/install.sh">Read the install script source</a></p>
-  </div>
-</section>
-
-<section aria-labelledby="packages">
-  <h2 id="packages">Debian, Ubuntu, Fedora, RHEL, Alpine</h2>
-  <p class="prose">Packages install <code>/usr/bin/lockmq</code>, owned by root. Your architecture is detected:</p>
-  <pre tabindex="0"><code>V=0.1.0
-A=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-U=https://github.com/DavidGodefroid/lockmq/releases/download/v$V/lockmq_${V}_linux_$A
-
-# Debian, Ubuntu
-curl -fsSLO $U.deb &amp;&amp; sudo apt install ./lockmq_${V}_linux_$A.deb
-# Fedora, RHEL
-sudo dnf install $U.rpm
-# Alpine
-curl -fsSLO $U.apk &amp;&amp; sudo apk add --allow-untrusted ./lockmq_${V}_linux_$A.apk</code></pre>
-  <p class="prose">To remove, <code>sudo apt remove lockmq</code> (or <code>dnf remove</code>, <code>apk del</code>).</p>
-</section>
-
-<section aria-labelledby="by-hand">
-  <h2 id="by-hand">By hand, with signature check</h2>
-  <p class="prose">Download <code>lockmq_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz</code>, <code>checksums.txt</code> and <code>checksums.txt.sigstore.json</code> from the <a href="https://github.com/DavidGodefroid/lockmq/releases">releases page</a>, then:</p>
-  <pre tabindex="0"><code>cosign verify-blob --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/DavidGodefroid/lockmq/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  checksums.txt
-sha256sum --ignore-missing -c checksums.txt   # macOS: shasum -a 256 --ignore-missing -c checksums.txt
-tar -xzf lockmq_&lt;version&gt;_&lt;os&gt;_&lt;arch&gt;.tar.gz lockmq
-sudo install -m 0755 lockmq /usr/local/bin/lockmq</code></pre>
-  <p class="prose">For v0.1.0 the archives are <code>lockmq_0.1.0_linux_amd64.tar.gz</code>, <code>lockmq_0.1.0_linux_arm64.tar.gz</code>, <code>lockmq_0.1.0_darwin_amd64.tar.gz</code> and <code>lockmq_0.1.0_darwin_arm64.tar.gz</code>, each with its <code>.sbom.json</code>.</p>
-</section>
-
-<section aria-labelledby="source">
-  <h2 id="source">From source</h2>
-  <p class="prose"><code>go install github.com/DavidGodefroid/lockmq/cmd/lockmq@latest</code> (Go 1.26 or later); the binary is then in your home, so <code>lockmq install --trust-binary</code> prints its sha256 and checks the root-owned copy against it. To build from a checkout:</p>
-  <pre tabindex="0"><code>CGO_ENABLED=0 go build ./cmd/lockmq
-go test ./...
-go test -tags integration ./test/integration/   # RabbitMQ 3.13 and 4.1 in Docker</code></pre>
-  <p class="prose">See <a href="https://github.com/DavidGodefroid/lockmq/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for building and testing.</p>
+<section aria-labelledby="build">
+  <h2 id="build">1. Build the image</h2>
+  <pre tabindex="0"><code>docker build -t lockmq https://github.com/DavidGodefroid/lockmq.git</code></pre>
+  <p class="prose">Or <code>docker build -t lockmq .</code> from a clone. The base images are pinned by digest. <code>docker build --target vault -t lockmq .</code> adds the Vault CLI, checked against pinned sums, for <code>credentials = "vault"</code>.</p>
 </section>
 
 <section aria-labelledby="setup">
-  <h2 id="setup">After installing: set up</h2>
-
-  <h3 id="separate">1. Separate the console from the agent</h3>
-  <p class="prose">The console runs only in an account of its own: an agent in the console’s account could read its terminal or type into it. <code>lockmq console</code> refuses to start without this setup. Once per machine:</p>
-  <pre tabindex="0"><code>lockmq install [--client USER] [--user lockmq] [--group lockmq-clients] [--print] [--trust-binary] [--yes]</code></pre>
+  <h2 id="setup">2. Set up a project</h2>
+  <p class="prose">Mount the project at its own path: the console and the agent must see the same one. In the project directory, the agent files, then a broker profile:</p>
+  <pre tabindex="0"><code>docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq init claude
+docker run -it --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq setup</code></pre>
   <div class="prose">
-    <p>It prints the root commands and, on Linux, runs them with <code>sudo</code> after you confirm (<code>--yes</code>: without asking; <code>--print</code>: never). On macOS it prints them for an administrator to run. It creates the <code>lockmq</code> console account and the <code>lockmq-clients</code> group, adds the agent’s account to it (<code>--client</code>, default you), writes the root-owned <code>/etc/lockmq/system.toml</code>, creates the socket directory (<code>/run/lockmq</code> on Linux) and copies lockmq to <code>/usr/local/bin</code>, owned by root.</p>
-    <p>Then set a password for the console account (<code>sudo passwd lockmq</code>), log out and in again (the group applies at login), and open a separate login session as <code>lockmq</code> (switch user; use Wayland).</p>
+    <p><code>setup</code> asks for the management API URL, the optional AMQP and stream URLs, the vhosts, the user, where the password comes from (<code>ask</code> or <code>vault</code>; never the password itself), production or not, and whether to allow queue peeks (default no). In a container <code>localhost</code> is the container itself: a broker on your machine is <code>host.docker.internal</code>, a broker container is its name on a network shared with the console.</p>
+    <p>Then give <code>.lockmq/</code> to the console account, as root in the image (the repair never follows a symbolic link):</p>
   </div>
+  <pre tabindex="0"><code>docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes</code></pre>
+</section>
 
-  <h3 id="profiles">2. Describe your brokers</h3>
-  <pre tabindex="0"><code>lockmq setup [--project DIR]</code></pre>
-  <div class="prose">
-    <p>Asks for one profile and appends it to the project’s <code>.lockmq/config.toml</code>: the management API URL, the optional AMQP and stream URLs, the vhosts, the user, where the password comes from (<code>ask</code>, <code>keychain</code> or <code>vault</code>; never the password itself), production or not, and whether to allow queue peeks (default no). The profile is validated before it is written; a URL with a password is refused.</p>
-    <p>Every key is described in the <a href="https://github.com/DavidGodefroid/lockmq#configuration">README’s Configuration section</a>.</p>
-  </div>
-
-  <h3 id="broker-user">3. Create a read-only broker user</h3>
+<section aria-labelledby="broker-user">
+  <h2 id="broker-user">3. Create a read-only broker user</h2>
   <p class="prose">Tag it <code>monitoring</code>, give it empty <code>configure</code> and <code>write</code> permissions, and <code>read</code> only on what lockmq may read. RabbitMQ lets <code>read</code> purge a queue: grant it on the streams, and on queues only for profiles with tier <code>peek</code>.</p>
   <pre tabindex="0"><code>rabbitmqctl add_user lockmq-ro 'choose-a-password'
 rabbitmqctl set_user_tags lockmq-ro monitoring
 rabbitmqctl set_permissions -p orders lockmq-ro '^$' '^$' '^(order-events)$'</code></pre>
-
-  <h3 id="agents">4. Wire your agents</h3>
-  <pre tabindex="0"><code>lockmq init [claude|codex|cursor|gemini ...]</code></pre>
-  <p class="prose">Writes the project’s agent files (default: the agents found on the machine): the MCP server entry (<code>lockmq mcp</code>), the Claude Code skill, the <code>AGENTS.md</code> / <code>GEMINI.md</code> section and the Cursor rule. Claude Code may call the catalogue tools without a prompt; <code>lockmq_read</code>, <code>lockmq_peek</code> and <code>lockmq_pii_add</code> always ask.</p>
-
-  <h3 id="console">5. Start the console</h3>
-  <p class="prose">In the <code>lockmq</code> account’s own session:</p>
-  <pre tabindex="0"><code>lockmq console --profile dev --project /path/to/project</code></pre>
-  <p class="prose">It checks the isolation, asks you to approve the policy, asks for the password (or reads the keychain or Vault), connects, audits the broker user’s privileges and opens the socket. <code>lockmq doctor</code> checks the whole setup from either account.</p>
-  <p class="prose"><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Every command in the usage guide</a></p>
 </section>
 
-<section aria-labelledby="docker">
-  <h2 id="docker">Docker</h2>
-  <p class="prose">A broker in a container is a broker like any other: point the profile at the ports the container publishes. The console itself runs on the host in v0.1; a container mode, as locksql has, is on the roadmap. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md">lockmq and containers</a>.</p>
+<section aria-labelledby="console">
+  <h2 id="console">4. Start the console</h2>
+  <p class="prose">In a terminal you keep in view, from the project directory (add <code>--network NAME</code> for a broker container):</p>
+  <pre tabindex="0"><code>docker run -it --rm --name lockmq-console --user lockmq -v "$PWD:$PWD" \
+  -v lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq lockmq console --project "$PWD"</code></pre>
+  <p class="prose">It checks the isolation, asks you to approve the policy, asks for the password (or reads Vault), connects, audits the broker user’s privileges and opens the socket.</p>
+</section>
+
+<section aria-labelledby="agents">
+  <h2 id="agents">5. Wire your agents</h2>
+  <p class="prose">The agent starts the MCP server in a throwaway container, as <code>agent</code>, with the socket volume and the project:</p>
+  <pre tabindex="0"><code>claude mcp add --scope user lockmq -- \
+  sh -c 'exec docker run -i --rm -v "$PWD:$PWD" -w "$PWD" -v lockmq-run:/run/lockmq lockmq mcp'</code></pre>
+  <p class="prose">Codex, Gemini CLI and Cursor take the same command; an agent in a container of its own, without the Docker socket, runs <code>lockmq</code> as a client of the console container. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md">The full Docker guide</a> · <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">every command in the usage guide</a>.</p>
 </section>
 
     </div>

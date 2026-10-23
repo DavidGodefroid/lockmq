@@ -59,6 +59,8 @@ func runWith(t *testing.T, root string, conn *fakeConn, dialErr error, stdin str
 	var out, errb bytes.Buffer
 	e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: root,
 		userConfig: filepath.Join(t.TempDir(), "none.toml"),
+		container:  func() bool { return false },
+		svc:        func(string) (svcAccount, bool) { return svcAccount{}, false },
 		sys: func() (*sysconf.Config, error) {
 			return &sysconf.Config{ServiceUser: "lockmq", ClientGroup: "lockmq-clients", SocketDir: "/run/lockmq"}, nil
 		},

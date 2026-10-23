@@ -49,6 +49,12 @@ type env struct {
 	sys func() (*sysconf.Config, error)
 	// executable and goos replace the running binary and system (tests).
 	executable, goos string
+	// container reports a process in a container; nil is the real check.
+	container func() bool
+	// euid is the effective uid; nil is os.Geteuid.
+	euid func() int
+	// svc looks up the console account; nil is the real lookup.
+	svc func(name string) (svcAccount, bool)
 }
 
 const usageText = `usage: lockmq <command> [arguments]
@@ -57,11 +63,12 @@ Human commands
   install    [--client USER] [--print] [--trust-binary] [--yes]
                                         separate the console from the agent: console
                                         account, clients group, /etc/lockmq (sudo)
-  setup     [--project DIR]            add a broker profile to the project (asks)
+  setup      [--project DIR]            add a broker profile to the project (asks)
   console    [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
                                         run the approval console
-  doctor     [--profile P]              check the config, each profile's tier, the consoles
-                                        and the agent wiring
+  doctor     [--profile P] [--fix [--yes]]
+                                        check the config, each profile's tier, the consoles,
+                                        the project's .lockmq and the agent wiring
   init       [claude|codex|cursor|gemini ...]
                                         wire agents to lockmq in the project
 

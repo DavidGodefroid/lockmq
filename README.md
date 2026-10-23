@@ -74,7 +74,7 @@ decision **out of the agent**.
 <td width="50%" valign="top">
 
 **🔑 One key holder**<br>
-Credentials are typed at console start, read from the OS keychain or fetched
+Credentials are typed at console start or fetched
 from HashiCorp Vault (the RabbitMQ secrets engine works as is). Never in argv,
 env, files, logs, the socket or error messages; URI passwords are stripped
 from every answer.
@@ -119,8 +119,11 @@ binary and compressed bodies reduced to size and hash.
 <td valign="top">
 
 **🛡️ OS separation**<br>
-`lockmq install` runs the console under its own account; the kernel checks
+The Docker image runs the console under its own account; the kernel checks
 every peer on the socket, and the console refuses to start without it.
+⚠️ An agent that can run `docker` (the default MCP wiring is a `docker run`)
+can attach to the console: see
+[what Docker does and does not separate](docs/docker.md#what-docker-does-and-does-not-separate).
 
 </td>
 </tr>
@@ -144,29 +147,33 @@ the user, or stop.
 
 ## Quick start
 
+Docker only: nothing to install but Docker. The full guide is
+[docs/docker.md](docs/docker.md).
+
 ```sh
-# 1. Install (see Install below for packages, checksums and signatures)
-curl -fsSL https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh | sh
+# 1. Build the image (console as "lockmq", agent as "agent", shared socket volume)
+docker build -t lockmq https://github.com/DavidGodefroid/lockmq.git
 
-# 2. Separate the console from the agent (once per machine; prints the root
-#    commands and runs them with sudo after you confirm)
-lockmq install
+# 2. In your project: the agent files, a broker profile, then .lockmq for the console
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq init claude
+docker run -it --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq setup
+docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes
 
-# 3. In your project: a broker profile, then your agents
-lockmq setup
-lockmq init
+# 3. In a terminal you keep in view, start the console
+docker run -it --rm --name lockmq-console --user lockmq -v "$PWD:$PWD" \
+  -v lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq lockmq console --project "$PWD"
 
-# 4. In a session of the lockmq account (switch user, Wayland), start the
-#    console and keep it open
-lockmq console --profile dev --project /path/to/project
+# 4. Wire Claude Code to the MCP server in a throwaway container
+claude mcp add --scope user lockmq -- \
+  sh -c 'exec docker run -i --rm -v "$PWD:$PWD" -w "$PWD" -v lockmq-run:/run/lockmq lockmq mcp'
 ```
 
-After `lockmq install`, set a password for the console account
-(`sudo passwd lockmq`) and log out and in again: your account joins the
-`lockmq-clients` group at login. Then ask your agent: "which queues have no
-consumer?", "why does orders.failed fill up?". Catalogue calls answer at
-once; message reads wait for your approval in the console. `lockmq doctor`
-checks the setup from either account.
+Inside the containers `localhost` is the container itself: `setup` offers
+`host.docker.internal` for a broker on your machine, and a broker container
+is reached by its name on a network shared with the console
+(`--network`). Then ask your agent: "which queues have no consumer?", "why
+does orders.failed fill up?". Catalogue calls answer at once; message reads
+wait for your approval in the console.
 
 ## How it works
 
@@ -223,12 +230,12 @@ sequenceDiagram
 <summary>Process layout</summary>
 
 ```
- agent account                         lockmq account (its own session)
+ agent's container (agent)             console container (lockmq)
 ┌──────────────────────┐   socket    ┌─────────────────────────────────────┐
 │ Claude Code / Codex  │ ──────────▶ │ lockmq console                      │
 │  lockmq mcp / CLI    │ ◀────────── │  policy · allowlist · masking       │
 │  (no secret, no      │  JSON-RPC,  │  approval screens · audit log       │
-│   broker connection) │  peer uid   │  credentials (prompt/keychain/Vault)│
+│   broker connection) │  peer uid   │  credentials (prompt/Vault)         │
 └──────────────────────┘  checked    └───────────────┬─────────────────────┘
                                                      │ management API (GET)
                                                      │ stream protocol / AMQP
@@ -257,9 +264,9 @@ The console is the enforcement point; skills, rules and tool descriptions
 only guide the agent. The full model, its threats and its limits are in
 [docs/security-model.md](docs/security-model.md). In short:
 
-- **Separate account.** `lockmq install` creates the console account, the
-  clients group and `/etc/lockmq/system.toml`; the console refuses to start
-  without them.
+- **Separate account.** The image holds the console account, the clients
+  group, the root-owned `/etc/lockmq/system.toml` and the socket directory
+  shared through a volume; the console refuses to start without them.
 - **Allowlist.** What is not in the catalogue does not exist.
 - **Read-only by default.** Tier `read` reads metadata and streams, and moves
   nothing. Tier `peek` is not strictly read-only and is labelled as such
@@ -267,8 +274,8 @@ only guide the agent. The full model, its threats and its limits are in
 - **Human approval.** Every `read` and `peek` is shown and approved in the
   console terminal; no socket method can approve. On a production profile you
   type the profile name. No answer within 5 minutes means denied.
-- **Credentials.** Asked at console start (no echo), read from the console
-  account's keychain, or read from Vault at every connection. Errors that
+- **Credentials.** Asked at console start (no echo), or read from Vault at
+  every connection (a container has no keychain). Errors that
   leave the console are scrubbed of known secrets, URI userinfo and
   `Authorization` headers.
 - **Broker user.** Use a user tagged `monitoring` with `configure "^$"` and
@@ -413,14 +420,13 @@ variable can set them, and each change is audited.
   offsets and consumer lag are not available.
 - The first peek of a queue cannot know the delivery counts (the count is
   only seen after a `get`); the screen says so.
-- The console runs on the host, in the separated account; no console in a
-  container yet. One console per profile and project, one request at a time.
+- One console per profile and project, one request at a time.
 
 ## Roadmap
 
 Not in v0.1, and not promised for a given release:
 
-- the console in a container, as locksql's Docker mode;
+- a prebuilt image;
 - body formats beyond JSON and UTF-8 text;
 - an `update` command that checks the release signature, as `locksql update`.
 
@@ -442,63 +448,20 @@ same console, separation and approval model:
 |---|---|
 | 📘 [docs/usage.md](docs/usage.md) | every command, the console, the MCP tools, refusal codes |
 | 🛡️ [docs/security-model.md](docs/security-model.md) | principles, boundaries, threats and limits |
-| 🐳 [docs/docker.md](docs/docker.md) | a broker in a container; the read-only broker user |
+| 🐳 [docs/docker.md](docs/docker.md) | the setup guide: image, project, console, agent wiring, broker in a container |
 | 📝 [CHANGELOG.md](CHANGELOG.md) | release notes |
 | 🚨 [SECURITY.md](SECURITY.md) | reporting a vulnerability |
 | 🧑‍💻 [CONTRIBUTING.md](CONTRIBUTING.md) | building and testing |
 
 ## Install
 
-Every release ships a static binary for Linux and macOS (amd64, arm64),
-`.deb`, `.rpm` and `.apk` packages, an SPDX SBOM per archive, a
-`checksums.txt` and its keyless cosign signature. No Go toolchain is needed.
+lockmq runs in Docker: build the image from a clone (`docker build -t lockmq
+.`) or from the repository URL, then follow [docs/docker.md](docs/docker.md).
+The `vault` target adds the pinned Vault CLI for `credentials = "vault"`
+(`docker build --target vault -t lockmq .`).
 
-**Script (Linux, macOS).** Downloads the archive for your OS and architecture,
-checks it against `checksums.txt` (and its signature when `cosign` is on
-PATH), then installs `/usr/local/bin/lockmq`, with `sudo` if needed:
-
-```sh
-curl -fsSLO https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh
-less install.sh                     # read it first
-sh install.sh                       # LOCKMQ_VERSION=v0.1.0 to pin a version
-```
-
-`LOCKMQ_REQUIRE_COSIGN=1` fails instead of warning when `cosign` is missing.
-`LOCKMQ_INSTALL_DIR` installs elsewhere, but `lockmq install` copies only a
-binary the agent's account cannot replace.
-
-**Debian, Ubuntu, Fedora, RHEL, Alpine.** Packages install
-`/usr/bin/lockmq`, owned by root:
-
-```sh
-V=0.1.0
-A=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-U=https://github.com/DavidGodefroid/lockmq/releases/download/v$V/lockmq_${V}_linux_$A
-
-# Debian, Ubuntu
-curl -fsSLO $U.deb && sudo apt install ./lockmq_${V}_linux_$A.deb
-# Fedora, RHEL
-sudo dnf install $U.rpm
-# Alpine
-curl -fsSLO $U.apk && sudo apk add --allow-untrusted ./lockmq_${V}_linux_$A.apk
-```
-
-**By hand.** Download `lockmq_<version>_<os>_<arch>.tar.gz`, `checksums.txt`
-and `checksums.txt.sigstore.json` from the
-[releases page](https://github.com/DavidGodefroid/lockmq/releases), then:
-
-```sh
-cosign verify-blob --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/DavidGodefroid/lockmq/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  checksums.txt
-sha256sum --ignore-missing -c checksums.txt   # macOS: shasum -a 256 --ignore-missing -c checksums.txt
-tar -xzf lockmq_<version>_<os>_<arch>.tar.gz lockmq
-sudo install -m 0755 lockmq /usr/local/bin/lockmq
-```
-
-**From source.** `go install github.com/DavidGodefroid/lockmq/cmd/lockmq@latest`
-(Go 1.26 or later), then `lockmq install --trust-binary`.
+Other deployment modes (release archives and packages, `lockmq install` on
+a host) exist in the code but are no longer documented.
 
 ## Build
 

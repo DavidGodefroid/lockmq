@@ -59,12 +59,12 @@
     <p><strong>The console</strong> (<code>lockmq console</code>) runs in a session of the dedicated <code>lockmq</code> account. It holds the broker credentials and the only broker connections, applies the policy, masks messages and asks you to approve every read of message content.</p>
     <p><strong>The clients</strong> (the <code>lockmq</code> CLI and <code>lockmq mcp</code>, the MCP server on stdio) run on the agent’s side. They hold no secret and open no broker connection: they talk to the console over a Unix socket that only the <code>lockmq-clients</code> group reaches, and the kernel’s peer credentials are checked on every connection.</p>
   </div>
-  <pre tabindex="0" class="diagram"><code> agent account                         lockmq account (its own session)
+  <pre tabindex="0" class="diagram"><code> agent's container (agent)             console container (lockmq)
 ┌──────────────────────┐   socket    ┌─────────────────────────────────────┐
 │ Claude Code / Codex  │ ──────────▶ │ lockmq console                      │
 │  lockmq mcp / CLI    │ ◀────────── │  policy · allowlist · masking       │
 │  (no secret, no      │  JSON-RPC,  │  approval screens · audit log       │
-│   broker connection) │  peer uid   │  credentials (prompt/keychain/Vault)│
+│   broker connection) │  peer uid   │  credentials (prompt/Vault)         │
 └──────────────────────┘  checked    └───────────────┬─────────────────────┘
                                                      │ management API (GET)
                                                      │ stream protocol / AMQP

@@ -4,30 +4,9 @@ Every command, the console and the MCP tools. For the why, see the
 [README](../README.md); for the boundaries, the
 [security model](security-model.md).
 
-## Setup, once per machine
-
-```sh
-lockmq install [--client USER] [--user lockmq] [--group lockmq-clients] [--print] [--trust-binary] [--yes]
-```
-
-Prints the root commands that separate the console from the agent and, on
-Linux, runs them with sudo once you confirm (`--yes`: without asking;
-`--print`: never). On macOS it prints them for an administrator to run.
-
-- creates the console account (`lockmq`) and the clients group
-  (`lockmq-clients`), and adds the agent's account (`--client`, default you)
-  to the group;
-- writes `/etc/lockmq/system.toml` (root-owned): without it the console
-  refuses to start;
-- creates the socket directory (`/run/lockmq`, setgid, through
-  `systemd-tmpfiles` on Linux);
-- copies lockmq to `/usr/local/bin`, owned by root. A binary another account
-  could change (a `go install` into your home) is refused unless
-  `--trust-binary`, which prints its sha256 and checks the copy against it.
-
-Then: set a password for the console account (`sudo passwd lockmq`), log out
-and in again (the new group applies at login), and open a separate session as
-`lockmq` (switch user; use Wayland).
+Every command below runs in the Docker image: prefix it with the
+`docker run` of [docs/docker.md](docker.md), which sets up the project, runs
+the console and wires the agents.
 
 ## Profiles
 
@@ -37,8 +16,8 @@ lockmq setup [--project DIR]
 
 Asks for one profile and appends it to the project's `.lockmq/config.toml`:
 the management API URL, the optional AMQP and stream URLs, the vhosts, the
-user, the credentials mode (`ask`, `keychain`, `vault`), production or not,
-and:
+user, the credentials mode (`ask` or `vault`; a container has no keychain),
+production or not, and:
 
 ```
 Allow reading messages of classic and quorum queues? Not strictly read-only:
@@ -47,7 +26,9 @@ queue's delivery limit. [y/N]
 ```
 
 The default is no: `tier = "read"`. The profile is validated before it is
-written (a URL with a password is refused).
+written (a URL with a password is refused). In a container the management
+URL defaults to `http://host.docker.internal:15672`, and `localhost`,
+`127.0.0.1` and `::1`, the container itself, are refused.
 
 Every key is described in the README's Configuration section. Changing the
 file later: tightenings (a lower limit, `peek` → `read`, a removed vhost, a
@@ -73,10 +54,11 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
 ```
 
-Run it in the console account's own session. In order: the isolation checks,
+Run it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
+In order: the isolation checks,
 the policy review (first start: describe and approve; later: tightenings
 apply, loosenings are asked), the production banner and the typed profile
-name, the user and the password (or the keychain, or Vault), the connection
+name, the user and the password (or Vault), the connection
 (management API, then the stream readers), the privilege audit of the broker
 user (`administrator` or `policymaker`: refused on production, typed
 `continue` elsewhere), then the socket.
@@ -170,12 +152,21 @@ sends progress notifications so the client does not time out.
 ## Doctor
 
 ```sh
-lockmq doctor [--profile P]
+lockmq doctor [--profile P] [--fix [--yes]]
 ```
 
-Checks the config, the separated setup, each profile (tier first; `peek`
-flagged NOT READ-ONLY), whether its console runs (with its start command),
-and the agent wiring.
+Checks the config, the separated setup, the project's `.lockmq` (owned by
+the console account, mode 0755, `pii.toml` owned by the console account,
+the files readable), each profile (tier
+first; `peek` flagged NOT READ-ONLY), whether its console runs (with its
+start command), and the agent wiring.
+
+`--fix` repairs `.lockmq` as root: run it as root in the image
+(`docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix
+--yes`). The repair enters the directory and never follows a symbolic link;
+a `.lockmq` that is itself a link, a directory or file owned by root and a
+file with more than one link are reported, not repaired. `--yes` skips
+the question.
 
 ## Audit log
 
