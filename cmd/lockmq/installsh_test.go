@@ -27,13 +27,15 @@ type shFixture struct {
 
 const shVersion = "0.9.1"
 
-// The identity of the release workflow run for a version tag, that
-// scripts/install.sh and the launcher's update check the cosign
-// signatures against.
-const (
-	ReleaseCertIdentityRegexp = `^https://github\.com/DavidGodefroid/lockmq/\.github/workflows/release\.yml@refs/tags/v[0-9]`
-	releaseOIDCIssuer         = "https://token.actions.githubusercontent.com"
-)
+// releaseOIDCIssuer issues the release workflow's certificates.
+const releaseOIDCIssuer = "https://token.actions.githubusercontent.com"
+
+// releaseIdentity is the release workflow run for tag, the exact identity
+// scripts/install.sh and the launcher's update check the cosign signatures
+// against: a signature of another release does not verify.
+func releaseIdentity(tag string) string {
+	return "https://github.com/DavidGodefroid/lockmq/.github/workflows/release.yml@refs/tags/" + tag
+}
 
 func newShFixture(t *testing.T) *shFixture {
 	t.Helper()
@@ -162,7 +164,7 @@ func TestInstallShInstallsTheLauncher(t *testing.T) {
 		}
 	}
 	args, _ := os.ReadFile(f.cosignArgs)
-	for _, want := range []string{"verify\n", "ghcr.io/davidgodefroid/lockmq:" + shVersion + "\n", "ghcr.io/davidgodefroid/lockmq:" + shVersion + "-vault\n", "--certificate-identity-regexp\n" + ReleaseCertIdentityRegexp + "\n"} {
+	for _, want := range []string{"verify\n", "ghcr.io/davidgodefroid/lockmq:" + shVersion + "\n", "ghcr.io/davidgodefroid/lockmq:" + shVersion + "-vault\n", "--certificate-identity\n" + releaseIdentity("v"+shVersion) + "\n"} {
 		if !strings.Contains(string(args), want) {
 			t.Errorf("cosign args lack %q:\n%s", want, args)
 		}
@@ -224,8 +226,8 @@ func writeExec(t *testing.T, path, script string) {
 }
 
 // The signature of checksums.txt is checked against the release workflow
-// run for a version tag, the identity lockmq update checks too, not any
-// workflow or ref of the repository.
+// run for the tag installed, the identity lockmq update checks too, not any
+// workflow, ref or other release of the repository.
 func TestInstallShChecksTheReleaseWorkflowIdentity(t *testing.T) {
 	f := newShFixture(t)
 	f.cosign(t, true)
@@ -240,7 +242,7 @@ func TestInstallShChecksTheReleaseWorkflowIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"verify-blob\n", "--certificate-identity-regexp\n" + ReleaseCertIdentityRegexp + "\n",
+	for _, want := range []string{"verify-blob\n", "--certificate-identity\n" + releaseIdentity("v"+shVersion) + "\n",
 		"--certificate-oidc-issuer\n" + releaseOIDCIssuer + "\n"} {
 		if !strings.Contains(string(args), want) {
 			t.Errorf("cosign args lack %q:\n%s", want, args)
@@ -289,8 +291,8 @@ func TestGoreleaserCommentPinsTheIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "--certificate-identity-regexp '"+ReleaseCertIdentityRegexp+"'") {
-		t.Errorf(".goreleaser.yaml does not show the pinned identity %s", ReleaseCertIdentityRegexp)
+	if !strings.Contains(string(b), "--certificate-identity '"+releaseIdentity("vX.Y.Z")+"'") {
+		t.Errorf(".goreleaser.yaml does not show the pinned identity %s", releaseIdentity("vX.Y.Z"))
 	}
 }
 

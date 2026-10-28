@@ -91,14 +91,16 @@ has_flag() {
 	return 1
 }
 
-# The release workflow run for a version tag, as scripts/install.sh checks it.
-identity='^https://github\.com/DavidGodefroid/lockmq/\.github/workflows/release\.yml@refs/tags/v[0-9]'
+# release_identity TAG: the release workflow run for that very tag, as
+# scripts/install.sh checks it: a signature made for another release (an
+# older one, say) does not verify.
+release_identity() { printf 'https://github.com/%s/.github/workflows/release.yml@refs/tags/%s' "$repo" "$1"; }
 
 # verified_digest TAG: the digest of the release image registry:TAG, once
-# cosign verifies its signature by the release workflow; empty when it does
-# not verify.
+# cosign verifies its signature by the release workflow run for $identity;
+# empty when it does not verify.
 verified_digest() {
-	cosign verify --certificate-identity-regexp "$identity" \
+	cosign verify --certificate-identity "$identity" \
 		--certificate-oidc-issuer https://token.actions.githubusercontent.com \
 		"$registry:$1" 2>/dev/null |
 		sed -n 's/.*"docker-manifest-digest":"\(sha256:[0-9a-f]\{64\}\)".*/\1/p' | sed -n 1p
@@ -139,6 +141,7 @@ update() {
 	fi
 	case "$tag" in v*) ;; *) tag="v$tag" ;; esac
 	version="${tag#v}"
+	identity="$(release_identity "$tag")"
 	if [ "$version" = "$launcher_version" ]; then
 		say "the launcher is already $tag"
 	else
@@ -154,7 +157,7 @@ update() {
 			fetch "$base/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json" ||
 				die "download failed: checksums.txt.sigstore.json"
 			cosign verify-blob --bundle "$tmp/checksums.txt.sigstore.json" \
-				--certificate-identity-regexp "$identity" \
+				--certificate-identity "$identity" \
 				--certificate-oidc-issuer https://token.actions.githubusercontent.com \
 				"$tmp/checksums.txt" >/dev/null 2>&1 || die "cosign: signature of checksums.txt does not verify"
 			say "cosign: checksums.txt signature verified"

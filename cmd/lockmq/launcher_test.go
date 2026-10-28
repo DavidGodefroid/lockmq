@@ -368,7 +368,7 @@ func TestLauncherUpdate(t *testing.T) {
 		t.Errorf("calls %q", calls)
 	}
 	args, _ := os.ReadFile(rel.cosignArgs)
-	if !strings.Contains(string(args), ReleaseCertIdentityRegexp) {
+	if !strings.Contains(string(args), "--certificate-identity\n"+releaseIdentity("v"+shVersion)+"\n") || strings.Contains(string(args), "-regexp") {
 		t.Errorf("cosign args %s", args)
 	}
 }
@@ -415,13 +415,13 @@ func TestLauncherUpdateRefusesAnUnverifiedImage(t *testing.T) {
 	}
 }
 
-// The launcher pins the identity lockmq update checked.
+// The launcher pins the release workflow run for the tag it updates to.
 func TestLauncherPinsTheReleaseIdentity(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "scripts", "lockmq"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "identity='"+ReleaseCertIdentityRegexp+"'") {
-		t.Error("scripts/lockmq does not pin", ReleaseCertIdentityRegexp)
+	if !strings.Contains(string(b), `release.yml@refs/tags/%s' "$repo" "$1"`) || !strings.Contains(string(b), `repo="DavidGodefroid/lockmq"`) {
+		t.Error("scripts/lockmq does not pin the release workflow of the tag")
 	}
 }

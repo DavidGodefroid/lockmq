@@ -11,7 +11,7 @@ vulnerability.
 
 Please include:
 
-- the lockmq version (`lockmq version`) and your OS;
+- the lockmq version (`lockmq version`: the launcher's and the image's) and your OS;
 - the RabbitMQ version, if relevant;
 - the steps or input needed to reproduce the issue, and its impact.
 
@@ -41,6 +41,20 @@ Issues of interest include, among others:
 
 Attacks that require running code as the same OS user as the console are out
 of scope, as documented in the threat model.
+
+## Verifying a release
+
+`scripts/install.sh` and `lockmq update` check the cosign signatures of
+`checksums.txt` and of the image `ghcr.io/davidgodefroid/lockmq:X.Y.Z`
+against the release workflow run for that tag, then pin the launcher to the
+verified image digest. To check the image by hand:
+
+```sh
+cosign verify \
+  --certificate-identity 'https://github.com/DavidGodefroid/lockmq/.github/workflows/release.yml@refs/tags/vX.Y.Z' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/davidgodefroid/lockmq:X.Y.Z
+```
 
 ## Supported versions
 

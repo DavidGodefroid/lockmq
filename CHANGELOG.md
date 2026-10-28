@@ -6,6 +6,46 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### One `lockmq` command, backed by Docker
+
+Every lockmq command now runs in Docker, through one host command: the
+`lockmq` launcher.
+
+- `scripts/lockmq`, a POSIX shell launcher, runs each command in
+  `ghcr.io/davidgodefroid/lockmq` with the account and volumes it needs:
+  `console` as `lockmq` in a container named `lockmq-console` (no log
+  driver, `host.docker.internal` mapped, `VAULT_ADDR`/`VAULT_NAMESPACE`
+  passed, volumes `lockmq-run` and `lockmq-home`, `--project` added);
+  `init` as you with your home; `setup` as you; `doctor --fix` as root;
+  everything else, `mcp` included, as `agent` with `lockmq-run`. It mounts
+  the project (the nearest directory up holding `.lockmq/`) at its own
+  path and never mounts the Docker socket. `LOCKMQ_IMAGE`, `LOCKMQ_VAULT=1`
+  and `LOCKMQ_DOCKER_ARGS` adjust it.
+- `scripts/install.sh` installs the launcher, not the binary, after
+  checking the cosign signature of `checksums.txt` against the release
+  workflow run for that very tag (a signature of another release does not
+  verify), the archive's checksum and the images' signatures;
+  cosign is now required (`LOCKMQ_SKIP_COSIGN=1` is the explicit way past
+  it, and replaces `LOCKMQ_REQUIRE_COSIGN`). The launcher runs its
+  release's image by the verified digest.
+- `lockmq version` prints the launcher's and the image's versions;
+  `lockmq update [vX.Y.Z]` replaces the launcher the same way, then pulls
+  its image.
+- The release workflow builds the image (and its `-vault` variant) for
+  amd64 and arm64, publishes it to ghcr.io and signs it with cosign. The
+  archives ship the launcher; the `.deb`, `.rpm` and `.apk` packages are
+  gone.
+- The binary refuses `install` and `update` ("lockmq runs in Docker").
+  `lockmq init` writes `lockmq mcp`, which now works as is.
+
+**Breaking, migration:** `install.sh` installs the launcher in place of the
+binary, and releases no longer ship packages. Replace the `docker run …
+lockmq …` commands and `sh -c 'exec docker run … lockmq mcp'` agent entries
+of the former guide with `lockmq …` (the old ones keep working). A host
+install (`sudo lockmq install`) leaves the `lockmq` account and group,
+`/etc/lockmq/` and the socket directory behind: see
+[docs/docker.md](docs/docker.md#migrating).
+
 ### Docker image
 
 Docker is now the default and only documented way to run lockmq, at parity

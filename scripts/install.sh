@@ -72,13 +72,14 @@ say "downloading $archive ($tag)"
 fetch "$base/$archive" "$tmp/$archive" || die "download failed: $base/$archive"
 fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "download failed: checksums.txt"
 
-# The release workflow run for a version tag, as lockmq update checks it.
-identity='^https://github\.com/DavidGodefroid/lockmq/\.github/workflows/release\.yml@refs/tags/v[0-9]'
+# The release workflow run for this very tag, as lockmq update checks it: a
+# signature made for another release (an older one, say) does not verify.
+identity="https://github.com/$repo/.github/workflows/release.yml@refs/tags/$tag"
 if command -v cosign >/dev/null 2>&1; then
 	fetch "$base/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json" ||
 		die "download failed: checksums.txt.sigstore.json"
 	cosign verify-blob --bundle "$tmp/checksums.txt.sigstore.json" \
-		--certificate-identity-regexp "$identity" \
+		--certificate-identity "$identity" \
 		--certificate-oidc-issuer https://token.actions.githubusercontent.com \
 		"$tmp/checksums.txt" >/dev/null 2>&1 || die "cosign: signature of checksums.txt does not verify"
 	say "cosign: checksums.txt signature verified"
@@ -103,7 +104,7 @@ tar -xzf "$tmp/$archive" -C "$tmp" scripts/lockmq 2>/dev/null ||
 # cosign signatures verify (the release workflow, as for checksums.txt).
 registry="ghcr.io/davidgodefroid/lockmq"
 verified_digest() {
-	cosign verify --certificate-identity-regexp "$identity" \
+	cosign verify --certificate-identity "$identity" \
 		--certificate-oidc-issuer https://token.actions.githubusercontent.com \
 		"$registry:$1" 2>/dev/null |
 		sed -n 's/.*"docker-manifest-digest":"\(sha256:[0-9a-f]\{64\}\)".*/\1/p' | sed -n 1p
