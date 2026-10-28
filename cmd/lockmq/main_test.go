@@ -234,6 +234,8 @@ func TestDoctorShowsTier(t *testing.T) {
 }
 
 // install never runs anything for real here: e.root captures the script.
+// The dispatch refuses install (hostModeRefusal); its code stays until a
+// later release removes it.
 func TestInstall(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "lockmq")
 	if err := os.WriteFile(bin, []byte("binary"), 0o755); err != nil {
@@ -244,7 +246,7 @@ func TestInstall(t *testing.T) {
 		var out, errb bytes.Buffer
 		e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: tty,
 			executable: bin, goos: goos, root: func(s string) error { scripts = append(scripts, s); return nil }}
-		code := run(e, append([]string{"install", "--client", "agent"}, args...))
+		code := runInstall(e, append([]string{"--client", "agent"}, args...))
 		return code, out.String(), errb.String()
 	}
 	if code, _, stderr := inst("linux", "", false); code != exitFail || !strings.Contains(stderr, "could have been replaced by the agent") {
@@ -270,5 +272,32 @@ func TestInstall(t *testing.T) {
 	}
 	if code, _, _ := inst("linux", "", false, "--user", "agent"); code != exitUsage {
 		t.Errorf("same accounts: %d", code)
+	}
+}
+
+// The host install and update are refused: lockmq runs in Docker, and the
+// launcher on the host updates itself.
+func TestHostModeCommandsRefused(t *testing.T) {
+	for _, args := range [][]string{{"install"}, {"install", "--yes"}, {"update"}, {"update", "v1.0.0"}} {
+		var out, errb bytes.Buffer
+		e := env{stdin: strings.NewReader(""), stdout: &out, stderr: &errb, cwd: t.TempDir()}
+		if code := run(e, args); code != exitFail {
+			t.Errorf("%v: exit %d, want %d", args, code, exitFail)
+		}
+		if !strings.Contains(errb.String(), "runs in Docker") || !strings.Contains(errb.String(), "docs/docker.md") || out.Len() != 0 {
+			t.Errorf("%v: stdout %q stderr %q", args, out.String(), errb.String())
+		}
+	}
+}
+
+// The help names no host install; update is the launcher's.
+func TestHelpHasNoHostInstall(t *testing.T) {
+	for _, gone := range []string{"\n  install ", "/etc/lockmq (sudo)", "(sudo)"} {
+		if strings.Contains(usageText, gone) {
+			t.Errorf("help still names %q:\n%s", gone, usageText)
+		}
+	}
+	if !strings.Contains(usageText, "\n  update ") {
+		t.Errorf("help lacks the launcher's update:\n%s", usageText)
 	}
 }

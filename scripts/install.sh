@@ -1,18 +1,26 @@
 #!/bin/sh
-# Installs a released lockmq binary on Linux or macOS, without Go.
+# Installs the lockmq launcher of a release on Linux or macOS (WSL 2 on
+# Windows). lockmq runs in Docker: the launcher, installed as `lockmq`,
+# runs every command in the release's image (scripts/lockmq,
+# docs/docker.md). Nothing else lands on the host.
 #
-#   curl -fsSL https://raw.githubusercontent.com/DavidGodefroid/lockmq/main/scripts/install.sh | sh
+# Download it from the tag you install, read it, then run it with that tag:
 #
-# Better: download it, read it, then run it.
+#   V=vX.Y.Z
+#   curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
+#   less install.sh
+#   LOCKMQ_VERSION=$V sh install.sh
 #
 # Environment:
-#   LOCKMQ_VERSION      tag to install (default: the latest release), e.g. v0.1.0
+#   LOCKMQ_VERSION      tag to install (default: the latest release), e.g. v0.2.0
 #   LOCKMQ_INSTALL_DIR  target directory (default: /usr/local/bin, via sudo if needed)
-#   LOCKMQ_REQUIRE_COSIGN=1  fail instead of warning when cosign is not on PATH
+#   LOCKMQ_SKIP_COSIGN=1  install without cosign: the signature is then NOT checked
 #
-# The archive is checked against checksums.txt; when cosign is available, the
-# keyless signature of checksums.txt is checked too. This script only places
-# the binary: `lockmq install` sets up the separated console afterwards.
+# cosign is required: the keyless signature of checksums.txt must come from
+# this repository's release workflow run for a version tag, and the archive is
+# checked against checksums.txt. The checksum alone only detects corruption,
+# since it comes from the same release. The launcher comes from that archive.
+# `lockmq update` later replaces it the same way.
 set -eu
 
 repo="DavidGodefroid/lockmq"
@@ -64,18 +72,20 @@ say "downloading $archive ($tag)"
 fetch "$base/$archive" "$tmp/$archive" || die "download failed: $base/$archive"
 fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "download failed: checksums.txt"
 
+# The release workflow run for a version tag, as lockmq update checks it.
+identity='^https://github\.com/DavidGodefroid/lockmq/\.github/workflows/release\.yml@refs/tags/v[0-9]'
 if command -v cosign >/dev/null 2>&1; then
 	fetch "$base/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json" ||
 		die "download failed: checksums.txt.sigstore.json"
 	cosign verify-blob --bundle "$tmp/checksums.txt.sigstore.json" \
-		--certificate-identity-regexp "^https://github.com/$repo/" \
+		--certificate-identity-regexp "$identity" \
 		--certificate-oidc-issuer https://token.actions.githubusercontent.com \
 		"$tmp/checksums.txt" >/dev/null 2>&1 || die "cosign: signature of checksums.txt does not verify"
 	say "cosign: checksums.txt signature verified"
-elif [ "${LOCKMQ_REQUIRE_COSIGN:-0}" = 1 ]; then
-	die "cosign not found and LOCKMQ_REQUIRE_COSIGN=1"
+elif [ "${LOCKMQ_SKIP_COSIGN:-0}" = 1 ]; then
+	say "WARNING: LOCKMQ_SKIP_COSIGN=1: the signature of checksums.txt is NOT checked; the checksum only detects corruption"
 else
-	say "cosign not found: checking the checksum only, not its signature"
+	die "cosign is required to check the release's signature (https://docs.sigstore.dev/cosign/system_config/installation/); LOCKMQ_SKIP_COSIGN=1 installs without it"
 fi
 
 want="$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/checksums.txt")"
@@ -87,21 +97,51 @@ else
 fi
 [ "$want" = "$got" ] || die "checksum mismatch for $archive"
 
-tar -xzf "$tmp/$archive" -C "$tmp" lockmq
+tar -xzf "$tmp/$archive" -C "$tmp" scripts/lockmq 2>/dev/null ||
+	die "$archive holds no launcher (scripts/lockmq): $tag predates the Docker launcher"
+# The launcher runs the images of its own version, by the digests whose
+# cosign signatures verify (the release workflow, as for checksums.txt).
+registry="ghcr.io/davidgodefroid/lockmq"
+verified_digest() {
+	cosign verify --certificate-identity-regexp "$identity" \
+		--certificate-oidc-issuer https://token.actions.githubusercontent.com \
+		"$registry:$1" 2>/dev/null |
+		sed -n 's/.*"docker-manifest-digest":"\(sha256:[0-9a-f]\{64\}\)".*/\1/p' | sed -n 1p
+}
+digest= vdigest=
+if command -v cosign >/dev/null 2>&1; then
+	digest="$(verified_digest "$version")"
+	vdigest="$(verified_digest "$version-vault")"
+	[ -n "$digest" ] && [ -n "$vdigest" ] ||
+		die "cosign: the signature of $registry:$version (and -vault) does not verify, or the image is not published yet"
+	say "cosign: image $registry:$version verified ($digest)"
+else
+	say "WARNING: LOCKMQ_SKIP_COSIGN=1: the image is NOT verified and runs by its tag"
+fi
+sed -e "s/^launcher_version=dev\$/launcher_version=$version/" \
+	-e "s/^image_digest=\$/image_digest=$digest/" \
+	-e "s/^vault_image_digest=\$/vault_image_digest=$vdigest/" \
+	"$tmp/scripts/lockmq" >"$tmp/launcher"
+grep -qx "launcher_version=$version" "$tmp/launcher" || die "the launcher of $tag does not take its version"
 
-# Root-owned in a system directory: `lockmq install` copies only a binary
-# that the agent's account cannot replace.
+# Root-owned in a system directory, so that the agent's account cannot
+# replace it. It replaces the binary of a former host install.
 if [ -w "$dir" ] || { [ ! -e "$dir" ] && mkdir -p "$dir" 2>/dev/null; }; then
-	install -m 0755 "$tmp/lockmq" "$dir/lockmq"
+	install -m 0755 "$tmp/launcher" "$dir/lockmq"
 else
 	command -v sudo >/dev/null 2>&1 || die "$dir is not writable and sudo is missing; set LOCKMQ_INSTALL_DIR"
 	say "installing to $dir with sudo"
 	sudo mkdir -p "$dir"
-	sudo install -m 0755 "$tmp/lockmq" "$dir/lockmq"
+	sudo install -m 0755 "$tmp/launcher" "$dir/lockmq"
 fi
 
-say "installed $("$dir/lockmq" --version 2>/dev/null || echo "$tag") to $dir/lockmq"
+say "installed the lockmq launcher $tag to $dir/lockmq (image $registry:$version${digest:+@$digest})"
 case ":$PATH:" in
 *":$dir:"*) ;;
 *) say "$dir is not on your PATH" ;;
 esac
+command -v docker >/dev/null 2>&1 || say "docker is not installed: the launcher needs it (docs/docker.md)"
+# A former host install (sudo lockmq install) left its system file behind.
+if [ -e /etc/lockmq/system.toml ]; then
+	say "a former host install remains (/etc/lockmq/system.toml): see docs/docker.md#migrating-from-a-host-install"
+fi

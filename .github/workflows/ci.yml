@@ -100,6 +100,23 @@ jobs:
       - uses: actions/checkout@v7
       - name: docker build
         run: docker build --build-arg VERSION=ci -t lockmq .
+      - name: the launcher runs every command in the image
+        run: |
+          set -x
+          sh scripts/lockmq version | grep -x 'lockmq launcher dev (image lockmq)'
+          mkdir -p "$RUNNER_TEMP/proj" && cd "$RUNNER_TEMP/proj"
+          sh "$GITHUB_WORKSPACE/scripts/lockmq" init claude
+          grep -Eq '"command": ?"lockmq"' .mcp.json
+          test "$(stat -c %u .mcp.json)" = "$(id -u)"
+          printf '[profiles.dev]\nurl = "http://host.docker.internal:15672"\n' >> .lockmq/config.toml
+          # Non-zero: the console's checks fail from this container, which
+          # runs none (docs/docker.md); the repair itself is checked below.
+          sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes || true
+          test "$(stat -c %u .lockmq)" = 10011
+          code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" status --profile dev || code=$?
+          test "$code" = 2 # no console is running
+          code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" install 2>err || code=$?
+          test "$code" = 1 && grep -q 'runs in Docker' err
       - name: docker build --target vault
         run: |
           docker build --target vault -t lockmq-vault .

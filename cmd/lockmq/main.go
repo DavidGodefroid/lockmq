@@ -60,9 +60,6 @@ type env struct {
 const usageText = `usage: lockmq <command> [arguments]
 
 Human commands
-  install    [--client USER] [--print] [--trust-binary] [--yes]
-                                        separate the console from the agent: console
-                                        account, clients group, /etc/lockmq (sudo)
   setup      [--project DIR]            add a broker profile to the project (asks)
   console    [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
                                         run the approval console
@@ -71,6 +68,8 @@ Human commands
                                         the project's .lockmq and the agent wiring
   init       [claude|codex|cursor|gemini ...]
                                         wire agents to lockmq in the project
+  update     [vX.Y.Z]                   update the launcher and its image (on the host;
+                                        cosign signature and checksum checked)
 
 Client commands (--profile P, --json)
   status
@@ -134,8 +133,9 @@ func run(e env, args []string) int {
 		return runDoctor(e, args[1:])
 	case "init":
 		return runInit(e, args[1:])
-	case "install":
-		return runInstall(e, args[1:])
+	case "install", "update":
+		fmt.Fprintln(e.stderr, hostModeRefusal(cmd))
+		return exitFail
 	default:
 		for _, c := range clientCommands {
 			if c == cmd {
@@ -145,6 +145,17 @@ func run(e env, args []string) int {
 		fmt.Fprintf(e.stderr, "lockmq: unknown command %q\n\n%s", cmd, usageText)
 		return exitUsage
 	}
+}
+
+// hostModeRefusal is printed for the command of the former host install
+// (install), and for update, which only the launcher runs. lockmq runs in
+// Docker: the launcher on the host (scripts/lockmq) runs every command in
+// the image and updates itself and the image. The host install code stays
+// until a later release removes it.
+func hostModeRefusal(cmd string) string {
+	return "lockmq " + cmd + ": the host install is gone: lockmq runs in Docker. " +
+		"Install the launcher with scripts/install.sh; `lockmq update` on the host updates it and its image; " +
+		"see docs/docker.md"
 }
 
 // usageFail prints a usage error.
