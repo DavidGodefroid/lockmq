@@ -26,7 +26,7 @@ and where it stops.
 
 | Boundary | Enforced by |
 |---|---|
-| Agent ↔ console | separate OS account (`lockmq install`); a Unix socket in a directory only the clients group reaches; the kernel's peer credentials checked on every connection; the console refuses to start without the separated setup |
+| Agent ↔ console | separate OS account (the image's `lockmq` account; the agent runs as `agent`); a Unix socket in a directory only the clients group reaches; the kernel's peer credentials checked on every connection; the console refuses to start without the separated setup |
 | Console ↔ human | approval screens in the console's own terminal; on production the typed profile name; 5-minute timeout = denied |
 | Console ↔ broker | an allowlist of operations and endpoints; one broker user; TLS `verify-full` by default; optional ssh tunnel opened by the console |
 | Policy | config files read every 2 s; loosenings held until confirmed; the approved policy stored in the console account's state |

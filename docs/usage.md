@@ -4,9 +4,11 @@ Every command, the console and the MCP tools. For the why, see the
 [README](../README.md); for the boundaries, the
 [security model](security-model.md).
 
-Every command below runs in the Docker image: prefix it with the
-`docker run` of [docs/docker.md](docker.md), which sets up the project, runs
-the console and wires the agents.
+Every command below runs in the Docker image, through the `lockmq`
+launcher ([docs/docker.md](docker.md)): it runs each one with the account
+and the volumes it needs. `lockmq version` prints the launcher's version and
+the image's; `lockmq update [vX.Y.Z]` replaces the launcher with a release's
+(cosign signature and checksum checked) and pulls its image.
 
 ## Profiles
 
@@ -54,7 +56,7 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
 ```
 
-Run it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
+The launcher runs it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
 In order: the isolation checks,
 the policy review (first start: describe and approve; later: tightenings
 apply, loosenings are asked), the production banner and the typed profile
@@ -161,9 +163,8 @@ the files readable), each profile (tier
 first; `peek` flagged NOT READ-ONLY), whether its console runs (with its
 start command), and the agent wiring.
 
-`--fix` repairs `.lockmq` as root: run it as root in the image
-(`docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix
---yes`). The repair enters the directory and never follows a symbolic link;
+`--fix` repairs `.lockmq` as root: the launcher runs `lockmq doctor --fix`
+as root in the image. The repair enters the directory and never follows a symbolic link;
 a `.lockmq` that is itself a link, a directory or file owned by root and a
 file with more than one link are reported, not repaired. `--yes` skips
 the question.

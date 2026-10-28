@@ -147,31 +147,31 @@ the user, or stop.
 
 ## Quick start
 
-Docker only: nothing to install but Docker. The full guide is
-[docs/docker.md](docs/docker.md).
+Docker only: one `lockmq` command, the launcher, runs every command in the
+signed release image. The full guide is [docs/docker.md](docs/docker.md).
 
 ```sh
-# 1. Build the image (console as "lockmq", agent as "agent", shared socket volume)
-docker build -t lockmq https://github.com/DavidGodefroid/lockmq.git
+# 1. Install the launcher (cosign checks the release and its image)
+V=vX.Y.Z
+curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
+less install.sh && LOCKMQ_VERSION=$V sh install.sh
 
 # 2. In your project: the agent files, a broker profile, then .lockmq for the console
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq init claude
-docker run -it --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq setup
-docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes
+lockmq init claude
+lockmq setup
+lockmq doctor --fix --yes
 
 # 3. In a terminal you keep in view, start the console
-docker run -it --rm --name lockmq-console --user lockmq -v "$PWD:$PWD" \
-  -v lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq lockmq console --project "$PWD"
-
-# 4. Wire Claude Code to the MCP server in a throwaway container
-claude mcp add --scope user lockmq -- \
-  sh -c 'exec docker run -i --rm -v "$PWD:$PWD" -w "$PWD" -v lockmq-run:/run/lockmq lockmq mcp'
+lockmq console
 ```
+
+`lockmq init claude` wires Claude Code to `lockmq mcp`, which the launcher
+runs in a throwaway container.
 
 Inside the containers `localhost` is the container itself: `setup` offers
 `host.docker.internal` for a broker on your machine, and a broker container
 is reached by its name on a network shared with the console
-(`--network`). Then ask your agent: "which queues have no consumer?", "why
+(`LOCKMQ_DOCKER_ARGS="--network NAME" lockmq console`). Then ask your agent: "which queues have no consumer?", "why
 does orders.failed fill up?". Catalogue calls answer at once; message reads
 wait for your approval in the console.
 
@@ -455,13 +455,13 @@ same console, separation and approval model:
 
 ## Install
 
-lockmq runs in Docker: build the image from a clone (`docker build -t lockmq
-.`) or from the repository URL, then follow [docs/docker.md](docs/docker.md).
-The `vault` target adds the pinned Vault CLI for `credentials = "vault"`
-(`docker build --target vault -t lockmq .`).
-
-Other deployment modes (release archives and packages, `lockmq install` on
-a host) exist in the code but are no longer documented.
+lockmq runs in Docker. `scripts/install.sh` installs the `lockmq` launcher,
+which runs every command in `ghcr.io/davidgodefroid/lockmq:X.Y.Z`; the
+release's `-vault` image adds the pinned Vault CLI for
+`credentials = "vault"` (`LOCKMQ_VAULT=1`). `lockmq version` prints the
+launcher's and the image's versions; `lockmq update` updates both. See
+[docs/docker.md](docs/docker.md), including your own build and migrating
+from a host install.
 
 ## Build
 

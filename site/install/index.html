@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Install lockmq — script, packages, signature check</title>
-  <meta name="description" content="Install lockmq on Linux or macOS: install script, .deb, .rpm and .apk packages, or by hand with a cosign signature check; then separate the console from the agent and describe your brokers.">
+  <title>Install lockmq — launcher, Docker image, signature check</title>
+  <meta name="description" content="Install the lockmq launcher on Linux or macOS: one lockmq command that runs every command in the cosign-signed Docker image; then set up a project and describe your brokers.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <link rel="canonical" href="https://davidgodefroid.github.io/lockmq/install/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="lockmq">
-  <meta property="og:title" content="Install lockmq — script, packages, signature check">
-  <meta property="og:description" content="Install lockmq on Linux or macOS: install script, .deb, .rpm and .apk packages, or by hand with a cosign signature check.">
+  <meta property="og:title" content="Install lockmq — launcher, Docker image, signature check">
+  <meta property="og:description" content="Install the lockmq launcher: one lockmq command backed by the cosign-signed Docker image.">
   <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/install/">
   <meta property="og:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
   <meta property="og:image:type" content="image/png">
@@ -21,8 +21,8 @@
   <meta property="og:image:alt" content="lockmq — Your AI reads the queue. You hold the key.">
   <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Install lockmq — script, packages, signature check">
-  <meta name="twitter:description" content="Install lockmq on Linux or macOS: install script, .deb, .rpm and .apk packages, or by hand with a cosign signature check.">
+  <meta name="twitter:title" content="Install lockmq — launcher, Docker image, signature check">
+  <meta name="twitter:description" content="Install the lockmq launcher: one lockmq command backed by the cosign-signed Docker image.">
   <meta name="twitter:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
   <meta name="twitter:image:alt" content="lockmq — Your AI reads the queue. You hold the key.">
   <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
@@ -52,26 +52,29 @@
 
 <h1>Install lockmq</h1>
 <div class="prose">
-  <p class="lead">lockmq runs in Docker: nothing to install on your machine but Docker. The image holds the separated setup: the console as <code>lockmq</code>, the agent as <code>agent</code> in <code>lockmq-clients</code>, a root-owned <code>/etc/lockmq/system.toml</code> and the socket directory shared through a named volume. Other deployment modes exist in the code but are no longer documented.</p>
+  <p class="lead">lockmq runs in Docker: on your machine, Docker and one <code>lockmq</code> command, a launcher that runs every command in the signed release image with the account it needs. The image holds the separated setup: the console as <code>lockmq</code>, the agent as <code>agent</code> in <code>lockmq-clients</code>, a root-owned <code>/etc/lockmq/system.toml</code> and the socket directory shared through a named volume.</p>
   <p>lockmq is a pre-release (<code>v0.1.x</code>): the CLI, the MCP tools and the config files may still change before v1.</p>
 </div>
 
-<section aria-labelledby="build">
-  <h2 id="build">1. Build the image</h2>
-  <pre tabindex="0"><code>docker build -t lockmq https://github.com/DavidGodefroid/lockmq.git</code></pre>
-  <p class="prose">Or <code>docker build -t lockmq .</code> from a clone. The base images are pinned by digest. <code>docker build --target vault -t lockmq .</code> adds the Vault CLI, checked against pinned sums, for <code>credentials = "vault"</code>.</p>
+<section aria-labelledby="launcher">
+  <h2 id="launcher">1. Install the launcher</h2>
+  <pre tabindex="0"><code>V=vX.Y.Z
+curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
+less install.sh
+LOCKMQ_VERSION=$V sh install.sh</code></pre>
+  <p class="prose">It checks the release’s cosign signature and checksum, and the image’s signature, then installs <code>/usr/local/bin/lockmq</code>, pinned to the verified image digest. <code>lockmq version</code> prints the launcher’s and the image’s versions; <code>lockmq update</code> updates both. <code>LOCKMQ_VAULT=1</code> selects the image with the Vault CLI, for <code>credentials = "vault"</code>; <code>LOCKMQ_IMAGE</code> runs your own build. On Windows, install it in WSL 2.</p>
 </section>
 
 <section aria-labelledby="setup">
   <h2 id="setup">2. Set up a project</h2>
-  <p class="prose">Mount the project at its own path: the console and the agent must see the same one. In the project directory, the agent files, then a broker profile:</p>
-  <pre tabindex="0"><code>docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq init claude
-docker run -it --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq setup</code></pre>
+  <p class="prose">In the project directory, the agent files, then a broker profile:</p>
+  <pre tabindex="0"><code>lockmq init claude
+lockmq setup</code></pre>
   <div class="prose">
     <p><code>setup</code> asks for the management API URL, the optional AMQP and stream URLs, the vhosts, the user, where the password comes from (<code>ask</code> or <code>vault</code>; never the password itself), production or not, and whether to allow queue peeks (default no). In a container <code>localhost</code> is the container itself: a broker on your machine is <code>host.docker.internal</code>, a broker container is its name on a network shared with the console.</p>
-    <p>Then give <code>.lockmq/</code> to the console account, as root in the image (the repair never follows a symbolic link):</p>
+    <p>Then give <code>.lockmq/</code> to the console account; the launcher runs the repair as root in the image (it never follows a symbolic link):</p>
   </div>
-  <pre tabindex="0"><code>docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes</code></pre>
+  <pre tabindex="0"><code>lockmq doctor --fix --yes</code></pre>
 </section>
 
 <section aria-labelledby="broker-user">
@@ -84,17 +87,15 @@ rabbitmqctl set_permissions -p orders lockmq-ro '^$' '^$' '^(order-events)$'</co
 
 <section aria-labelledby="console">
   <h2 id="console">4. Start the console</h2>
-  <p class="prose">In a terminal you keep in view, from the project directory (add <code>--network NAME</code> for a broker container):</p>
-  <pre tabindex="0"><code>docker run -it --rm --name lockmq-console --user lockmq -v "$PWD:$PWD" \
-  -v lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq lockmq console --project "$PWD"</code></pre>
+  <p class="prose">In a terminal you keep in view, from the project directory (<code>LOCKMQ_DOCKER_ARGS="--network NAME"</code> for a broker container):</p>
+  <pre tabindex="0"><code>lockmq console</code></pre>
   <p class="prose">It checks the isolation, asks you to approve the policy, asks for the password (or reads Vault), connects, audits the broker user’s privileges and opens the socket.</p>
 </section>
 
 <section aria-labelledby="agents">
   <h2 id="agents">5. Wire your agents</h2>
-  <p class="prose">The agent starts the MCP server in a throwaway container, as <code>agent</code>, with the socket volume and the project:</p>
-  <pre tabindex="0"><code>claude mcp add --scope user lockmq -- \
-  sh -c 'exec docker run -i --rm -v "$PWD:$PWD" -w "$PWD" -v lockmq-run:/run/lockmq lockmq mcp'</code></pre>
+  <p class="prose"><code>lockmq init claude</code> wired Claude Code to <code>lockmq mcp</code>: the launcher starts the MCP server in a throwaway container, as <code>agent</code>, with the socket volume and the project. For every project instead:</p>
+  <pre tabindex="0"><code>claude mcp add --scope user lockmq -- lockmq mcp</code></pre>
   <p class="prose">Codex, Gemini CLI and Cursor take the same command; an agent in a container of its own, without the Docker socket, runs <code>lockmq</code> as a client of the console container. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md">The full Docker guide</a> · <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">every command in the usage guide</a>.</p>
 </section>
 
