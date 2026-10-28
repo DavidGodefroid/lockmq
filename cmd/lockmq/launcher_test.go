@@ -36,7 +36,7 @@ func newLauncherFixture(t *testing.T) *launcherFixture {
 			t.Fatal(err)
 		}
 	}
-	for _, tool := range []string{"sh", "dirname", "id", "cat", "printf", "awk", "sha256sum", "shasum", "tar", "gzip", "install", "mktemp", "rm", "uname", "sed", "tr", "tail", "grep"} {
+	for _, tool := range []string{"sh", "dirname", "id", "cat", "printf", "awk", "sha256sum", "shasum", "tar", "gzip", "install", "mktemp", "rm", "uname", "sed", "tr", "tail", "grep", "cksum"} {
 		if p, err := exec.LookPath(tool); err == nil {
 			if err := os.Symlink(p, filepath.Join(f.bin, tool)); err != nil {
 				t.Fatal(err)
@@ -163,19 +163,49 @@ func TestLauncherConsole(t *testing.T) {
 	run := lastRun(t, calls)
 	for _, seq := range [][]string{
 		{"run", "--rm", "-v", f.project + ":" + f.project, "-w", filepath.Join(f.project, "sub")},
-		{"--name", "lockmq-console"}, {"--log-driver", "none"}, {"--user", "lockmq"},
+		{"--log-driver", "none"}, {"--user", "lockmq"},
 		{"--add-host=host.docker.internal:host-gateway"}, {"-e", "VAULT_ADDR"}, {"-e", "VAULT_NAMESPACE"},
 		{"-v", "lockmq-run:/run/lockmq"}, {"-v", "lockmq-home:/home/lockmq"},
+		{"--cap-drop", "ALL"}, {"--security-opt", "no-new-privileges"}, {"--read-only"},
+		{"--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=64m"}, {"--pids-limit", "256"}, {"--memory", "1g"},
 	} {
 		if !hasSeq(run, seq...) {
 			t.Errorf("console run lacks %q:\n%q", seq, run)
 		}
+	}
+	if hasSeq(run, "-v", f.project+":"+f.project+":ro") {
+		t.Errorf("project read-only without LOCKMQ_READONLY_PROJECT: %q", run)
 	}
 	if got, want := strings.Join(imageArgs(run, "lockmq"), " "), "lockmq console --project "+f.project+" --profile uat"; got != want {
 		t.Errorf("image and command %q, want %q", got, want)
 	}
 	if hasSeq(run, "-it") {
 		t.Errorf("a terminal without one: %q", run)
+	}
+}
+
+// LOCKMQ_READONLY_PROJECT=1: the console mounts the project read-only and
+// only .lockmq/ writable; a .lockmq that is not a directory stops it.
+func TestLauncherConsoleReadOnlyProject(t *testing.T) {
+	f := newLauncherFixture(t)
+	out, calls, err := f.run(t, f.project, []string{"LOCKMQ_READONLY_PROJECT=1"}, "console")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	run := lastRun(t, calls)
+	dir := filepath.Join(f.project, ".lockmq")
+	if !hasSeq(run, "-v", f.project+":"+f.project+":ro") || !hasSeq(run, "-v", dir+":"+dir) {
+		t.Errorf("%q", run)
+	}
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(t.TempDir(), dir); err != nil {
+		t.Fatal(err)
+	}
+	out, calls, err = f.run(t, f.project, []string{"LOCKMQ_READONLY_PROJECT=1"}, "console")
+	if err == nil || !strings.Contains(out, "is not a directory") || len(calls) != 0 {
+		t.Errorf("symlinked .lockmq: %v, calls %q\n%s", err, calls, out)
 	}
 }
 
@@ -192,7 +222,7 @@ func TestLauncherConsoleProjectAndStaleContainer(t *testing.T) {
 	}
 	removed := false
 	for _, c := range calls {
-		if hasSeq(c, "rm", "lockmq-console") {
+		if len(c) == 2 && c[0] == "rm" && strings.HasPrefix(c[1], "lockmq-console-") {
 			removed = true
 		}
 	}
@@ -368,7 +398,8 @@ func TestLauncherUpdate(t *testing.T) {
 		t.Errorf("calls %q", calls)
 	}
 	args, _ := os.ReadFile(rel.cosignArgs)
-	if !strings.Contains(string(args), "--certificate-identity\n"+releaseIdentity("v"+shVersion)+"\n") || strings.Contains(string(args), "-regexp") {
+	exact := "--certificate-identity\nhttps://github.com/DavidGodefroid/lockmq/.github/workflows/release.yml@refs/tags/v" + shVersion + "\n"
+	if strings.Count(string(args), exact) != 3 { // checksums.txt and both images
 		t.Errorf("cosign args %s", args)
 	}
 }
@@ -415,13 +446,118 @@ func TestLauncherUpdateRefusesAnUnverifiedImage(t *testing.T) {
 	}
 }
 
-// The launcher pins the release workflow run for the tag it updates to.
-func TestLauncherPinsTheReleaseIdentity(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "scripts", "lockmq"))
+// The launcher and install.sh bind every signature to the release workflow
+// run for the exact tag they install: a tag moved to an older release's
+// signed files does not verify.
+func TestScriptsPinTheExactReleaseTag(t *testing.T) {
+	for _, name := range []string{"lockmq", "install.sh"} {
+		b, err := os.ReadFile(filepath.Join("..", "..", "scripts", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), `identity="https://github.com/$repo/.github/workflows/release.yml@refs/tags/$tag"`) {
+			t.Errorf("scripts/%s does not bind the identity to the tag", name)
+		}
+		if strings.Contains(string(b), "--certificate-identity-regexp") {
+			t.Errorf("scripts/%s still accepts any release's signature", name)
+		}
+	}
+}
+
+// Each project gets its own console container, so two can run;
+// LOCKMQ_CONSOLE_NAME names it.
+func TestLauncherConsoleNamePerProject(t *testing.T) {
+	f := newLauncherFixture(t)
+	other := filepath.Join(f.root, "other")
+	if err := os.MkdirAll(filepath.Join(other, ".lockmq"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	name := func(dir string, env ...string) string {
+		_, calls, err := f.run(t, dir, env, "console")
+		if err != nil {
+			t.Fatal(err)
+		}
+		run := lastRun(t, calls)
+		for i, a := range run {
+			if a == "--name" && i+1 < len(run) {
+				return run[i+1]
+			}
+		}
+		t.Fatalf("no --name: %q", run)
+		return ""
+	}
+	a, b := name(f.project), name(other)
+	if !strings.HasPrefix(a, "lockmq-console-") || !strings.HasPrefix(b, "lockmq-console-") || a == b {
+		t.Errorf("names %q and %q", a, b)
+	}
+	if a != name(filepath.Join(f.project, "sub")) {
+		t.Errorf("not stable within a project")
+	}
+	if got := name(f.project, "LOCKMQ_CONSOLE_NAME=lockmq-console"); got != "lockmq-console" {
+		t.Errorf("LOCKMQ_CONSOLE_NAME: %q", got)
+	}
+}
+
+// A path with ":" cannot be a docker -v source or target: refused, before
+// any docker call.
+func TestLauncherRefusesAColonInAPath(t *testing.T) {
+	f := newLauncherFixture(t)
+	dir := filepath.Join(f.root, "a:b")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, calls, err := f.run(t, dir, nil, "status")
+	if err == nil || !strings.Contains(out, `":"`) || len(calls) != 0 {
+		t.Errorf("project: %v, calls %q\n%s", err, calls, out)
+	}
+	out, calls, err = f.run(t, f.project, []string{"HOME=" + dir}, "init", "claude")
+	if err == nil || !strings.Contains(out, `":"`) || len(calls) != 0 {
+		t.Errorf("home: %v, calls %q\n%s", err, calls, out)
+	}
+}
+
+// LOCKMQ_DOCKER_ARGS is split on spaces but never globbed.
+func TestLauncherDockerArgsNotGlobbed(t *testing.T) {
+	f := newLauncherFixture(t)
+	_, calls, err := f.run(t, f.project, []string{"LOCKMQ_DOCKER_ARGS=--label x=* --label *"}, "status")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), `release.yml@refs/tags/%s' "$repo" "$1"`) || !strings.Contains(string(b), `repo="DavidGodefroid/lockmq"`) {
-		t.Error("scripts/lockmq does not pin the release workflow of the tag")
+	if run := lastRun(t, calls); !hasSeq(run, "--label", "x=*", "--label", "*") {
+		t.Errorf("%q", run)
+	}
+}
+
+// VAULT_CACERT reaches the console with its file, mounted read-only; a
+// missing file stops it.
+func TestLauncherVaultCACert(t *testing.T) {
+	f := newLauncherFixture(t)
+	ca := filepath.Join(f.project, "vault-ca.pem")
+	if err := os.WriteFile(ca, []byte("pem"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, calls, err := f.run(t, f.project, []string{"VAULT_CACERT=" + ca}, "console")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run := lastRun(t, calls); !hasSeq(run, "-v", ca+":"+ca+":ro") || !hasSeq(run, "-e", "VAULT_CACERT="+ca) {
+		t.Errorf("%q", run)
+	}
+	out, calls, err := f.run(t, f.project, []string{"VAULT_CACERT=" + ca + ".missing"}, "console")
+	if err == nil || !strings.Contains(out, "VAULT_CACERT") || len(calls) != 0 {
+		t.Errorf("missing file: %v, calls %q\n%s", err, calls, out)
+	}
+}
+
+// update takes only a version tag: anything else never reaches a URL or
+// the sed that writes the launcher.
+func TestLauncherUpdateRefusesABadTag(t *testing.T) {
+	f := newLauncherFixture(t)
+	f.setVersion(t, "0.9.0")
+	for _, tag := range []string{"v1.2", "v1.2.3/x", "v1.2.3;id", "latest", "v1.2.3-rc.1&"} {
+		out, calls, err := f.run(t, f.project, nil, "update", tag)
+		if err == nil || !strings.Contains(out, "invalid version") || len(calls) != 0 {
+			t.Errorf("%q: %v, calls %q\n%s", tag, err, calls, out)
+		}
 	}
 }

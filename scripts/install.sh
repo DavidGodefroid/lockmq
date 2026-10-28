@@ -60,6 +60,9 @@ if [ -z "$tag" ]; then
 	esac
 fi
 case "$tag" in v*) ;; *) tag="v$tag" ;; esac
+# Only a version tag: it goes into URLs and into the launcher's text.
+printf '%s\n' "$tag" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?' ||
+	die "invalid version $tag: a release tag, vX.Y.Z"
 version="${tag#v}"
 
 archive="lockmq_${version}_${os}_${arch}.tar.gz"
@@ -72,8 +75,8 @@ say "downloading $archive ($tag)"
 fetch "$base/$archive" "$tmp/$archive" || die "download failed: $base/$archive"
 fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "download failed: checksums.txt"
 
-# The release workflow run for this very tag, as lockmq update checks it: a
-# signature made for another release (an older one, say) does not verify.
+# The release workflow run for this very tag, as lockmq update checks it:
+# a tag moved to an older release's signed files does not verify.
 identity="https://github.com/$repo/.github/workflows/release.yml@refs/tags/$tag"
 if command -v cosign >/dev/null 2>&1; then
 	fetch "$base/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json" ||
@@ -113,7 +116,7 @@ digest= vdigest=
 if command -v cosign >/dev/null 2>&1; then
 	digest="$(verified_digest "$version")"
 	vdigest="$(verified_digest "$version-vault")"
-	[ -n "$digest" ] && [ -n "$vdigest" ] ||
+	[ -n "$digest" ] && [ -n "$vdigest" ] && [ "$digest" != "$vdigest" ] ||
 		die "cosign: the signature of $registry:$version (and -vault) does not verify, or the image is not published yet"
 	say "cosign: image $registry:$version verified ($digest)"
 else

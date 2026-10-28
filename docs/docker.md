@@ -61,7 +61,7 @@ runs each command with the account it needs:
 
 | Command | Runs as | Volumes |
 |---|---|---|
-| `console` | `lockmq`, in a container named `lockmq-console`, with `--add-host=host.docker.internal:host-gateway` and no log driver | `lockmq-run`, `lockmq-home` |
+| `console` | `lockmq`, in a container of its own per project (`lockmq-console-<n>`; `LOCKMQ_CONSOLE_NAME` names it), with `--add-host=host.docker.internal:host-gateway`, no log driver, no capability, `no-new-privileges`, a read-only root with a 64 MB `/tmp`, at most 256 processes and 1 GB of memory | `lockmq-run`, `lockmq-home` |
 | `init` | you (your uid and gid), with your home mounted: it writes the agents' files | |
 | `setup` | you, with `HOME=/tmp` | |
 | `doctor --fix` | root | |
@@ -81,9 +81,27 @@ The launcher reads:
   ([Credentials from Vault](#credentials-from-vault));
 - `LOCKMQ_DOCKER_ARGS`: more `docker run` arguments, split on spaces, for
   example `LOCKMQ_DOCKER_ARGS="--network lockmq-net" lockmq console`;
-- `VAULT_ADDR`, `VAULT_NAMESPACE`: passed to the console.
+- `LOCKMQ_READONLY_PROJECT=1`: the console mounts the project read-only and
+  only `.lockmq/` writable (it must then be a directory, not a link), for a
+  project your agents write;
+- `VAULT_ADDR`, `VAULT_NAMESPACE`: passed to the console; `VAULT_CACERT`
+  too, with its file mounted read-only at its own path.
 
 The launcher never mounts the Docker socket.
+
+### Paths
+
+A project path, `$HOME` (for `init`) or a `VAULT_CACERT` path holding `:` is
+refused: docker `-v` separates on it. `LOCKMQ_DOCKER_ARGS` is split on
+spaces and never globbed. With `LOCKMQ_READONLY_PROJECT=1`, `.lockmq/` must
+be a directory whose physical path is itself; the launcher checks it twice,
+the second time right before `docker run`, but cannot close the instant
+between that check and Docker's own mount: an agent that can replace
+`.lockmq` in that instant could redirect the console's writable mount.
+Mount `.lockmq` read-only in the agents' containers to close it.
+
+On macOS (Docker Desktop), `lockmq doctor --fix` giving `.lockmq/` to uid
+10011 (a `chown` through Docker Desktop's file sharing) is untested so far.
 
 ### Your own build
 
@@ -202,8 +220,8 @@ which the launcher passes on:
 LOCKMQ_VAULT=1 VAULT_ADDR=https://vault.example.com lockmq console
 ```
 
-A `VAULT_CACERT` is a file the container must see: put it in the project and
-pass it with `LOCKMQ_DOCKER_ARGS="-e VAULT_CACERT=$PWD/vault-ca.pem"`.
+`VAULT_CACERT` names a file on your machine: the launcher mounts it
+read-only in the console's container, at the same path.
 
 Log in once as the console account, with its home volume; the token stays
 in `lockmq-home`, out of the agents' reach:

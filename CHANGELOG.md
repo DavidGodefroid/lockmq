@@ -13,18 +13,22 @@ Every lockmq command now runs in Docker, through one host command: the
 
 - `scripts/lockmq`, a POSIX shell launcher, runs each command in
   `ghcr.io/davidgodefroid/lockmq` with the account and volumes it needs:
-  `console` as `lockmq` in a container named `lockmq-console` (no log
+  `console` as `lockmq` in a container of its own per project
+  (`lockmq-console-<n>`), confined (no capability, `no-new-privileges`,
+  read-only root with a small `/tmp`, 256 processes, 1 GB), with no log
   driver, `host.docker.internal` mapped, `VAULT_ADDR`/`VAULT_NAMESPACE`
-  passed, volumes `lockmq-run` and `lockmq-home`, `--project` added);
+  passed and `VAULT_CACERT`'s file mounted read-only, volumes `lockmq-run`
+  and `lockmq-home`, `--project` added;
   `init` as you with your home; `setup` as you; `doctor --fix` as root;
   everything else, `mcp` included, as `agent` with `lockmq-run`. It mounts
   the project (the nearest directory up holding `.lockmq/`) at its own
-  path and never mounts the Docker socket. `LOCKMQ_IMAGE`, `LOCKMQ_VAULT=1`
-  and `LOCKMQ_DOCKER_ARGS` adjust it.
+  path (a path with `:` is refused) and never mounts the Docker socket.
+  `LOCKMQ_IMAGE`, `LOCKMQ_VAULT=1`, `LOCKMQ_DOCKER_ARGS` (never globbed),
+  `LOCKMQ_READONLY_PROJECT=1` and `LOCKMQ_CONSOLE_NAME` adjust it.
 - `scripts/install.sh` installs the launcher, not the binary, after
   checking the cosign signature of `checksums.txt` against the release
   workflow run for that very tag (a signature of another release does not
-  verify), the archive's checksum and the images' signatures;
+  verify; only a `vX.Y.Z` tag is accepted), the archive's checksum and the images' signatures;
   cosign is now required (`LOCKMQ_SKIP_COSIGN=1` is the explicit way past
   it, and replaces `LOCKMQ_REQUIRE_COSIGN`). The launcher runs its
   release's image by the verified digest.
