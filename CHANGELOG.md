@@ -6,6 +6,22 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### lockkit v0.2.1
+
+lockmq now builds on lockkit v0.2.1 (was v0.1.0), the version locksql and
+lockhttp use. What changes for lockmq:
+
+- **Clear results are refused at desktop security level 1** (the agent's
+  account can read the console window): `lockmq console --show-results` stops
+  with a configuration error there, and Ctrl-O / `:results` keep the results
+  masked with `results stay masked at level 1: the agent's account can read
+  this window`. Levels 0 and 2 are unchanged; `--auto` and `--allow-unmask`
+  are unchanged.
+- **The PII detectors mask more**: Unicode e-mail domains; non-breaking,
+  narrow and thin spaces and full-width digits inside phone, IBAN, card and
+  national-id values; integral floats in JSON bodies. A value masked before is
+  still masked.
+
 ### One `lockmq` command, backed by Docker
 
 Every lockmq command now runs in Docker, through one host command: the

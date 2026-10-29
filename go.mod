@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/DavidGodefroid/lockkit v0.1.0
+	github.com/DavidGodefroid/lockkit v0.2.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.9.0

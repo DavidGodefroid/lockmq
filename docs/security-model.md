@@ -113,7 +113,9 @@ federation) lose their userinfo before they reach a client.
   from the queue read: a forged header can only add masking.
 - **Clear output.** With results on (Ctrl-O, `--show-results`) the console
   prints each read and peek result in clear in its own terminal; the agent
-  still gets it masked. Unmasked output to a client (`--unmask`) is refused
+  still gets it masked. At desktop security level 1 (the agent's account can
+  read the console window) results stay masked: `--show-results` is refused
+  and Ctrl-O keeps them masked. Unmasked output to a client (`--unmask`) is refused
   unless the human allowed it in the console (`:unmask`,
   `--allow-unmask`); each such request shows `PII: UNMASKED`, is approved
   every time, never by auto mode, and is audited `"unmasked":true`.
