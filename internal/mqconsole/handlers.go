@@ -113,7 +113,7 @@ type prep struct {
 	// the session the operation uses: in hub mode the plan hash covers
 	// them, so that a queue changed after the approval is not read.
 	props map[string]any
-	fetch  func(ctx context.Context) (fetched, error)
+	fetch func(ctx context.Context) (fetched, error)
 }
 
 // fetched is what a read or peek took from the broker, before masking.
