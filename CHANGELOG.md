@@ -6,6 +6,13 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- The host install (`cmd/lockmq/install.go`) and `internal/separate`: the binary
+  refused `install` since the Docker-only launcher. `lockmq install` and `lockmq
+  update` in the image still print the hint to the launcher. `doctor --fix`
+  keeps its project-access repair (`access.go`), which runs in the image.
+
 ### One `lockmq` command, backed by Docker
 
 Every lockmq command now runs in Docker, through one host command: the
