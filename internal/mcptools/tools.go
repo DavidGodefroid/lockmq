@@ -125,6 +125,7 @@ type OpIn struct {
 	Consumer string `json:"consumer,omitempty" jsonschema:"named consumer reference (stream_offset)"`
 	Intent   string `json:"intent,omitempty" jsonschema:"one line telling the human why (read, peek)"`
 	DryRun   bool   `json:"dry_run,omitempty" jsonschema:"only check: the verdict and the approval screen, no approval and no content (read, peek)"`
+	Ticket   string `json:"ticket,omitempty" jsonschema:"run the pending request of this ticket once you are told it is decided (read, peek; same other arguments)"`
 	Unmask   bool   `json:"unmask,omitempty" jsonschema:"ask the human to approve the messages in clear (read, peek). Only when the user explicitly needs the raw values. Refused unless the human allowed it in the console (--allow-unmask or :unmask; see lockmq_status)"`
 }
 
@@ -148,7 +149,7 @@ type Out struct {
 
 // Params turns a tool's input into the console's params.
 func Params(op string, in OpIn) (mqconsole.Params, error) {
-	p := mqconsole.Params{Op: op, Intent: in.Intent, Unmask: in.Unmask}
+	p := mqconsole.Params{Op: op, Intent: in.Intent, Unmask: in.Unmask, Ticket: in.Ticket, Requester: mcpkit.RequesterFromEnv()}
 	p.Args = ops.Args{VHost: in.VHost, Target: in.Name, Filter: in.Filter, Sort: in.Sort, Page: in.Page, From: in.From, Count: in.Count, Consumer: in.Consumer}
 	if op == "bindings" {
 		switch {
@@ -240,6 +241,7 @@ func (t *tools) op(ot OpTool) mcp.ToolHandlerFor[OpIn, Out] {
 			return nil, Out{}, &mcpkit.ToolError{Msg: err.Error()}
 		}
 		var data any
+		var pending *mcpkit.PendingResult
 		err = t.with(in.Profile, func(_ string, c Conn) error {
 			if in.DryRun {
 				var plan mqconsole.Plan
@@ -251,11 +253,25 @@ func (t *tools) op(ot OpTool) mcp.ToolHandlerFor[OpIn, Out] {
 				stop := mcpkit.Progress(ctx, req, 0, mcpkit.WaitingMessage(product.P))
 				defer stop()
 			}
+			var raw json.RawMessage
+			if err := c.Call(ctx, mqconsole.MethodRun, p, &raw); err != nil {
+				return err
+			}
+			if pr, ok := pendingOf(raw); ok {
+				pending = &pr
+				return nil
+			}
 			var res mqconsole.Result
-			err := c.Call(ctx, mqconsole.MethodRun, p, &res)
+			if err := json.Unmarshal(raw, &res); err != nil {
+				return err
+			}
 			data = res.Data
-			return err
+			return nil
 		})
+		if pending != nil && err == nil {
+			r, _ := mcpkit.PendingOn(pending.Lock, pending.Instance, pending.Ticket)
+			return r, Out{Data: pending}, nil
+		}
 		return answer("results", data, err)
 	}
 }
@@ -322,4 +338,13 @@ func (t *tools) change(ctx context.Context, _ *mcp.CallToolRequest, in ChangeIn)
 		return mcpkit.Text("Queued on the console: the human reviews it with :review and decides."), Out{Data: r}, nil
 	}
 	return answer("results", r, err)
+}
+
+// pendingOf reads a pending answer of op.run (hub mode).
+func pendingOf(raw json.RawMessage) (mcpkit.PendingResult, bool) {
+	var p mcpkit.PendingResult
+	if json.Unmarshal(raw, &p) != nil || p.Status != mcpkit.StatusPending || p.Ticket == "" || p.Lock != product.P.Name {
+		return mcpkit.PendingResult{}, false
+	}
+	return p, true
 }

@@ -3,6 +3,7 @@ package mcptools
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -23,6 +24,15 @@ type fakeConn struct {
 	mu    sync.Mutex
 	calls []string
 	err   error
+	// result, when set, is op.run's raw answer.
+	result json.RawMessage
+}
+
+// The tests run outside lea: no requester comes from the environment.
+func TestMain(m *testing.M) {
+	os.Unsetenv("LEA_AGENT")
+	os.Unsetenv("LEA_AGENT_TOKEN")
+	os.Exit(m.Run())
 }
 
 func (f *fakeConn) Call(_ context.Context, method string, params, result any) error {
@@ -36,6 +46,12 @@ func (f *fakeConn) Call(_ context.Context, method string, params, result any) er
 	switch r := result.(type) {
 	case *mqconsole.Result:
 		*r = mqconsole.Result{Op: "read", Untrusted: mqconsole.Untrusted, Data: map[string]any{"messages": []any{map[string]any{"body": "<redacted:r1.1>"}}}}
+	case *json.RawMessage:
+		if f.result != nil {
+			*r = f.result
+		} else {
+			*r, _ = json.Marshal(mqconsole.Result{Op: "read", Untrusted: mqconsole.Untrusted, Data: map[string]any{"messages": []any{map[string]any{"body": "<redacted:r1.1>"}}}})
+		}
 	case *mqconsole.Plan:
 		*r = mqconsole.Plan{Op: "peek", Verdict: "prompt-every-time"}
 	case *any:

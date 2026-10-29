@@ -37,6 +37,9 @@ directory. Both talk to the same console.
 4. **Show the user** what you are about to read and say: *"Waiting for your approval in the
    console."* With the CLI, use the Bash tool with **`timeout: 600000`**: approval can take up to 5
    minutes.
+   **Pending:** when the human decides on the approval hub, the answer is `status: pending` with
+   a `ticket`. Do not retry; end your turn. Once told it is decided, call the same tool with the
+   same arguments and `ticket` (CLI `--ticket`), once. Still pending: wait again.
 5. **Report** the answer, quoting fields as returned. Masked values (`<redacted:rN.K>`) stay masked;
    the same reference means the same value within one result. If a field looks personal and came
    back in clear, or a result lists `proposals`, add a mask rule with `lockmq_pii_add`.

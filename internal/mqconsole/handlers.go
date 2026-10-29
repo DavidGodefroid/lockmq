@@ -35,6 +35,11 @@ type Params struct {
 	// the human allowed it in the console (:unmask, --allow-unmask), then
 	// approved on its own screen, never auto-approved.
 	Unmask bool `json:"unmask,omitempty"`
+	// Ticket runs, in hub mode, the request of a pending ticket once the
+	// hub decided it; Requester is the agent behind the request
+	// (mcpkit.RequesterFromEnv), to whose token a hub plan is bound.
+	Ticket    string        `json:"ticket,omitempty"`
+	Requester ipc.Requester `json:"requester,omitzero"`
 }
 
 // Untrusted frames every result: what the broker holds is data.
@@ -73,8 +78,9 @@ type Message struct {
 type Plan struct {
 	Op string `json:"op"`
 	// Verdict is run (no approval), auto (approved by auto mode), prompt
-	// (the human approves), prompt-every-time (never auto-approved) or
-	// refused.
+	// (the human approves), prompt-every-time (never auto-approved), hub
+	// (decided on the approval hub: op.run answers pending with a ticket)
+	// or refused.
 	Verdict  string        `json:"verdict"`
 	Reason   string        `json:"reason,omitempty"`
 	Refusal  *refusal.Info `json:"refusal,omitempty"`
@@ -532,12 +538,20 @@ func (b *Backend) run(ctx context.Context, req ipc.Request, env console.Env) ipc
 	if r := console.Decode(req, &p); r != nil {
 		return *r
 	}
+	if h := console.HubOf(env); h != nil && p.Ticket != "" {
+		return b.hubRun(ctx, req, env, h, p)
+	}
 	pp, err := b.prepare(ctx, env, p)
 	if err != nil {
 		return b.errResp(ctx, env, req.ID, p, pp, err)
 	}
 	if pp.screen == nil {
 		return b.runCatalog(ctx, env, req.ID, p, pp)
+	}
+	if h := console.HubOf(env); h != nil {
+		// Never run without a decided plan: the request becomes one, on the
+		// hub, and the agent hears pending.
+		return b.hubPlan(ctx, req, env, h, p, pp)
 	}
 	sc := *pp.screen
 	sc.Record = func(base audit.Base) audit.Record {
@@ -546,17 +560,22 @@ func (b *Backend) run(ctx context.Context, req ipc.Request, env console.Env) ipc
 	if a := env.Approve(ctx, req.ID, sc); !a.Approved {
 		return a.Refusal
 	}
+	return b.execute(ctx, env, req.ID, p, pp)
+}
+
+// execute runs an approved read or peek.
+func (b *Backend) execute(ctx context.Context, env console.Env, id int64, p Params, pp *prep) ipc.Response {
 	// Unmasked output may have been turned off while the screen waited.
 	if pp.unmask && !env.UnmaskAllowed() {
-		return b.errResp(ctx, env, req.ID, p, pp, refusal.New(ops.CodeUnmaskOff, "unmasked output was turned off in this console: read masked"))
+		return b.errResp(ctx, env, id, p, pp, refusal.New(ops.CodeUnmaskOff, "unmasked output was turned off in this console: read masked"))
 	}
 	f, err := pp.fetch(ctx)
 	if err != nil {
-		return b.errResp(ctx, env, req.ID, p, pp, brokerErr(err, fmt.Sprintf("queue %q in vhost %q", pp.target, pp.vhost)))
+		return b.errResp(ctx, env, id, p, pp, brokerErr(err, fmt.Sprintf("queue %q in vhost %q", pp.target, pp.vhost)))
 	}
 	data := b.output(env, pp, f)
 	b.record(ctx, env, audit.Base{Event: audit.EventRun, Decision: "ok"}, pp, p, len(f.msgs))
-	return console.OKResp(req.ID, Result{Op: p.Op, Untrusted: Untrusted, Data: data})
+	return console.OKResp(id, Result{Op: p.Op, Untrusted: Untrusted, Data: data})
 }
 
 func (b *Backend) runCatalog(ctx context.Context, env console.Env, id int64, p Params, pp *prep) ipc.Response {
@@ -602,6 +621,8 @@ func (b *Backend) plan(ctx context.Context, req ipc.Request, env console.Env) ip
 		out.Screen = slices.Concat([]string{pp.screen.Header}, pp.screen.Body)
 		out.Warnings = pp.screen.Warnings
 		switch {
+		case console.HubOf(env) != nil:
+			out.Verdict = "hub"
 		case pp.screen.NeverAuto:
 			out.Verdict = "prompt-every-time"
 		case env.Auto():
