@@ -54,6 +54,7 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 
 ```sh
 lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
+              [--hub URL --hub-key-file FILE --instance NAME]
 ```
 
 The launcher runs it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
@@ -75,6 +76,20 @@ Keys and commands while it runs (lockkit's console):
 | Ctrl-O, `:results` | print each read and peek result in clear in the console (the agent still gets it masked) |
 | `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved here, never auto-approved |
 | `:quit`, Ctrl-C | end the session |
+
+**Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (all three, never with
+`--auto`; `lock up` writes them), reads and peeks are decided on lockhub, never on this
+terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq read`,
+`lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
+the request as a plan bound to the client's uid, the agent's lea token and the policy, pushes
+a signed ticket with the screen masked, and answers `pending` with the ticket and the
+instance. The same call with `ticket` (`--ticket`) runs it once the hub approved it: the
+decision is verified (pinned hub key, this instance, the ticket, still usable, nonce once),
+the request is prepared again under the policy in force and must hash the same; the hub is
+told it was consumed. A denial is `denied`, an expired approval `timeout`. Decisions are
+audited (`approval: hub`, `ticket`, `approver`, `facade`, `hub_sig`). The dry run's verdict
+is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lock up` to pin
+(made once in the console account's home, `0600`).
 
 The session ends after `idle_timeout` without a request, after
 `max_session`, on `lockmq logout` or when a loosening changes where the

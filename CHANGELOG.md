@@ -6,6 +6,17 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Hub mode (`lockmq console --hub URL --hub-key-file FILE --instance NAME`): a read or peek
+  never runs without a decided plan. `op.run` stores it as a plan (lockkit plans: the
+  client's uid, the agent's lea token, the policy), pushes a signed ticket with a masked
+  screen and answers `pending`; `op.run` with `ticket` (`--ticket`, the MCP tools' `ticket`)
+  runs it once decided, prepared again and hashing the same. Decisions are audited with the
+  ticket, approver, facade and hub signature; the dry run says `hub`. `lockmq hub-key
+  --instance NAME` prints the instance key. Requests carry the agent's lea name and token.
+- lockkit pinned on main (`9ce8f35`, v0.3.0 prep) until v0.3.0 is tagged.
+
 ## [0.2.0]
 
 Docker-only: every command runs in the image through the `lockmq` launcher,

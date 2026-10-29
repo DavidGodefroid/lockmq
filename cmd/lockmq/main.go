@@ -12,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/DavidGodefroid/lockkit/agentwire"
+	"github.com/DavidGodefroid/lockkit/hubclient"
 	"github.com/DavidGodefroid/lockkit/sysconf"
 
 	"github.com/DavidGodefroid/lockmq/internal/mcptools"
@@ -40,6 +41,8 @@ type env struct {
 	dial func(profile string) (mcptools.Conn, error)
 	// userConfig is the user config file; "" is the real one.
 	userConfig string
+	// home holds the hub instance key; "" is the account's home.
+	home string
 	// agentEnv is the account the agents are wired for; nil is the real
 	// one.
 	agentEnv func() (agentwire.Env, error)
@@ -60,7 +63,9 @@ const usageText = `usage: lockmq <command> [arguments]
 Human commands
   setup      [--project DIR]            add a broker profile to the project (asks)
   console    [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
-                                        run the approval console
+             [--hub URL --hub-key-file FILE --instance NAME]
+                                        run the approval console (--hub: decided on lockhub)
+  hub-key    --instance NAME            print the instance key for lockhub to pin
   doctor     [--profile P] [--fix [--yes]]
                                         check the config, each profile's tier, the consoles,
                                         the project's .lockmq and the agent wiring
@@ -131,6 +136,8 @@ func run(e env, args []string) int {
 		return runDoctor(e, args[1:])
 	case "init":
 		return runInit(e, args[1:])
+	case "hub-key":
+		return runHubKey(e, args[1:])
 	case "install", "update":
 		fmt.Fprintln(e.stderr, hostModeRefusal(cmd))
 		return exitFail
@@ -159,4 +166,22 @@ func hostModeRefusal(cmd string) string {
 func usageFail(e env, cmd, usage, msg string) int {
 	fmt.Fprintf(e.stderr, "lockmq %s: %s\nusage: %s\n", cmd, msg, strings.TrimSpace(usage))
 	return exitUsage
+}
+
+// runHubKey is `lockmq hub-key --instance NAME`: the instance's public key,
+// made on the first call in the console account's home, for `lock up`.
+func runHubKey(e env, args []string) int {
+	home := e.home
+	if home == "" {
+		var err error
+		if home, err = os.UserHomeDir(); err != nil {
+			fmt.Fprintln(e.stderr, "lockmq hub-key:", err)
+			return exitFail
+		}
+	}
+	if err := hubclient.HubKeyCommand(e.stdout, home, args); err != nil {
+		fmt.Fprintln(e.stderr, "lockmq hub-key:", err)
+		return exitUsage
+	}
+	return exitOK
 }

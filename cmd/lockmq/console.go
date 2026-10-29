@@ -19,7 +19,7 @@ import (
 // runConsole is `lockmq console`: the approval console of one profile, in
 // the human's terminal.
 func runConsole(e env, args []string) int {
-	const usage = "lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]"
+	const usage = "lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results] [--hub URL --hub-key-file FILE --instance NAME]"
 	fs := flag.NewFlagSet("console", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "profile to serve")
@@ -27,6 +27,8 @@ func runConsole(e env, args []string) int {
 	auto := fs.Bool("auto", false, "start in auto mode (never on production; never for peek)")
 	allowUnmask := fs.Bool("allow-unmask", false, "let clients ask for unmasked output (each approved here)")
 	showResults := fs.Bool("show-results", false, "print results in clear in this console")
+	var hub console.HubOptions
+	hub.Register(fs)
 	pos, err := parseInterleaved(fs, args)
 	if err != nil || len(pos) > 0 {
 		return usageFail(e, "console", usage, "wrong arguments")
@@ -65,7 +67,7 @@ func runConsole(e env, args []string) int {
 	err = console.Run(ctx, p, be, console.Options{
 		Profile: name, ProjectRoot: root, IO: term, TTY: os.Stdin,
 		Auto: *auto, AllowUnmask: *allowUnmask, ShowResults: *showResults,
-		Sanitizer: mqconsole.Sanitizer(),
+		Sanitizer: mqconsole.Sanitizer(), Hub: hub,
 	})
 	if err != nil {
 		fmt.Fprintln(e.stderr, "lockmq console:", err)

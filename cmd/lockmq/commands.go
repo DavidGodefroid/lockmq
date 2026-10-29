@@ -102,9 +102,9 @@ func (e env) dialer() func(profile string) (mcptools.Conn, error) {
 
 // cliOpts are the flags of the client commands.
 type cliOpts struct {
-	profile, vhost, filter, sort, from, consumer, queue, exchange, intent string
-	page, count, max                                                      int
-	json, dryRun, unmask                                                  bool
+	profile, vhost, filter, sort, from, consumer, queue, exchange, intent, ticket string
+	page, count, max                                                              int
+	json, dryRun, unmask                                                          bool
 }
 
 func (o *cliOpts) flags(fs *flag.FlagSet) {
@@ -117,6 +117,7 @@ func (o *cliOpts) flags(fs *flag.FlagSet) {
 	fs.StringVar(&o.queue, "queue", "", "bindings of this queue")
 	fs.StringVar(&o.exchange, "exchange", "", "bindings of this exchange")
 	fs.StringVar(&o.intent, "intent", "", "one line telling the human why")
+	fs.StringVar(&o.ticket, "ticket", "", "run the pending request of this ticket, once the hub decided it (hub mode)")
 	fs.IntVar(&o.page, "page", 0, "page from 1")
 	fs.IntVar(&o.count, "count", 0, "messages to peek")
 	fs.IntVar(&o.max, "max", 0, "messages to read")
@@ -143,8 +144,8 @@ var clientUsage = map[string]struct {
 	"channels":      {"lockmq channels [--page N] [--profile P] [--json]", 0},
 	"stream":        {"lockmq stream NAME [--vhost V] [--profile P] [--json]", 1},
 	"stream-offset": {"lockmq stream-offset NAME --consumer REF [--vhost V] [--profile P] [--json]", 1},
-	"read":          {"lockmq read STREAM --from first|last|N|TIMESTAMP [--max N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--profile P] [--json]", 1},
-	"peek":          {"lockmq peek QUEUE [--count N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--profile P] [--json]", 1},
+	"read":          {"lockmq read STREAM --from first|last|N|TIMESTAMP [--max N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T] [--profile P] [--json]", 1},
+	"peek":          {"lockmq peek QUEUE [--count N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T] [--profile P] [--json]", 1},
 	"pii":           {`lockmq pii list | add "queue=VHOST/GLOB body=$.path" [--profile P] [--json]`, -1},
 	"request":       {`lockmq request "CHANGE" [--profile P] [--json]`, 1},
 	"logout":        {"lockmq logout [--profile P] [--json]", 0},
@@ -216,7 +217,7 @@ func request(cmd string, pos []string, o cliOpts) (method string, params any, wh
 		return "", nil, "", errors.New(`want "list" or "add RULE"`)
 	}
 	in := mcptools.OpIn{VHost: o.vhost, Filter: o.filter, Sort: o.sort, Page: o.page, From: o.from, Consumer: o.consumer,
-		Queue: o.queue, Exchange: o.exchange, Intent: o.intent, Unmask: o.unmask}
+		Queue: o.queue, Exchange: o.exchange, Intent: o.intent, Unmask: o.unmask, Ticket: o.ticket}
 	if len(pos) == 1 {
 		in.Name = pos[0]
 	}
@@ -232,8 +233,8 @@ func request(cmd string, pos []string, o cliOpts) (method string, params any, wh
 			return "", nil, "", errors.New("peek takes --count, not --max")
 		}
 	default:
-		if o.count != 0 || o.max != 0 || o.dryRun || o.intent != "" || o.unmask {
-			return "", nil, "", errors.New("--count, --max, --intent, --unmask and --dry-run apply to read and peek only")
+		if o.count != 0 || o.max != 0 || o.dryRun || o.intent != "" || o.unmask || o.ticket != "" {
+			return "", nil, "", errors.New("--count, --max, --intent, --unmask, --ticket and --dry-run apply to read and peek only")
 		}
 	}
 	p, err := mcptools.Params(cmd, in)

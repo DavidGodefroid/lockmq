@@ -211,6 +211,8 @@ type rigOpts struct {
 	answers    []string
 	// allowUnmask and showResults are the console's switches at start.
 	allowUnmask, showResults bool
+	// hub, when set, puts the console in hub mode.
+	hub *console.HubOptions
 }
 
 func writeProject(t *testing.T, root, url string, o rigOpts) {
@@ -265,8 +267,19 @@ func newRig(t *testing.T, o rigOpts) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.srv, err = console.NewServer(console.ServerConfig{Product: product.P, Backend: r.be, Policy: pol, Session: sess,
-		Audit: log, IO: r.io, Auto: o.auto, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer()})
+	cfg := console.ServerConfig{Product: product.P, Backend: r.be, Policy: pol, Session: sess,
+		Audit: log, IO: r.io, Auto: o.auto, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer()}
+	if o.hub != nil {
+		h, err := console.OpenHub(product.P, *o.hub, r.state, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Hub, cfg.Approver = h, h.Approver(console.NewTypedApprover(r.io))
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		go h.Watch(ctx, r.io)
+	}
+	r.srv, err = console.NewServer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

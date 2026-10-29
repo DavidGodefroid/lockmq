@@ -269,3 +269,10 @@ func TestHelpHasNoHostInstall(t *testing.T) {
 		t.Errorf("help lacks the launcher's update:\n%s", usageText)
 	}
 }
+
+// The tests run outside lea: no requester comes from the environment.
+func TestMain(m *testing.M) {
+	os.Unsetenv("LEA_AGENT")
+	os.Unsetenv("LEA_AGENT_TOKEN")
+	os.Exit(m.Run())
+}
