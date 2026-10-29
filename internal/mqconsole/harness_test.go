@@ -276,8 +276,11 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		}
 		cfg.Hub, cfg.Approver = h, h.Approver(console.NewTypedApprover(r.io))
 		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
-		go h.Watch(ctx, r.io)
+		done := make(chan struct{})
+		// Stop the watch and wait for it before the state directory goes:
+		// it writes the hub state there.
+		t.Cleanup(func() { cancel(); <-done })
+		go func() { defer close(done); h.Watch(ctx, r.io) }()
 	}
 	r.srv, err = console.NewServer(cfg)
 	if err != nil {

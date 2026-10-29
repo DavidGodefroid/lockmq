@@ -49,7 +49,8 @@ directory. Both talk to the same console.
 A refusal carries `refusal.code`, `refusal.retry` and `refusal.hint`. Follow the retry rule:
 
 - `retry: rewrite`: fix the arguments as the hint says, once (`E_BAD_ARGS`,
-  `E_WRONG_QUEUE_TYPE`: use `read` for a stream, `peek` for a queue).
+  `E_WRONG_QUEUE_TYPE`: use `read` for a stream, `peek` for a queue). `E_STALE`: the queue changed
+  since the user approved; ask again (without `ticket`), once.
 - `retry: ask_user`: `E_TIER`, `E_VHOST_NOT_SERVED`, `E_PROTOCOL_NOT_CONFIGURED`,
   `E_DELIVERY_LIMIT`. Tell the user; only the human changes a profile (`lockmq_request_change` only
   queues a proposal). After `E_DELIVERY_LIMIT`, do not peek that queue again.

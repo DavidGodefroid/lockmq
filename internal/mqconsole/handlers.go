@@ -109,7 +109,11 @@ type prep struct {
 	target string
 	screen *console.Screen
 	unmask bool
-	fetch  func(ctx context.Context) (fetched, error)
+	// props are the queue's properties the request depends on, read on
+	// the session the operation uses: in hub mode the plan hash covers
+	// them, so that a queue changed after the approval is not read.
+	props map[string]any
+	fetch func(ctx context.Context) (fetched, error)
 }
 
 // fetched is what a read or peek took from the broker, before masking.
@@ -253,6 +257,7 @@ func (b *Backend) prepareRead(ctx context.Context, s *session, pp *prep, p Param
 	if typ != "stream" {
 		return refusal.Newf(ops.CodeWrongQueueType, "%s is a %s queue: read reads streams; a classic or quorum queue is read with peek, on a profile with tier peek", pp.target, typ)
 	}
+	pp.props = map[string]any{"type": typ, "arguments": q["arguments"], "policy": q["effective_policy_definition"]}
 	from, _ := stream.ParseFrom(p.From)
 	count := p.Count
 	if count == 0 {
@@ -301,6 +306,8 @@ func (b *Backend) preparePeek(ctx context.Context, s *session, pp *prep, p Param
 		}
 	}
 	info := ops.QueueInfoFrom(q, s.version, opDef)
+	pp.props = map[string]any{"type": info.Type, "arguments": info.Arguments, "policy": info.PolicyDefinition,
+		"operator_policy": info.OperatorPolicyDefinition, "broker_major": info.BrokerMajor}
 	warnings, ref := ops.CheckPeek(pr.Tier, info, b.seen.Max(pp.vhost, pp.target), pr.Limits.DeliveryHeadroom)
 	if ref != nil {
 		return ref

@@ -85,8 +85,11 @@ the request as a plan bound to the client's uid, the agent's lea token and the p
 a signed ticket with the screen masked, and answers `pending` with the ticket and the
 instance. The same call with `ticket` (`--ticket`) runs it once the hub approved it: the
 decision is verified (pinned hub key, this instance, the ticket, still usable, nonce once),
-the request is prepared again under the policy in force and must hash the same; the hub is
-told it was consumed. A denial is `denied`, an expired approval `timeout`. Decisions are
+the request is prepared again under the policy in force and must hash the same: the plan hash
+covers the operation, vhost, target and arguments, and the queue's properties read on the
+session the operation uses (type, arguments, policy and operator policy, broker major; not its
+message counts), so a queue changed after the approval is refused `E_STALE` before anything is
+read; the hub is told it was consumed. A denial is `denied`, an expired approval `timeout`. Decisions are
 audited (`approval: hub`, `ticket`, `approver`, `facade`, `hub_sig`). The dry run's verdict
 is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lock up` to pin
 (made once in the console account's home, `0600`).
@@ -163,6 +166,7 @@ sends progress notifications so the client does not time out.
 | `E_TIER` | ask the user | `peek` on a profile with tier `read` |
 | `E_DELIVERY_LIMIT` | ask the user | a peek could dead-letter or drop messages of this quorum queue |
 | `E_UNMASK_OFF` | ask the user | `--unmask` while unmasked output is off in the console |
+| `E_STALE` | rewrite | hub mode: the queue changed between the approval and the run; nothing was read: ask again |
 | `E_UNSAFE_NAME` | stop | a vhost or name that is, or holds, a `.` or `..` path segment |
 | `E_POLICY` | stop | anything else the policy refuses |
 

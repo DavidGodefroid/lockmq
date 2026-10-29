@@ -123,3 +123,53 @@ func TestHubCatalogDryRunAndDenial(t *testing.T) {
 		t.Fatalf("denied: %+v peeks %d", resp.Error, r.broker.peekCount())
 	}
 }
+
+// A peek approved on the hub runs once; a queue whose properties changed
+// between the approval and the run is refused stale before any read.
+func TestHubPeekApprovedThenStale(t *testing.T) {
+	r, hub, _ := hubRig(t, rigOpts{tier: "peek"})
+	p := peekParams("payments")
+	pd := pendingOf(t, r.call(MethodRun, p))
+	hub.Decide(pd.Ticket, ticket.Approved, "")
+	run := p
+	run.Ticket = pd.Ticket
+	mustOK(t, r.runDecided(run))
+	if r.broker.peekCount() != 1 {
+		t.Fatalf("peeks %d", r.broker.peekCount())
+	}
+	// Message counts move all the time and change nothing; the queue's
+	// arguments do.
+	pd = pendingOf(t, r.call(MethodRun, p))
+	r.broker.mu.Lock()
+	r.broker.queues["%2F/payments"]["messages_ready"] = 9.0
+	r.broker.mu.Unlock()
+	hub.Decide(pd.Ticket, ticket.Approved, "")
+	run.Ticket = pd.Ticket
+	mustOK(t, r.runDecided(run))
+	pd = pendingOf(t, r.call(MethodRun, p))
+	r.broker.mu.Lock()
+	r.broker.queues["%2F/payments"]["arguments"] = map[string]any{"x-delivery-limit": 50.0}
+	r.broker.mu.Unlock()
+	hub.Decide(pd.Ticket, ticket.Approved, "")
+	run.Ticket = pd.Ticket
+	mustRefused(t, r.runDecided(run), "E_STALE")
+	if r.broker.peekCount() != 2 {
+		t.Fatalf("a stale peek ran: peeks %d", r.broker.peekCount())
+	}
+}
+
+// The same for a stream read whose arguments changed.
+func TestHubReadStale(t *testing.T) {
+	r, hub, _ := hubRig(t, rigOpts{})
+	p := readParams()
+	pd := pendingOf(t, r.call(MethodRun, p))
+	r.broker.mu.Lock()
+	r.broker.queues["%2F/order-events"]["arguments"] = map[string]any{"x-max-age": "1D"}
+	r.broker.mu.Unlock()
+	hub.Decide(pd.Ticket, ticket.Approved, "")
+	p.Ticket = pd.Ticket
+	mustRefused(t, r.runDecided(p), "E_STALE")
+	if r.reader.reads != 0 {
+		t.Fatalf("reads %d", r.reader.reads)
+	}
+}
