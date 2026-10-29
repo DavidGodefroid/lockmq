@@ -30,6 +30,9 @@ const (
 	CodeTier                  refusal.Code = "E_TIER"
 	CodeUnsafeName            refusal.Code = "E_UNSAFE_NAME"
 	CodeUnmaskOff             refusal.Code = "E_UNMASK_OFF"
+	// CodeStale: in hub mode, the queue's properties (or the request)
+	// changed between the approval and the run; nothing was read.
+	CodeStale refusal.Code = "E_STALE"
 )
 
 func init() {
@@ -45,6 +48,8 @@ func init() {
 		"the profile's tier does not allow this operation", "only the user can change the profile's tier")
 	refusal.Register(CodeUnsafeName, refusal.RetryStop,
 		`a vhost or name that is, or holds, a "." or ".." path segment`, "lockmq cannot address it; do not retry")
+	refusal.Register(CodeStale, refusal.RetryRewrite,
+		"the queue changed since the request was approved", "ask again: the new state needs a new approval")
 	refusal.Register(CodeUnmaskOff, refusal.RetryAskUser,
 		"unmasked output is off in this console", "read masked, or ask the user to allow it in the console (:unmask)")
 }

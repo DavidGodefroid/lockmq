@@ -15,6 +15,10 @@ All notable changes to lockmq. The format follows
   runs it once decided, prepared again and hashing the same. Decisions are audited with the
   ticket, approver, facade and hub signature; the dry run says `hub`. `lockmq hub-key
   --instance NAME` prints the instance key. Requests carry the agent's lea name and token.
+- Hub mode plan hash: the operation, vhost, target and arguments, plus the queue's
+  properties read on the operation's own session (type, arguments, policy, operator policy,
+  broker major; not its message counts). A queue changed between the approval and the run
+  is refused `E_STALE` (retry: rewrite) before anything is read.
 - lockkit pinned on main (`9ce8f35`, v0.3.0 prep) until v0.3.0 is tagged.
 
 ## [0.2.0]

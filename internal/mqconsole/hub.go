@@ -14,9 +14,11 @@ import (
 	"github.com/DavidGodefroid/lockkit/ipc"
 	"github.com/DavidGodefroid/lockkit/pii"
 	"github.com/DavidGodefroid/lockkit/plans"
+	"github.com/DavidGodefroid/lockkit/refusal"
 	"github.com/DavidGodefroid/lockkit/render"
 	"github.com/DavidGodefroid/lockkit/ticket"
 
+	"github.com/DavidGodefroid/lockmq/internal/ops"
 	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
@@ -24,15 +26,21 @@ import (
 const hubPlanTTL = 24 * time.Hour
 
 // hubBody is a hub plan as the plan store keeps it: the request, run
-// again from scratch once decided. The plan hash covers it.
+// again from scratch once decided.
 type hubBody struct {
 	Params Params `json:"params"`
 }
 
-// planHash is the plan hash of a request: what the human approves.
-func planHash(p Params) (string, error) {
+// planHash is the plan hash of a request: the operation, vhost, target and
+// arguments, and the queue's properties as prepare read them (type,
+// arguments, policies, broker major). The policy fingerprint is bound
+// beside it. A queue changed after the approval hashes differently.
+func planHash(p Params, props map[string]any) (string, error) {
 	p.Intent, p.Ticket, p.Requester = "", "", ipc.Requester{}
-	return ticket.HashOf(hubBody{Params: p})
+	return ticket.HashOf(struct {
+		Params Params         `json:"params"`
+		Queue  map[string]any `json:"queue"`
+	}{p, props})
 }
 
 // policyFP is the fingerprint of the policy in force, in the ticket's form.
@@ -51,7 +59,7 @@ var screenDetectors = func() []pii.Detector {
 // bound to the peer, the agent's token and the policy, its masked screen
 // pushed in a signed ticket. The agent hears pending.
 func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env, h *console.Hub, p Params, pp *prep) ipc.Response {
-	hash, err := planHash(p)
+	hash, err := planHash(p, pp.props)
 	if err != nil {
 		return console.ErrResp(req.ID, ipc.CodeInternal, env.Sanitizer().Error(err))
 	}
@@ -106,7 +114,7 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 		if prepErr != nil {
 			return "", "", fmt.Errorf("%w: %v", plans.ErrStale, prepErr)
 		}
-		hash, err := planHash(body.Params)
+		hash, err := planHash(body.Params, pp.props)
 		return policyFP(pp.pol), hash, err
 	}
 	run, d, err := h.Client.Begin(h.Store, in.Ticket, caller, recheck)
@@ -151,7 +159,11 @@ func hubRefusal(id int64, tk, instance string, err error) ipc.Response {
 	case errors.Is(err, ticket.ErrExpired):
 		return console.ErrResp(id, ipc.CodeTimeout, "the approval expired; do not retry unless asked")
 	case errors.Is(err, plans.ErrStale):
-		return console.ErrResp(id, ipc.CodeNoSuchPlan, "the request changed since it was approved (stale): ask again")
+		r := refusal.New(ops.CodeStale, "the queue changed since the request was approved: nothing was read")
+		info := r.Info("", 0)
+		resp := console.ErrResp(id, ipc.CodeRefused, r.Reason)
+		resp.Error.Data = &info
+		return resp
 	case errors.Is(err, plans.ErrWrongRequester):
 		return console.ErrResp(id, ipc.CodeWrongRequester, "the ticket was asked by another agent")
 	}
