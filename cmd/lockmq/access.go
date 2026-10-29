@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/DavidGodefroid/lockmq/internal/product"
-	"github.com/DavidGodefroid/lockmq/internal/separate"
 )
 
 // projectCheck is one check of the project's .lockmq directory, and the
@@ -26,7 +27,7 @@ type svcAccount struct {
 }
 
 // lookupService finds the console account; false when this machine (or
-// image) has none, as on a host without lockmq install.
+// image) has none, as outside the image.
 func lookupService(name string) (svcAccount, bool) {
 	u, err := user.Lookup(name)
 	if err != nil {
@@ -49,11 +50,11 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 	// only the mounted directory itself keeps its host mode). No repair:
 	// opening a directory to others is the human's choice.
 	if fi, err := os.Stat(root); err == nil {
-		if uid, ok := separate.FileOwner(fi); ok {
+		if uid, ok := fileOwner(fi); ok {
 			perm := fi.Mode().Perm()
 			if (uid == svc.uid && perm&0o500 != 0o500) || (uid != svc.uid && perm&0o005 != 0o005) {
 				out = append(out, projectCheck{line: fmt.Sprintf("project access: %s is %04o: the console account (%s, uid %d) cannot enter it and finds no profile; run: chmod o+rx %s (or setfacl -m u:%d:rx %s)",
-					root, perm, svc.name, svc.uid, separate.ShellQuote(root), svc.uid, separate.ShellQuote(root))})
+					root, perm, svc.name, svc.uid, shellQuote(root), svc.uid, shellQuote(root))})
 			}
 		}
 	}
@@ -68,7 +69,7 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 	if !fi.IsDir() {
 		return append(out, projectCheck{line: dir + " is not a directory"})
 	}
-	uid, ok := separate.FileOwner(fi)
+	uid, ok := fileOwner(fi)
 	if !ok {
 		return out
 	}
@@ -84,7 +85,7 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		// in the image.
 		out = append(out, projectCheck{
 			line: fmt.Sprintf("project %s: %04o, owner uid %d; the console account (%s, uid %d) must own it (it writes pii.toml there) and every account read it; run: sudo chown %d %s && sudo chmod 0755 %s",
-				product.P.ProjectDir(), perm, uid, svc.name, svc.uid, svc.uid, separate.ShellQuote(dir), separate.ShellQuote(dir)),
+				product.P.ProjectDir(), perm, uid, svc.name, svc.uid, svc.uid, shellQuote(dir), shellQuote(dir)),
 			repair: giveDirScript(dir, svc.uid, uid),
 		})
 	default:
@@ -95,11 +96,11 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		if err != nil || !fi.Mode().IsRegular() {
 			continue
 		}
-		owner, ok := separate.FileOwner(fi)
+		owner, ok := fileOwner(fi)
 		if !ok || owner == svc.uid {
 			continue
 		}
-		path := separate.ShellQuote(filepath.Join(dir, name))
+		path := shellQuote(filepath.Join(dir, name))
 		var line, action string
 		switch {
 		case name == "pii.toml":
@@ -114,7 +115,7 @@ func projectChecks(root string, svc svcAccount) []projectCheck {
 		default:
 			continue
 		}
-		if links, ok := separate.FileLinks(fi); !ok || links != 1 || owner == 0 {
+		if links, ok := fileLinks(fi); !ok || links != 1 || owner == 0 {
 			// A second name, or root's file: it may be another file linked
 			// here, which a chown or chmod as root would hand over.
 			out = append(out, projectCheck{line: fmt.Sprintf("project %s/%s: owned by uid %d with %d links: not repaired; replace it with a file of your own",
@@ -144,12 +145,12 @@ func giveDirScript(dir string, uid, owner int) string {
 // file of owner (never root) with a single link: a hard link planted
 // before the repair could name any file of the filesystem.
 func fileScript(dir, name string, uid, owner int, action string) string {
-	n := separate.ShellQuote(name)
+	n := shellQuote(name)
 	change := "chmod 0644 " + n
 	if action == "copy" {
 		// The directory is the console account's: once the temporary name
 		// is removed, no other account can put anything there.
-		tmp := separate.ShellQuote("." + name + ".doctor")
+		tmp := shellQuote("." + name + ".doctor")
 		change = fmt.Sprintf("rm -f -- %[1]s && cp -- %[2]s %[1]s && chown %[3]d %[1]s && chmod 0644 %[1]s && mv -f -- %[1]s %[2]s", tmp, n, uid)
 	}
 	return inDirScript(dir, fmt.Sprintf(`set -- $(ls -ldn .) && test "$3" = %d && case "$1" in ?????w*|????????w*|*+) false;; esac && `+
@@ -168,5 +169,24 @@ func inDirScript(dir, cmds string) string {
 	if parent, err := filepath.EvalSymlinks(filepath.Dir(dir)); err == nil {
 		real = filepath.Join(parent, filepath.Base(dir))
 	}
-	return fmt.Sprintf("(cd -P -- %s && test \"$(pwd -P)\" = %s && %s)", separate.ShellQuote(dir), separate.ShellQuote(real), cmds)
+	return fmt.Sprintf("(cd -P -- %s && test \"$(pwd -P)\" = %s && %s)", shellQuote(dir), shellQuote(real), cmds)
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// asRoot runs a shell script as root: e.root when set (tests), else sudo
+// sh -c on the human's terminal, or sh -c when this already is root (a
+// container run with --user 0, which has no sudo). The script holds no
+// secret.
+func (e env) asRoot(script string) error {
+	if e.root != nil {
+		return e.root(script)
+	}
+	cmd := exec.Command("sudo", "sh", "-c", script)
+	if e.geteuid() == 0 {
+		cmd = exec.Command("sh", "-c", script)
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, e.stdout, e.stderr
+	return cmd.Run()
 }

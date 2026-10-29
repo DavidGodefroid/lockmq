@@ -43,12 +43,10 @@ type env struct {
 	// agentEnv is the account the agents are wired for; nil is the real
 	// one.
 	agentEnv func() (agentwire.Env, error)
-	// root runs install's script as root; nil is sudo sh -c.
+	// root runs doctor --fix's script as root; nil is sudo sh -c.
 	root func(script string) error
 	// sys reads the separated setup; nil is lockkit's sysconf.Load.
 	sys func() (*sysconf.Config, error)
-	// executable and goos replace the running binary and system (tests).
-	executable, goos string
 	// container reports a process in a container; nil is the real check.
 	container func() bool
 	// euid is the effective uid; nil is os.Geteuid.
@@ -150,8 +148,7 @@ func run(e env, args []string) int {
 // hostModeRefusal is printed for the command of the former host install
 // (install), and for update, which only the launcher runs. lockmq runs in
 // Docker: the launcher on the host (scripts/lockmq) runs every command in
-// the image and updates itself and the image. The host install code stays
-// until a later release removes it.
+// the image and updates itself and the image.
 func hostModeRefusal(cmd string) string {
 	return "lockmq " + cmd + ": the host install is gone: lockmq runs in Docker. " +
 		"Install the launcher with scripts/install.sh; `lockmq update` on the host updates it and its image; " +

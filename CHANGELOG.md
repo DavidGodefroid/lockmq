@@ -6,6 +6,14 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.2.0]
+
+Docker-only: every command runs in the image through the `lockmq` launcher,
+the host install code is gone, and lockmq builds on lockkit v0.2.1. Upgrade
+from v0.1.0 with `scripts/install.sh` (it installs the launcher); see
+[docs/docker.md](docs/docker.md#migrating). This release also holds the fixes
+from the v0.1.0 spec audit (below), never tagged on their own as v0.1.1.
+
 ### lockkit v0.2.1
 
 lockmq now builds on lockkit v0.2.1 (was v0.1.0), the version locksql and
@@ -21,6 +29,12 @@ lockhttp use. What changes for lockmq:
   narrow and thin spaces and full-width digits inside phone, IBAN, card and
   national-id values; integral floats in JSON bodies. A value masked before is
   still masked.
+### Removed
+
+- The host install (`cmd/lockmq/install.go`) and `internal/separate`: the binary
+  refused `install` since the Docker-only launcher. `lockmq install` and `lockmq
+  update` in the image still print the hint to the launcher. `doctor --fix`
+  keeps its project-access repair (`access.go`), which runs in the image.
 
 ### One `lockmq` command, backed by Docker
 
@@ -102,9 +116,7 @@ with locksql.
 - CI builds both targets, checks `ALLOWED_UIDS`, and runs an end-to-end
   test of the guide against RabbitMQ (`test/docker/e2e.py`).
 
-### v0.1.1
-
-Fixes from the v0.1.0 spec audit.
+### Fixes from the v0.1.0 spec audit
 
 - Security: a body without content type that looks like JSON but does not
   parse is opaque under `redact-unknown` (it was masked as text, detectors
@@ -125,7 +137,7 @@ Fixes from the v0.1.0 spec audit.
   detectors.
 - `queue` reads its own consumers instead of the whole vhost's.
 
-### v0.1.0
+## [0.1.0] - 2026-10-19
 
 First release.
 
