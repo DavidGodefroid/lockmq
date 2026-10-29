@@ -440,6 +440,7 @@ same console, separation and approval model:
 | [locksql](https://github.com/DavidGodefroid/locksql) | databases: MariaDB, MySQL, PostgreSQL, SQLite |
 | **lockmq** | message queues: RabbitMQ |
 | [lockfile](https://github.com/DavidGodefroid/lockfile) | files: yes/no answers about a file the agent never reads |
+| [lockhttp](https://github.com/DavidGodefroid/lockhttp) | outbound HTTP(S): reads of trusted hosts pass, the rest waits for approval (pre-release) |
 | [lockkit](https://github.com/DavidGodefroid/lockkit) | the shared Go framework: console, separation, approval, masking, audit, MCP |
 
 ## Documentation
