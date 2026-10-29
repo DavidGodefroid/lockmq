@@ -139,21 +139,19 @@
 
 <section aria-labelledby="quick-start">
   <h2 id="quick-start">Quick start</h2>
-  <pre tabindex="0" class="term"><code># 1. Build the image
-docker build -t lockmq https://github.com/DavidGodefroid/lockmq.git
+  <pre tabindex="0" class="term"><code># 1. Install the launcher (cosign checks the release and its image)
+V=vX.Y.Z
+curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
+less install.sh &amp;&amp; LOCKMQ_VERSION=$V sh install.sh
 
 # 2. In your project: the agent files, a broker profile, .lockmq for the console
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq init claude
-docker run -it --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:$PWD" -w "$PWD" lockmq setup
-docker run --rm --user 0 -v "$PWD:$PWD" -w "$PWD" lockmq doctor --fix --yes
+lockmq init claude
+lockmq setup
+lockmq doctor --fix --yes
 
 # 3. Start the console in a terminal you keep in view
-docker run -it --rm --name lockmq-console --user lockmq -v "$PWD:$PWD" \
-  -v lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq lockmq console --project "$PWD"
-
-# 4. Wire Claude Code to the MCP server in a throwaway container
-claude mcp add --scope user lockmq -- \
-  sh -c 'exec docker run -i --rm -v "$PWD:$PWD" -w "$PWD" -v lockmq-run:/run/lockmq lockmq mcp'</code></pre>
+lockmq console</code></pre>
+  <p class="prose">Every <code>lockmq</code> command runs in the signed Docker image; <code>lockmq init claude</code> wires Claude Code to <code>lockmq mcp</code>, run in a throwaway container.</p>
   <p class="prose">Then ask your agent: “which queues have no consumer?”. Catalogue calls answer at once; message reads wait for your approval in the console.</p>
   <p><a href="install/">The Docker setup, step by step</a></p>
 </section>

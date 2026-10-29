@@ -59,11 +59,11 @@
 </section>
 <section aria-labelledby="os">
   <h2 id="os">Which operating systems?</h2>
-  <p>Linux and macOS, on amd64 and arm64. The separation relies on Unix accounts, socket peer credentials and terminals; native Windows is not supported. <a href="../install/">Install options</a>.</p>
+  <p>Linux and macOS, on amd64 and arm64. lockmq runs in Docker (Docker Engine, or Docker Desktop); on Windows, run the launcher in WSL 2. The separation relies on Unix accounts, socket peer credentials and terminals inside the image. <a href="../install/">Install options</a>.</p>
 </section>
 <section aria-labelledby="setup">
   <h2 id="setup">How do I set it up?</h2>
-  <p>Build the Docker image, run <code>lockmq init</code> (your agents) and <code>lockmq setup</code> (a broker profile) in the project from throwaway containers, give <code>.lockmq</code> to the console account with <code>lockmq doctor --fix</code>, start <code>lockmq console</code> in its own container and wire the agent to <code>lockmq mcp</code> in another. <a href="../install/">Setup steps</a>.</p>
+  <p>Install the <code>lockmq</code> launcher, which runs every command in the signed Docker image, then run <code>lockmq init</code> (your agents) and <code>lockmq setup</code> (a broker profile) in the project, give <code>.lockmq</code> to the console account with <code>lockmq doctor --fix</code> and start <code>lockmq console</code>; the agent runs <code>lockmq mcp</code> in a throwaway container. <a href="../install/">Setup steps</a>.</p>
 </section>
 <section aria-labelledby="agents">
   <h2 id="agents">Which AI agents does it work with?</h2>
@@ -88,7 +88,7 @@
 <section aria-labelledby="own-account">
   <h2 id="own-account">Why does the console need its own OS account?</h2>
   <p>An agent in the console’s own account could read or type into its terminal. Separation is mandatory: without it the console refuses to start. The Docker image holds it: the console runs as <code>lockmq</code>, the agent as <code>agent</code>.</p>
-  <p><strong>⚠️ Warning:</strong> an agent that can run <code>docker</code> commands, as the default MCP wiring (<code>docker run … lockmq mcp</code>) allows, can <code>docker attach</code> or <code>docker exec</code> into the console or open the <code>lockmq-home</code> volume: the separation is then void. For a hard boundary run the agent in a container of its own, without the Docker socket. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md#what-docker-does-and-does-not-separate">What Docker does and does not separate</a>.</p>
+  <p><strong>⚠️ Warning:</strong> an agent that can run <code>docker</code> commands, as the default MCP wiring (<code>lockmq mcp</code>, a <code>docker run</code>) allows, can <code>docker attach</code> or <code>docker exec</code> into the console or open the <code>lockmq-home</code> volume: the separation is then void. For a hard boundary run the agent in a container of its own, without the Docker socket. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md#what-docker-does-and-does-not-separate">What Docker does and does not separate</a>.</p>
 </section>
 <section aria-labelledby="timeout">
   <h2 id="timeout">What happens if I don’t answer the approval prompt?</h2>
@@ -128,7 +128,7 @@
 </section>
 <section aria-labelledby="go">
   <h2 id="go">Do I need Go to install it?</h2>
-  <p>No. Releases ship static binaries and Linux packages. Building from source needs Go 1.26 or later.</p>
+  <p>No. You need Docker and the <code>lockmq</code> launcher, a shell script; the release image holds the binary. Building from source needs Go 1.26 or later.</p>
 </section>
 <section aria-labelledby="report">
   <h2 id="report">How do I report a vulnerability?</h2>

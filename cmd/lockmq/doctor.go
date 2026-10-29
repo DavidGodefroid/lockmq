@@ -50,7 +50,7 @@ func runDoctor(e env, args []string) int {
 		fmt.Fprintln(e.stdout, "✗ separated setup:", err)
 		code = exitFail
 	case sys == nil:
-		fmt.Fprintln(e.stdout, "✗ separated setup: none (/etc/lockmq/system.toml): the console refuses to start; run: sudo lockmq install")
+		fmt.Fprintln(e.stdout, "✗ separated setup: none (/etc/lockmq/system.toml): the console refuses to start; lockmq runs in Docker: run it through the launcher (docs/docker.md)")
 		code = exitFail
 	default:
 		fmt.Fprintf(e.stdout, "✓ separated setup: console account %s, clients group %s\n", sys.ServiceUser, sys.ClientGroup)

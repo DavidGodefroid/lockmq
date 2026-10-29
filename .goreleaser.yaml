@@ -34,7 +34,13 @@ archives:
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     # Explicit list: docs/ also holds local-only material that must never ship.
+    # scripts/lockmq is the host launcher that scripts/install.sh and
+    # `lockmq update` install; the binary is the one of an agent that runs in
+    # a container of its own (docs/docker.md).
     files:
+      - src: scripts/lockmq
+        info:
+          mode: 0755
       - LICENSE
       - NOTICE
       - README.md
@@ -42,30 +48,9 @@ archives:
       - docs/usage.md
       - docs/security-model.md
 
-# Linux packages, attached to the release and covered by checksums.txt. The
-# binary lands in /usr/bin, owned by root, which is what `lockmq doctor`
-# expects.
-nfpms:
-  - id: packages
-    ids: [lockmq]
-    package_name: lockmq
-    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    formats: [deb, rpm, apk]
-    bindir: /usr/bin
-    vendor: David Godefroid
-    maintainer: David Godefroid <noreply@github.com>
-    homepage: https://github.com/DavidGodefroid/lockmq
-    description: Human-gated RabbitMQ access for AI agents
-    license: Apache-2.0
-    contents:
-      - src: LICENSE
-        dst: /usr/share/doc/lockmq/LICENSE
-        file_info:
-          mode: 0644
-      - src: NOTICE
-        dst: /usr/share/doc/lockmq/NOTICE
-        file_info:
-          mode: 0644
+# No Linux packages: lockmq runs in Docker, and the host gets only the
+# launcher (scripts/install.sh). The image is published by the image job of
+# .github/workflows/release.yml.
 
 checksum:
   name_template: checksums.txt
@@ -74,7 +59,7 @@ checksum:
 # Keyless cosign signature of the checksum file (GitHub OIDC in CI). Verify
 # with:
 #   cosign verify-blob --bundle checksums.txt.sigstore.json \
-#     --certificate-identity-regexp 'https://github.com/DavidGodefroid/lockmq/' \
+#     --certificate-identity 'https://github.com/DavidGodefroid/lockmq/.github/workflows/release.yml@refs/tags/vX.Y.Z' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
 #     checksums.txt
 signs:
