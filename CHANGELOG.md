@@ -21,6 +21,12 @@ lockhttp use. What changes for lockmq:
   narrow and thin spaces and full-width digits inside phone, IBAN, card and
   national-id values; integral floats in JSON bodies. A value masked before is
   still masked.
+### Removed
+
+- The host install (`cmd/lockmq/install.go`) and `internal/separate`: the binary
+  refused `install` since the Docker-only launcher. `lockmq install` and `lockmq
+  update` in the image still print the hint to the launcher. `doctor --fix`
+  keeps its project-access repair (`access.go`), which runs in the image.
 
 ### One `lockmq` command, backed by Docker
 

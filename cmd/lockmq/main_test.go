@@ -233,48 +233,6 @@ func TestDoctorShowsTier(t *testing.T) {
 	}
 }
 
-// install never runs anything for real here: e.root captures the script.
-// The dispatch refuses install (hostModeRefusal); its code stays until a
-// later release removes it.
-func TestInstall(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "lockmq")
-	if err := os.WriteFile(bin, []byte("binary"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	var scripts []string
-	inst := func(goos, stdin string, tty bool, args ...string) (int, string, string) {
-		var out, errb bytes.Buffer
-		e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: tty,
-			executable: bin, goos: goos, root: func(s string) error { scripts = append(scripts, s); return nil }}
-		code := runInstall(e, append([]string{"--client", "agent"}, args...))
-		return code, out.String(), errb.String()
-	}
-	if code, _, stderr := inst("linux", "", false); code != exitFail || !strings.Contains(stderr, "could have been replaced by the agent") {
-		t.Errorf("untrusted binary: %d %s", code, stderr)
-	}
-	if code, out, _ := inst("linux", "", false, "--trust-binary", "--print"); code != exitOK || !strings.Contains(out, "These commands run as root") || len(scripts) != 0 {
-		t.Errorf("--print: %d scripts %d\n%s", code, len(scripts), out)
-	}
-	if code, _, _ := inst("linux", "", false, "--trust-binary"); code != exitUsage || len(scripts) != 0 {
-		t.Errorf("no terminal: %d", code)
-	}
-	if code, out, _ := inst("linux", "n\n", true, "--trust-binary"); code != exitOK || !strings.Contains(out, "nothing done") || len(scripts) != 0 {
-		t.Errorf("declined: %d %s", code, out)
-	}
-	if code, out, _ := inst("linux", "", false, "--trust-binary", "--yes"); code != exitOK || len(scripts) != 1 || !strings.Contains(out, "Done. Next:") {
-		t.Fatalf("--yes: %d scripts %d\n%s", code, len(scripts), out)
-	}
-	if !strings.Contains(scripts[0], "usermod -aG lockmq-clients agent") || !strings.Contains(scripts[0], "/etc/lockmq/system.toml") {
-		t.Errorf("script:\n%s", scripts[0])
-	}
-	if code, out, _ := inst("darwin", "", true, "--trust-binary", "--yes"); code != exitOK || len(scripts) != 1 || !strings.Contains(out, "as an administrator") {
-		t.Errorf("darwin prints only: %d scripts %d", code, len(scripts))
-	}
-	if code, _, _ := inst("linux", "", false, "--user", "agent"); code != exitUsage {
-		t.Errorf("same accounts: %d", code)
-	}
-}
-
 // The host install and update are refused: lockmq runs in Docker, and the
 // launcher on the host updates itself.
 func TestHostModeCommandsRefused(t *testing.T) {
@@ -284,8 +242,18 @@ func TestHostModeCommandsRefused(t *testing.T) {
 		if code := run(e, args); code != exitFail {
 			t.Errorf("%v: exit %d, want %d", args, code, exitFail)
 		}
-		if !strings.Contains(errb.String(), "runs in Docker") || !strings.Contains(errb.String(), "docs/docker.md") || out.Len() != 0 {
+		if !strings.Contains(errb.String(), "runs in Docker") || !strings.Contains(errb.String(), "scripts/install.sh") ||
+			!strings.Contains(errb.String(), "`lockmq update` on the host") || !strings.Contains(errb.String(), "docs/docker.md") || out.Len() != 0 {
 			t.Errorf("%v: stdout %q stderr %q", args, out.String(), errb.String())
+		}
+	}
+}
+
+// shellQuote makes any path one shell word.
+func TestShellQuote(t *testing.T) {
+	for in, want := range map[string]string{"/p": "'/p'", "a b": "'a b'", "it's": `'it'\''s'`, "": "''"} {
+		if got := shellQuote(in); got != want {
+			t.Errorf("shellQuote(%q) = %s, want %s", in, got, want)
 		}
 	}
 }
