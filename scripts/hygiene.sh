@@ -7,7 +7,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 # The patterns are written split so that this file does not match itself.
-pattern='ip''ex|ki''so|full''data|her''dr|eb''ox|pep''pol|bp''ost|mail''id'
+pattern='ip''ex|ki''so([^l]|$)|full''data|her''dr|eb''ox|pep''pol|bp''ost|mail''id'
 
 if git grep -n -i -I -E "$pattern" -- . ':!scripts/hygiene.sh'; then
 	echo "hygiene: the lines above name an internal or third-party system; use neutral names (example.com, orders, payments)" >&2

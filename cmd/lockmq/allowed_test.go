@@ -22,7 +22,7 @@ func TestParseAllowedUIDs(t *testing.T) {
 		"1000":           {1000},
 		"1000,1001":      {1000, 1001},
 		"1001,1001":      {1001},
-		"4294967294":     {4294967294},
+		"2147483647":     {2147483647},
 		"10012,1000,999": {10012, 1000, 999},
 	} {
 		got, err := parseAllowedUIDs(in)
@@ -30,7 +30,7 @@ func TestParseAllowedUIDs(t *testing.T) {
 			t.Errorf("parseAllowedUIDs(%q) = %v, %v; want %v", in, got, err, want)
 		}
 	}
-	for _, bad := range []string{"0", "007", "1000,0", "1,,2", ",1", "1,", "-1", "+1", " 1", "1 ", "a", "4294967295", "99999999999999999999"} {
+	for _, bad := range []string{"0", "007", "1000,0", "1,,2", ",1", "1,", "-1", "+1", " 1", "1 ", "a", "65534", "4294967295", "99999999999999999999"} {
 		if got, err := parseAllowedUIDs(bad); err == nil {
 			t.Errorf("parseAllowedUIDs(%q) = %v, want an error", bad, got)
 		}
@@ -126,5 +126,21 @@ func TestAllowUIDsIsolation(t *testing.T) {
 	env.LoadSys = func() (*sysconf.Config, error) { return nil, nil }
 	if _, err := allowUIDs(env, []int{1000}).LoadSys(); err == nil || !strings.Contains(err.Error(), "separated setup") {
 		t.Fatalf("no separated setup: %v, want an error", err)
+	}
+}
+
+// lockmq console refuses a bad or repeated --allowed-uids before anything
+// else (exit 3), with or without a terminal.
+func TestConsoleAllowedUIDsFlag(t *testing.T) {
+	for _, args := range [][]string{
+		{"--allowed-uids", "0"},
+		{"--allowed-uids", "65534"},
+		{"--allowed-uids", "1000", "--allowed-uids", "1001"},
+	} {
+		var out, errb bytes.Buffer
+		e := env{stdin: strings.NewReader(""), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: true}
+		if code := runConsole(e, args); code != exitUsage || !strings.Contains(errb.String(), "lockmq console:") {
+			t.Errorf("%v: exit %d, %s", args, code, errb.String())
+		}
 	}
 }

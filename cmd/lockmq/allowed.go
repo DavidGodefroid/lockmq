@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,15 +28,39 @@ func parseAllowedUIDs(s string) ([]int, error) {
 		if f[0] == '0' {
 			return nil, fmt.Errorf("--allowed-uids: %s is root or has a leading zero", f)
 		}
-		n, err := strconv.Atoi(f)
-		if err != nil || n >= 1<<32-1 {
+		// 2^32-1 is (uid_t)-1, no account's.
+		v, err := strconv.ParseUint(f, 10, 32)
+		if err != nil || v == math.MaxUint32 {
 			return nil, fmt.Errorf("--allowed-uids: %s is not a uid", f)
+		}
+		n := int(v)
+		if n == 65534 {
+			// The overflow uid: any peer of a user namespace with no
+			// mapping for its uid, never one agent.
+			return nil, fmt.Errorf("--allowed-uids: 65534 is nobody, the kernel's overflow uid")
 		}
 		if !slices.Contains(uids, n) {
 			uids = append(uids, n)
 		}
 	}
 	return uids, nil
+}
+
+// onceFlag is a string flag given at most once: a second --allowed-uids
+// (one a wrapper prepends, say) would otherwise replace the first.
+type onceFlag struct {
+	v   string
+	set bool
+}
+
+func (f *onceFlag) String() string { return f.v }
+
+func (f *onceFlag) Set(s string) error {
+	if f.set {
+		return errors.New("given twice: list every uid in one --allowed-uids")
+	}
+	f.v, f.set = s, true
+	return nil
 }
 
 // allowUIDs returns env whose separated setup also lets uids connect, as

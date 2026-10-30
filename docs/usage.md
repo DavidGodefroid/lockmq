@@ -71,7 +71,7 @@ user (`administrator` or `policymaker`: refused on production, typed
 as `allowed_uids` in the image's `/etc/lockmq/system.toml` does: an agent in a container of
 its own whose uid has no account in the console's image
 ([docs/docker.md](docker.md#agent-in-its-own-container)). Comma-separated decimal uids;
-root (0), leading zeros and the console's own uid are refused; the console prints them at
+root (0), 65534 (nobody), leading zeros and the console's own uid are refused; the console prints them at
 start.
 
 Keys and commands while it runs (lockkit's console):

@@ -27,14 +27,15 @@ func runConsole(e env, args []string) int {
 	auto := fs.Bool("auto", false, "start in auto mode (never on production; never for peek)")
 	allowUnmask := fs.Bool("allow-unmask", false, "let clients ask for unmasked output (each approved here)")
 	showResults := fs.Bool("show-results", false, "print results in clear in this console")
-	allowed := fs.String("allowed-uids", "", "uids that may connect besides lockmq-clients' members (an agent in a container of its own)")
+	var allowed onceFlag
+	fs.Var(&allowed, "allowed-uids", "uids that may connect besides lockmq-clients' members (an agent in a container of its own)")
 	var hub console.HubOptions
 	hub.Register(fs)
 	pos, err := parseInterleaved(fs, args)
 	if err != nil || len(pos) > 0 {
 		return usageFail(e, "console", usage, "wrong arguments")
 	}
-	uids, err := parseAllowedUIDs(*allowed)
+	uids, err := parseAllowedUIDs(allowed.v)
 	if err != nil {
 		return usageFail(e, "console", usage, err.Error())
 	}

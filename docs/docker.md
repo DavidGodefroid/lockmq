@@ -291,9 +291,11 @@ LOCKMQ_IMAGE=lockmq lockmq console
 `--allowed-uids` and `ALLOWED_UIDS` are comma-separated lists of uids: the
 build writes them to `allowed_uids` in the image's `/etc/lockmq/system.toml`,
 the flag adds them to it for that console only (the console prints them at
-start). Both refuse root (0) and the console's own uid (10011). Only whoever
-starts the console sets them: the launcher passes the flag on, `lock up`
-passes a lock's `allowed_uids`, and no client can. It is the uid the kernel reports
+start). Both refuse root (0), the console's own uid (10011) and 65534
+(nobody, the kernel's overflow uid). Only whoever starts the console sets
+them: the human, through the launcher (which passes the flag on) or
+through `lock up` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
+lockfamily.yaml lock up reviews with you); no client can. It is the uid the kernel reports
 for the agent's process, as the console sees it: the agent container's uid
 when neither container remaps user namespaces. Every process of that uid,
 in any container that mounts the socket volume, may then use the console:
