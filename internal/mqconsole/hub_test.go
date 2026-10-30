@@ -204,10 +204,19 @@ func storedPlan(t *testing.T, r *rig, tk, token string) *plans.Plan {
 	return sp
 }
 
-// The recompute of a renewal gives what the run's recheck gives: the
-// policy fingerprint and plan hash bound at plan time, and the same
-// plan-hash inputs; a queue that moved shows up by name, a message count
-// does not; without the broker the queue keeps its stored digest.
+// unchecked is what a renewal of this lock says of its inputs: the
+// params unchanged, the queue unchecked (read only at the run).
+func checkUnchecked(t *testing.T, ch []ticket.Change) {
+	t.Helper()
+	if len(ch) != 1 || ch[0].Input != "queue" || ch[0].Change != ticket.ChangeUnchecked {
+		t.Fatalf("changes %+v", ch)
+	}
+}
+
+// The recompute of a renewal gives what the run's recheck gives, as far
+// as it can know without the broker: the policy fingerprint and plan hash
+// bound at plan time, the params' digest; the queue is unchecked, never
+// claimed unchanged, and nothing is read from the broker for it.
 func TestHubRecomputeMatchesRecheck(t *testing.T) {
 	for _, c := range []struct {
 		name, queue string
@@ -226,12 +235,7 @@ func TestHubRecomputeMatchesRecheck(t *testing.T) {
 			if len(sp.Binding.Inputs) != 2 || sp.Binding.Inputs["params"] == "" || sp.Binding.Inputs["queue"] == "" {
 				t.Fatalf("inputs at plan time: %v", sp.Binding.Inputs)
 			}
-			recompute := r.be.recompute(r.srv)
-			fp, hash, inputs, err := recompute(sp)
-			if err != nil || fp != sp.Binding.PolicyFP || hash != sp.Binding.PlanHash || len(ticket.DiffInputs(sp.Binding.Inputs, inputs)) != 0 {
-				t.Fatalf("recompute %s %s %v %v; stored %+v", fp, hash, inputs, err, sp.Binding)
-			}
-			// The run's recheck hashes the same.
+			// The run's recheck hashes the plan as stored.
 			var body hubBody
 			if err := json.Unmarshal(sp.Body, &body); err != nil {
 				t.Fatal(err)
@@ -240,60 +244,79 @@ func TestHubRecomputeMatchesRecheck(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if rh, err := planHash(body.Params, pp.props); err != nil || rh != hash || policyFP(pp.pol) != fp {
-				t.Fatalf("recheck %s %v, recompute %s", rh, err, hash)
-			}
-
-			r.broker.mu.Lock()
-			r.broker.queues[c.queue]["messages"] = 99.0
-			r.broker.queues[c.queue]["messages_ready"] = 99.0
-			r.broker.mu.Unlock()
-			if _, h2, in2, err := recompute(sp); err != nil || h2 != hash || len(ticket.DiffInputs(sp.Binding.Inputs, in2)) != 0 {
-				t.Fatalf("message counts moved the plan: %s %v", h2, err)
+			if rh, err := planHash(body.Params, pp.props); err != nil || rh != sp.Binding.PlanHash || policyFP(pp.pol) != sp.Binding.PolicyFP {
+				t.Fatalf("recheck %s %v", rh, err)
 			}
 			r.broker.mu.Lock()
 			r.broker.queues[c.queue]["arguments"] = map[string]any{"x-delivery-limit": 50.0, "x-max-age": "1D"}
+			served := len(r.broker.requests)
 			r.broker.mu.Unlock()
-			_, h3, in3, err := recompute(sp)
-			ch := ticket.DiffInputs(sp.Binding.Inputs, in3)
-			if err != nil || h3 == hash || len(ch) != 1 || ch[0].Input != "queue" || ch[0].Change != ticket.ChangeChanged {
-				t.Fatalf("moved queue: %s %v %+v", h3, err, ch)
+			fp, hash, inputs, err := r.be.recompute(sp)
+			if err != nil || fp != sp.Binding.PolicyFP || hash != sp.Binding.PlanHash || inputs["params"] != sp.Binding.Inputs["params"] {
+				t.Fatalf("recompute %s %s %v %v; stored %+v", fp, hash, inputs, err, sp.Binding)
 			}
-
-			// No session to read the queue on: its stored digest stays,
-			// so does the plan hash; nothing reconnects.
-			r.be.mu.Lock()
-			cur := r.be.cur
-			r.be.cur = nil
-			r.be.mu.Unlock()
-			prompts := r.io.promptCount()
-			fp4, h4, in4, err := recompute(sp)
-			if err != nil || fp4 != fp || h4 != hash || len(ticket.DiffInputs(sp.Binding.Inputs, in4)) != 0 || r.io.promptCount() != prompts {
-				t.Fatalf("offline recompute %s %v %v", h4, in4, err)
+			checkUnchecked(t, ticket.DiffInputs(sp.Binding.Inputs, inputs))
+			// The session closed (logout, idle timeout): the same, and the
+			// backend forgets it.
+			r.srv.Close()
+			if r.be.session() != nil {
+				t.Fatal("a closed session is still the backend's")
 			}
-			r.be.mu.Lock()
-			r.be.cur = cur
-			r.be.mu.Unlock()
-
-			// A request the broker now refuses is not renewed.
+			_, h2, in2, err := r.be.recompute(sp)
+			if err != nil || h2 != hash {
+				t.Fatalf("closed session: %s %v", h2, err)
+			}
+			checkUnchecked(t, ticket.DiffInputs(sp.Binding.Inputs, in2))
 			r.broker.mu.Lock()
-			delete(r.broker.queues, c.queue)
-			r.broker.mu.Unlock()
-			if _, _, _, err := recompute(sp); err == nil {
-				t.Fatal("renewed a request for a queue that is gone")
+			defer r.broker.mu.Unlock()
+			if len(r.broker.requests) != served {
+				t.Fatalf("the recompute read the broker: %v", r.broker.requests[served:])
 			}
 		})
 	}
 }
 
+// The recompute runs on the hub's watch goroutine while the console
+// serves, reloads its policy and closes its session (run with -race).
+func TestHubRecomputeConcurrent(t *testing.T) {
+	r, _, _ := hubRig(t, rigOpts{tier: "peek"})
+	p := peekParams("payments")
+	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+	sp := storedPlan(t, r, pendingOf(t, r.call(MethodRun, p)).Ticket, "tok-1")
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if _, _, _, err := r.be.recompute(sp); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	for range 20 {
+		r.call(MethodPlan, peekParams("payments"))
+		r.srv.CheckPolicy()
+	}
+	r.srv.Close()
+	close(stop)
+	wg.Wait()
+}
+
 // An expired ticket is asked again (decision H1): its run answers pending
-// with a new ticket that renews it and names the input that moved; once
+// with a new ticket that renews it and names the queue unchecked; once
 // approved, the new ticket runs once.
 //
-// Read tickets (read-pii) have no TTL in lockkit, pending or approved: the
-// expiry this lock meets is an approval its clock cannot use, here one
-// dated ahead of it (the console's clock moved back), which Begin ends
-// Expired like an aged approval.
+// Read tickets (read-pii) have no TTL in lockkit, pending or approved (a
+// pending plan takes its ticket's expiry, none): the expiry this lock meets
+// is an approval its clock cannot use, here one dated ahead of it (the
+// console's clock moved back), which Begin ends Expired.
 func TestHubExpiredTicketRenewed(t *testing.T) {
 	clock := newClock()
 	r, hub, pub := hubRig(t, rigOpts{now: clock.now})
@@ -303,11 +326,9 @@ func TestHubExpiredTicketRenewed(t *testing.T) {
 	at := clock.now()
 	hub.DecideWith(old, ticket.Approved, "", nil, func(d *ticket.Decision) { d.At = at })
 	clock.add(-5 * time.Minute)
-	r.broker.mu.Lock()
-	r.broker.queues["%2F/order-events"]["arguments"] = map[string]any{"x-max-age": "7D"}
-	r.broker.mu.Unlock()
 	run := p
 	run.Ticket = old
+	run.Target = "orders.failed" // the agent's params beside a ticket are not the plan's
 	var pd pendingOut
 	deadline := time.Now().Add(10 * time.Second)
 	for {
@@ -327,13 +348,18 @@ func TestHubExpiredTicketRenewed(t *testing.T) {
 		t.Fatal(err)
 	}
 	rn := tk.Renews
-	if rn == nil || rn.Of != old || rn.Reason != ticket.RenewApprovalExpired || rn.ApprovedAt == nil || !rn.Checked ||
-		len(rn.Changes) != 1 || rn.Changes[0].Input != "queue" || rn.Changes[0].Change != ticket.ChangeChanged {
+	if rn == nil || rn.Of != old || rn.Reason != ticket.RenewApprovalExpired || rn.ApprovedAt == nil || !rn.Checked {
 		t.Fatalf("renews %+v", rn)
 	}
-	// The same expired ticket again: the same renewal.
+	checkUnchecked(t, rn.Changes)
+	// The same expired ticket again: the same renewal, audited once.
 	if again := pendingOf(t, r.call(MethodRun, run)); again.Ticket != pd.Ticket {
 		t.Fatalf("renewed twice: %s, %s", again.Ticket, pd.Ticket)
+	}
+	a := r.auditLog()
+	if strings.Count(a, `"event":"renew"`) != 1 || !strings.Contains(a, "renewed by ticket "+pd.Ticket) ||
+		!strings.Contains(a, `"target":"order-events"`) || strings.Contains(a, "orders.failed") {
+		t.Errorf("audit:\n%s", a)
 	}
 	hub.DecideWith(pd.Ticket, ticket.Approved, "", nil, func(d *ticket.Decision) { d.At = clock.now() })
 	run.Ticket = pd.Ticket
@@ -344,8 +370,56 @@ func TestHubExpiredTicketRenewed(t *testing.T) {
 	if resp := r.call(MethodRun, run); resp.Error == nil || r.reader.reads != 1 {
 		t.Fatalf("ran twice: %+v", resp)
 	}
-	if a := r.auditLog(); !strings.Contains(a, `"event":"renew"`) || !strings.Contains(a, "renewed by ticket "+pd.Ticket) {
-		t.Errorf("audit:\n%s", a)
+}
+
+// A renewal the human asks on the hub (its renew request, on the watch
+// goroutine) makes the new ticket with no agent; the agent's run of the
+// old ticket then points at it; once approved it runs once.
+func TestHubRenewRequestFromHub(t *testing.T) {
+	r, hub, pub := hubRig(t, rigOpts{tier: "peek"})
+	r.peer = &ipc.Cred{UID: 1000, PID: 1}
+	p := peekParams("payments")
+	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+	old := pendingOf(t, r.call(MethodRun, p)).Ticket
+	// The approval aged (as Begin records it): the plan is Expired.
+	caller := plans.Caller{UID: 1000, Token: "tok-1"}
+	sp, err := r.srv.Hub().Store.ByTicket(old, caller)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.srv.Hub().Store.ExpireApproval(sp.ID, caller, time.Now().UTC().Truncate(time.Millisecond), "approval aged"); err != nil {
+		t.Fatal(err)
+	}
+	rid := hub.Request(old, ticket.RequestRenew, nil, nil)
+	var a struct{ Ticket, Error string }
+	deadline := time.Now().Add(10 * time.Second)
+	for hub.Answer(rid) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the renew request was never answered")
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	if err := json.Unmarshal(hub.Answer(rid), &a); err != nil || a.Ticket == "" || a.Ticket == old {
+		t.Fatalf("answer %s\n%s", hub.Answer(rid), r.io.output())
+	}
+	tk, err := ticket.VerifyTicket(pub, hub.Ticket(a.Ticket))
+	if err != nil || tk.Renews == nil || tk.Renews.Of != old || !tk.Renews.Checked {
+		t.Fatalf("renewal %+v %v", tk, err)
+	}
+	checkUnchecked(t, tk.Renews.Changes)
+	run := p
+	run.Ticket = old
+	if pd := pendingOf(t, r.call(MethodRun, run)); pd.Ticket != a.Ticket {
+		t.Fatalf("agent run of the old ticket: %s, want %s", pd.Ticket, a.Ticket)
+	}
+	if au := r.auditLog(); strings.Count(au, `"event":"renew"`) != 1 || !strings.Contains(au, `"approval":"hub-claimed"`) {
+		t.Errorf("audit:\n%s", au)
+	}
+	hub.Decide(a.Ticket, ticket.Approved, "")
+	run.Ticket = a.Ticket
+	mustOK(t, r.runDecided(run))
+	if r.broker.peekCount() != 1 {
+		t.Fatalf("peeks %d", r.broker.peekCount())
 	}
 }
 

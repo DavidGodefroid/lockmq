@@ -201,6 +201,8 @@ type rig struct {
 	srv    *console.Server
 	root   string
 	state  string
+	// peer, when set, is the client behind each call.
+	peer *ipc.Cred
 	// closeHub stops the hub mode's watch and closes its plans (once).
 	closeHub func()
 }
@@ -320,6 +322,10 @@ func newRig(t *testing.T, o rigOpts) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if cfg.Hub != nil {
+		// As console.Run: the hub's requests (reveals, renewals) audited.
+		cfg.Hub.Requests(r.io, func(b audit.Base) { r.srv.AuditBase(context.Background(), b) })
+	}
 	t.Cleanup(r.srv.Close)
 	return r
 }
@@ -330,7 +336,11 @@ func (r *rig) call(method string, params any) ipc.Response {
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	return r.srv.Handle(context.Background(), ipc.Request{JSONRPC: "2.0", ID: 7, Method: method, Params: raw})
+	ctx := context.Background()
+	if r.peer != nil {
+		ctx = console.WithPeer(ctx, *r.peer)
+	}
+	return r.srv.Handle(ctx, ipc.Request{JSONRPC: "2.0", ID: 7, Method: method, Params: raw})
 }
 
 func (r *rig) auditLog() string {

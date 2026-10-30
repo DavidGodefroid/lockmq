@@ -9,11 +9,12 @@ All notable changes to lockmq. The format follows
 ### Added
 
 - Hub mode renewals (lockkit decision H1): the run of an expired ticket answers `pending`
-  with a new ticket that renews it, instead of a `timeout`. The plan records its plan-hash
-  inputs by name (`params`, `queue`); the renewal recomputes them under the policy in force
-  on the open broker session (no fetch, no peek, no new login) so the human sees which moved.
-  If the queue cannot be read then, it keeps its approved digest and the run's recheck still
-  refuses a moved queue. Renewals are audited (`renew`).
+  with a new ticket that renews it, instead of a `timeout`; the hub's own renew requests are
+  served too. The plan records its plan-hash inputs by name (`params`, `queue`). The renewal
+  is recomputed under the approved policy without the broker (it may run on the hub's watch
+  goroutine): the params are compared, the queue is `unchecked` (never claimed unchanged), and
+  the new ticket's run reads the queue and refuses one that moved. Renewals are audited
+  (`renew`) with the stored request.
 - Hub mode reveal: `lockmq console --facade-keys-file FILE` (written by `lock up`) pins the
   local facades that may reveal a ticket's clear screen (Ctrl-O), audited (`reveal`).
 
@@ -21,7 +22,8 @@ All notable changes to lockmq. The format follows
 
 - A console started without the hub flags after hub mode withdraws the plans left pending
   and refuses a run naming a `ticket` with `withdrawn`, before anything runs.
-- Builds on lockkit v0.5.0 (was v0.3.1).
+- Builds on lockkit main `cbdcf00` (`ticket.UncheckedInput`, to be v0.6.0; was v0.3.1).
+- A closed broker session is no longer the backend's: nothing reads on it.
 
 ## [0.3.0] - 2026-10-30
 

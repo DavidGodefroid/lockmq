@@ -165,95 +165,90 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 }
 
 // renew answers the run of expired ticket in.Ticket with its renewal and
-// audits it.
+// audits it with the stored plan's request (not the params the agent sent
+// beside the ticket). A ticket renewed already answers its renewal again,
+// audited once.
 func (b *Backend) renew(ctx context.Context, env console.Env, h *console.Hub, id int64, in Params, caller plans.Caller) ipc.Response {
+	var stored Params
+	prev := "" // the renewal made already, if any
+	if old, err := h.Store.ExpiredByTicket(in.Ticket, caller); err == nil {
+		var body hubBody
+		if json.Unmarshal(old.Body, &body) == nil {
+			stored = body.Params
+		}
+		if old.RenewedBy != "" {
+			if n, err := h.Store.RenewalOf(old.ID); err == nil {
+				prev = n.Ticket
+			}
+		}
+	}
 	resp := h.RenewResp(ctx, id, in.Ticket, caller)
 	base := audit.Base{Event: audit.EventRenew, Decision: "renewed", Approval: "hub", Ticket: in.Ticket,
-		Profile: env.Policy().Profile().Name, Intent: in.Intent}
+		Profile: env.Policy().Profile().Name, Intent: stored.Intent}
 	var pd struct {
 		Ticket string `json:"ticket"`
 	}
 	if resp.Error != nil {
 		base.Decision, base.Error = "refused", resp.Error.Message
 	} else if json.Unmarshal(resp.Result, &pd) == nil {
+		if prev != "" && pd.Ticket == prev {
+			return resp
+		}
 		base.Reason = "renewed by ticket " + pd.Ticket
 	}
 	console.StampPeer(ctx, &base)
-	env.Audit(Record{Base: base, Op: in.Op, VHost: in.VHost, Target: in.Target, Unmasked: in.Unmask})
+	env.Audit(Record{Base: base, Op: stored.Op, VHost: stored.VHost, Target: stored.Target, Unmasked: stored.Unmask})
 	return resp
 }
 
-// withHub registers, on the first request served in hub mode, the
-// recompute of the hub's renewals. console.Run gives the product no hook
-// at hub start: until a first request, a renewal the human asks on the
-// hub is made unchecked (lockkit keeps the stored plan hash and says so;
-// the run's recheck still refuses a stale plan).
+// OnHub registers the recompute of the hub's renewals on h. Until lockkit
+// v0.6.0's console.Options.OnHub calls it at hub start, withHub calls it
+// on the first request served in hub mode; a renewal the human asks on
+// the hub before that is made unchecked by lockkit (the run's recheck
+// still refuses a stale plan).
+func (b *Backend) OnHub(h *console.Hub) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.hub != h {
+		b.hub = h
+		h.Client.SetRecompute(b.recompute)
+	}
+}
+
 func (b *Backend) withHub(next console.Handler) console.Handler {
 	return func(ctx context.Context, req ipc.Request, env console.Env) ipc.Response {
 		if h := console.HubOf(env); h != nil {
-			b.mu.Lock()
-			if b.hub != h {
-				b.hub = h
-				h.Client.SetRecompute(b.recompute(env))
-			}
-			b.mu.Unlock()
+			b.OnHub(h)
 		}
 		return next(ctx, req, env)
 	}
 }
 
 // recompute gives, for a stored hub plan, its policy fingerprint, plan
-// hash and plan-hash inputs as they are now: the same as hubRun's recheck,
-// prepared under the policy in force, with no effect (management API reads
-// only, nothing fetched or peeked) and without a new login (prepareOn,
-// connect false: it may run from the hub's watch, with nobody to prompt).
-//
-// When the broker cannot be reached on the session already open (lost,
-// expired, the network), the queue's properties cannot be read: the
-// "queue" input keeps its stored digest and the plan hash its stored
-// value, so the renewal shows no change for them; the run's recheck reads
-// them and refuses a queue that moved (E_STALE). A request the policy or
-// the broker now refuses (tier, unmask off, queue gone or of another type)
-// is not renewed: its run would be refused too.
-func (b *Backend) recompute(env console.Env) hubclient.Recompute {
-	return func(sp *plans.Plan) (string, string, map[string]string, error) {
-		var body hubBody
-		if err := json.Unmarshal(sp.Body, &body); err != nil {
-			return "", "", nil, err
-		}
-		pol, ok := env.Policy().(Policy)
-		if !ok {
-			return "", "", nil, errors.New("no lockmq policy in force")
-		}
-		timeout := pol.Policy.Profile.Limits.RequestTimeout
-		if timeout <= 0 {
-			timeout = 30 * time.Second
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		pp, err := b.prepareOn(ctx, env, body.Params, false)
-		if err == nil {
-			hash, err := planHash(body.Params, pp.props)
-			if err != nil {
-				return "", "", nil, err
-			}
-			inputs, err := planDigests(body.Params, pp.props)
-			return policyFP(pol), hash, inputs, err
-		}
-		var r *refusal.Error
-		if errors.As(err, &r) {
-			return "", "", nil, err
-		}
-		inputs, derr := planDigests(body.Params, nil)
-		if derr != nil {
-			return "", "", nil, derr
-		}
-		delete(inputs, "queue")
-		if q, ok := sp.Binding.Inputs["queue"]; ok {
-			inputs["queue"] = q
-		}
-		return policyFP(pol), sp.Binding.PlanHash, inputs, nil
+// hash and plan-hash inputs as they can be known now. It may run on the
+// hub's watch goroutine (a renewal the human asks on the hub), so it
+// touches neither the console's state nor the broker session: the policy
+// is the approved one on disk (inForce: the console saves it before it
+// applies it), the params come from the plan. The queue's properties need
+// the broker: the "queue" input is ticket.UncheckedInput (the renewal
+// shows it unchecked, never one click) and the plan hash stays the stored
+// one; the run's recheck reads the queue on the session and refuses one
+// that moved (E_STALE).
+func (b *Backend) recompute(sp *plans.Plan) (string, string, map[string]string, error) {
+	var body hubBody
+	if err := json.Unmarshal(sp.Body, &body); err != nil {
+		return "", "", nil, err
 	}
+	pol, err := b.inForce()
+	if err != nil {
+		return "", "", nil, err
+	}
+	inputs, err := planDigests(body.Params, nil)
+	if err != nil {
+		return "", "", nil, err
+	}
+	inputs["queue"] = ticket.UncheckedInput
+	return policyFP(pol), sp.Binding.PlanHash, inputs, nil
 }
 
 // auditDecision records the hub's decision on a ticket.
