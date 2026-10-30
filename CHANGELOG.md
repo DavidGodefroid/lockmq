@@ -6,6 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+Hub mode: reads and peeks can be decided on lockhub instead of the console's own
+prompt.
+
 ### Added
 
 - Hub mode (`lockmq console --hub URL --hub-key-file FILE --instance NAME`): a read or peek
@@ -19,7 +24,9 @@ All notable changes to lockmq. The format follows
   properties read on the operation's own session (type, arguments, policy, operator policy,
   broker major; not its message counts). A queue changed between the approval and the run
   is refused `E_STALE` (retry: rewrite) before anything is read.
-- Builds on lockkit v0.3.1 (hub support), was a commit of lockkit main.
+- Builds on lockkit v0.3.1 (was a commit of lockkit main). An `http://` hub other than a
+  loopback address needs `--hub-plain-http` and must be a service name without a dot or a
+  private address; redirects from the hub are refused (lockkit#72).
 
 ## [0.2.0]
 
