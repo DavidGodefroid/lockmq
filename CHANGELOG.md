@@ -6,6 +6,9 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+- `lockmq console`'s usage and `lockmq help` list `--hub-plain-http` (the flag `lock up`
+  passes for its `http://lockhub:8443`); `docs/usage.md` says when it is needed.
+
 ## [0.3.0] - 2026-10-30
 
 Hub mode: reads and peeks can be decided on lockhub instead of the console's own

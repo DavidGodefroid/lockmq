@@ -276,3 +276,9 @@ func TestMain(m *testing.M) {
 	os.Unsetenv("LEA_AGENT_TOKEN")
 	os.Exit(m.Run())
 }
+
+func TestUsageNamesHubPlainHTTP(t *testing.T) {
+	if !strings.Contains(usageText, "[--hub-plain-http]") {
+		t.Errorf("help does not name --hub-plain-http:\n%s", usageText)
+	}
+}
