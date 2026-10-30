@@ -19,7 +19,7 @@ All notable changes to lockmq. The format follows
   properties read on the operation's own session (type, arguments, policy, operator policy,
   broker major; not its message counts). A queue changed between the approval and the run
   is refused `E_STALE` (retry: rewrite) before anything is read.
-- lockkit pinned on main (`9ce8f35`, v0.3.0 prep) until v0.3.0 is tagged.
+- Builds on lockkit v0.3.1 (hub support), was a commit of lockkit main.
 
 ## [0.2.0]
 
