@@ -6,6 +6,10 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-30
+
+lea's agents reach the release image's console: `console --allowed-uids` (lea#226).
+
 ### Added
 
 - `lockmq console --allowed-uids UID,...`: these uids may connect besides the members of
