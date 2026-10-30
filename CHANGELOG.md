@@ -6,6 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+Hub mode: reads and peeks can be decided on lockhub instead of the console's own
+prompt.
+
 ### Added
 
 - Hub mode (`lockmq console --hub URL --hub-key-file FILE --instance NAME`): a read or peek
@@ -14,12 +19,15 @@ All notable changes to lockmq. The format follows
   screen and answers `pending`; `op.run` with `ticket` (`--ticket`, the MCP tools' `ticket`)
   runs it once decided, prepared again and hashing the same. Decisions are audited with the
   ticket, approver, facade and hub signature; the dry run says `hub`. `lockmq hub-key
-  --instance NAME` prints the instance key. Requests carry the agent's lea name and token.
+  --instance NAME` prints the instance key. Requests carry the agent's lea name and the hash
+  of its token (the raw token stays in the agent's process, lockkit#71).
 - Hub mode plan hash: the operation, vhost, target and arguments, plus the queue's
   properties read on the operation's own session (type, arguments, policy, operator policy,
   broker major; not its message counts). A queue changed between the approval and the run
   is refused `E_STALE` (retry: rewrite) before anything is read.
-- Builds on lockkit v0.3.1 (hub support), was a commit of lockkit main.
+- Builds on lockkit v0.3.1 (was v0.2.1). An `http://` hub other than a
+  loopback address needs `--hub-plain-http` and must be a service name without a dot or a
+  private address; redirects from the hub are refused (lockkit#72).
 
 ## [0.2.0]
 
