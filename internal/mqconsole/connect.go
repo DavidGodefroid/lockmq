@@ -36,10 +36,16 @@ type session struct {
 	version string
 	user    string
 	tags    []string
+	// detach forgets the session in its backend (Backend.cur) once it
+	// closes: nothing reads on a closed session.
+	detach func()
 }
 
 // Close implements console.Session.
 func (s *session) Close() error {
+	if s.detach != nil {
+		s.detach()
+	}
 	if s.mgmt != nil {
 		s.mgmt.Close()
 	}
@@ -140,6 +146,13 @@ func (b *Backend) Connect(ctx context.Context, c console.Credentials) (console.S
 			return fail(err)
 		}
 		s.amqp = b.newAMQP(h, p, cfg, c.User, c.Secret, streamDial)
+	}
+	s.detach = func() {
+		b.mu.Lock()
+		if b.cur == s {
+			b.cur = nil
+		}
+		b.mu.Unlock()
 	}
 	b.mu.Lock()
 	b.cur = s

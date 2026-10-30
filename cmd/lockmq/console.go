@@ -67,7 +67,7 @@ func runConsole(e env, args []string) int {
 	err = console.Run(ctx, p, be, console.Options{
 		Profile: name, ProjectRoot: root, IO: term, TTY: os.Stdin,
 		Auto: *auto, AllowUnmask: *allowUnmask, ShowResults: *showResults,
-		Sanitizer: mqconsole.Sanitizer(), Hub: hub,
+		Sanitizer: mqconsole.Sanitizer(), Hub: hub, OnHub: be.OnHub,
 	})
 	if err != nil {
 		fmt.Fprintln(e.stderr, "lockmq console:", err)

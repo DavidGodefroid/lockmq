@@ -31,16 +31,29 @@ type hubBody struct {
 	Params Params `json:"params"`
 }
 
-// planHash is the plan hash of a request: the operation, vhost, target and
-// arguments, and the queue's properties as prepare read them (type,
-// arguments, policies, broker major). The policy fingerprint is bound
-// beside it. A queue changed after the approval hashes differently.
-func planHash(p Params, props map[string]any) (string, error) {
+// planInputs are what the plan hash of a request covers: the operation,
+// vhost, target and arguments, and the queue's properties as prepare read
+// them (type, arguments, policies, broker major). The policy fingerprint is
+// bound beside it. A queue changed after the approval hashes differently.
+type planInputs struct {
+	Params Params         `json:"params"`
+	Queue  map[string]any `json:"queue"`
+}
+
+func planInputsOf(p Params, props map[string]any) planInputs {
 	p.Intent, p.Ticket, p.Requester = "", "", ipc.Requester{}
-	return ticket.HashOf(struct {
-		Params Params         `json:"params"`
-		Queue  map[string]any `json:"queue"`
-	}{p, props})
+	return planInputs{p, props}
+}
+
+// planHash is the plan hash of a request (planInputs).
+func planHash(p Params, props map[string]any) (string, error) {
+	return ticket.HashOf(planInputsOf(p, props))
+}
+
+// planDigests are the plan-hash inputs by name ("params", "queue"), as a
+// renewal compares them (ticket.InputDigests over the planInputs hashed).
+func planDigests(p Params, props map[string]any) (map[string]string, error) {
+	return ticket.InputDigests(planInputsOf(p, props))
 }
 
 // policyFP is the fingerprint of the policy in force, in the ticket's form.
@@ -63,6 +76,10 @@ func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env,
 	if err != nil {
 		return console.ErrResp(req.ID, ipc.CodeInternal, env.Sanitizer().Error(err))
 	}
+	inputs, err := planDigests(p, pp.props)
+	if err != nil {
+		return console.ErrResp(req.ID, ipc.CodeInternal, env.Sanitizer().Error(err))
+	}
 	clean := p
 	clean.Ticket, clean.Requester = "", ipc.Requester{}
 	raw, err := json.Marshal(hubBody{Params: clean})
@@ -71,7 +88,7 @@ func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env,
 	}
 	caller := plans.Caller{UID: peerUID(ctx), Token: p.Requester.Token}
 	stored, err := h.Store.Create(plans.Binding{UID: caller.UID, Agent: p.Requester.Agent, TokenHash: plans.HashToken(caller.Token),
-		PolicyFP: policyFP(pp.pol), PlanHash: hash}, raw, hubPlanTTL)
+		PolicyFP: policyFP(pp.pol), PlanHash: hash, Inputs: inputs}, raw, hubPlanTTL)
 	if err != nil {
 		return console.ErrResp(req.ID, ipc.CodeInternal, env.Sanitizer().Error(err))
 	}
@@ -119,6 +136,12 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 	}
 	run, d, err := h.Client.Begin(h.Store, in.Ticket, caller, recheck)
 	if err != nil {
+		if errors.Is(err, ticket.ErrExpired) {
+			// Expired (pending past its TTL, or an approval that aged
+			// before this run): asked again on the hub, the agent hears
+			// pending with the new ticket (decision H1).
+			return b.renew(ctx, env, h, req.ID, in, caller)
+		}
 		if d != nil && errors.Is(err, hubclient.ErrDenied) {
 			b.auditDecision(ctx, env, in.Ticket, body.Params, d, audit.EventDenied)
 		}
@@ -139,6 +162,74 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 		env.Println("ticket " + in.Ticket + ": the hub was not told it was consumed: " + env.Safe(err.Error()))
 	}
 	return resp
+}
+
+// renew answers the run of expired ticket in.Ticket with its renewal and
+// audits it with the stored plan's request (not the params the agent sent
+// beside the ticket). A ticket renewed already answers its renewal again,
+// audited once.
+func (b *Backend) renew(ctx context.Context, env console.Env, h *console.Hub, id int64, in Params, caller plans.Caller) ipc.Response {
+	var stored Params
+	prev := "" // the renewal made already, if any
+	if old, err := h.Store.ExpiredByTicket(in.Ticket, caller); err == nil {
+		var body hubBody
+		if json.Unmarshal(old.Body, &body) == nil {
+			stored = body.Params
+		}
+		if old.RenewedBy != "" {
+			if n, err := h.Store.RenewalOf(old.ID); err == nil {
+				prev = n.Ticket
+			}
+		}
+	}
+	resp := h.RenewResp(ctx, id, in.Ticket, caller)
+	base := audit.Base{Event: audit.EventRenew, Decision: "renewed", Approval: "hub", Ticket: in.Ticket,
+		Profile: env.Policy().Profile().Name, Intent: stored.Intent}
+	var pd struct {
+		Ticket string `json:"ticket"`
+	}
+	if resp.Error != nil {
+		base.Decision, base.Error = "refused", resp.Error.Message
+	} else if json.Unmarshal(resp.Result, &pd) == nil {
+		if prev != "" && pd.Ticket == prev {
+			return resp
+		}
+		base.Reason = "renewed by ticket " + pd.Ticket
+	}
+	console.StampPeer(ctx, &base)
+	env.Audit(Record{Base: base, Op: stored.Op, VHost: stored.VHost, Target: stored.Target, Unmasked: stored.Unmask})
+	return resp
+}
+
+// OnHub registers the recompute of the hub's renewals on h, before any
+// request is served (console.Options.OnHub).
+func (b *Backend) OnHub(h *console.Hub) { h.Client.SetRecompute(b.recompute) }
+
+// recompute gives, for a stored hub plan, its policy fingerprint, plan
+// hash and plan-hash inputs as they can be known now. It may run on the
+// hub's watch goroutine (a renewal the human asks on the hub), so it
+// touches neither the console's state nor the broker session: the policy
+// is the approved one on disk (inForce: the console saves it before it
+// applies it), the params come from the plan. The queue's properties need
+// the broker: the "queue" input is ticket.UncheckedInput (the renewal
+// shows it unchecked, never one click) and the plan hash stays the stored
+// one; the run's recheck reads the queue on the session and refuses one
+// that moved (E_STALE).
+func (b *Backend) recompute(sp *plans.Plan) (string, string, map[string]string, error) {
+	var body hubBody
+	if err := json.Unmarshal(sp.Body, &body); err != nil {
+		return "", "", nil, err
+	}
+	pol, err := b.inForce()
+	if err != nil {
+		return "", "", nil, err
+	}
+	inputs, err := planDigests(body.Params, nil)
+	if err != nil {
+		return "", "", nil, err
+	}
+	inputs["queue"] = ticket.UncheckedInput
+	return policyFP(pol), sp.Binding.PlanHash, inputs, nil
 }
 
 // auditDecision records the hub's decision on a ticket.

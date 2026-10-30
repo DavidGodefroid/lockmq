@@ -201,6 +201,10 @@ type rig struct {
 	srv    *console.Server
 	root   string
 	state  string
+	// peer, when set, is the client behind each call.
+	peer *ipc.Cred
+	// closeHub stops the hub mode's watch and closes its plans (once).
+	closeHub func()
 }
 
 type rigOpts struct {
@@ -213,6 +217,12 @@ type rigOpts struct {
 	allowUnmask, showResults bool
 	// hub, when set, puts the console in hub mode.
 	hub *console.HubOptions
+	// now is the console's clock (nil: time.Now).
+	now func() time.Time
+	// broker, root and state reuse another rig's (a console started
+	// again on the same project and state).
+	broker      *fakeBroker
+	root, state string
 }
 
 func writeProject(t *testing.T, root, url string, o rigOpts) {
@@ -246,8 +256,17 @@ func writeProject(t *testing.T, root, url string, o rigOpts) {
 
 func newRig(t *testing.T, o rigOpts) *rig {
 	t.Helper()
-	r := &rig{t: t, broker: newBroker(t), reader: &fakeReader{}, io: &fakeIO{answers: o.answers}, root: t.TempDir(), state: t.TempDir()}
-	writeProject(t, r.root, r.broker.srv.URL, o)
+	r := &rig{t: t, broker: o.broker, reader: &fakeReader{}, io: &fakeIO{answers: o.answers}, root: o.root, state: o.state}
+	if r.broker == nil {
+		r.broker = newBroker(t)
+	}
+	if r.root == "" {
+		r.root = t.TempDir()
+		writeProject(t, r.root, r.broker.srv.URL, o)
+	}
+	if r.state == "" {
+		r.state = t.TempDir()
+	}
 	name := "uat"
 	if o.production {
 		name = "prod"
@@ -268,31 +287,45 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		t.Fatal(err)
 	}
 	cfg := console.ServerConfig{Product: product.P, Backend: r.be, Policy: pol, Session: sess,
-		Audit: log, IO: r.io, Auto: o.auto, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer()}
-	if o.hub != nil {
-		h, err := console.OpenHub(product.P, *o.hub, r.state, nil)
+		Audit: log, IO: r.io, Auto: o.auto, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer(), Now: o.now}
+	if o.hub == nil {
+		// As console.Run: a standalone start withdraws what hub mode left.
+		if _, err := console.WithdrawStandalone(product.P, r.state); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		h, err := console.OpenHub(product.P, *o.hub, r.state, o.now)
 		if err != nil {
 			t.Fatal(err)
 		}
 		cfg.Hub, cfg.Approver = h, h.Approver(console.NewTypedApprover(r.io))
+		r.be.OnHub(h) // as console.Run, through Options.OnHub
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		// Stop the watch and wait for it before the state directory goes:
 		// it writes the hub state there.
-		t.Cleanup(func() {
-			cancel()
-			<-done
-			// The plan store holds a lock file in the state directory
-			// (Windows refuses to remove it while open).
-			if err := h.Close(); err != nil {
-				t.Error(err)
-			}
-		})
+		var once sync.Once
+		r.closeHub = func() {
+			once.Do(func() {
+				cancel()
+				<-done
+				// The plan store holds a lock file in the state directory
+				// (Windows refuses to remove it while open).
+				if err := h.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		t.Cleanup(r.closeHub)
 		go func() { defer close(done); h.Watch(ctx, r.io) }()
 	}
 	r.srv, err = console.NewServer(cfg)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if cfg.Hub != nil {
+		// As console.Run: the hub's requests (reveals, renewals) audited.
+		cfg.Hub.Requests(r.io, func(b audit.Base) { r.srv.AuditBase(context.Background(), b) })
 	}
 	t.Cleanup(r.srv.Close)
 	return r
@@ -304,7 +337,11 @@ func (r *rig) call(method string, params any) ipc.Response {
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	return r.srv.Handle(context.Background(), ipc.Request{JSONRPC: "2.0", ID: 7, Method: method, Params: raw})
+	ctx := context.Background()
+	if r.peer != nil {
+		ctx = console.WithPeer(ctx, *r.peer)
+	}
+	return r.srv.Handle(ctx, ipc.Request{JSONRPC: "2.0", ID: 7, Method: method, Params: raw})
 }
 
 func (r *rig) auditLog() string {

@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/DavidGodefroid/lockkit v0.3.1 h1:A2g7RJLsjJEkviQPmhfXnkUAz2z23lw13Ups5KNsvJA=
-github.com/DavidGodefroid/lockkit v0.3.1/go.mod h1:RXG/MvYxBK2h2cAccPWkyX9HsrpkJgWw0A8Y7SyEbuE=
+github.com/DavidGodefroid/lockkit v0.6.0 h1:CyBijT1qfD+7WIIc7rNzbpeaezYh5VcG4JL8zxbMogg=
+github.com/DavidGodefroid/lockkit v0.6.0/go.mod h1:RXG/MvYxBK2h2cAccPWkyX9HsrpkJgWw0A8Y7SyEbuE=
 github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1Xbatp0=
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

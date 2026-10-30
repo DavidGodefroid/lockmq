@@ -89,7 +89,7 @@ the request is prepared again under the policy in force and must hash the same: 
 covers the operation, vhost, target and arguments, and the queue's properties read on the
 session the operation uses (type, arguments, policy and operator policy, broker major; not its
 message counts), so a queue changed after the approval is refused `E_STALE` before anything is
-read; the hub is told it was consumed. A denial is `denied`, an expired approval `timeout`. Decisions are
+read; the hub is told it was consumed. A denial is `denied`; an expired ticket is asked again (below). Decisions are
 audited (`approval: hub`, `ticket`, `approver`, `facade`, `hub_sig`). The dry run's verdict
 is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lock up` to pin
 (made once in the console account's home, `0600`).
@@ -100,6 +100,20 @@ be a service name without a dot or a private address.
 The session ends after `idle_timeout` without a request, after
 `max_session`, on `lockmq logout` or when a loosening changes where the
 broker is.
+
+**Hub mode: renewal, reveal, rollback** (lockkit v0.5.0+). The run of an expired ticket (an
+approval this console cannot use any more) does not fail: the ticket is asked again on the
+hub, or the human asks it again there, and the call answers `pending` with a new ticket,
+which renews the old one; run the new ticket once decided. The renewal is re-checked under the
+approved policy (a changed policy is not renewed: `timeout`, plan again) without touching the
+broker: the request's params are compared, the queue is shown `unchecked` (names only, never
+values), so a renewal is never a one-click "unchanged" one. The run of the new ticket reads the
+queue again and refuses one that moved `E_STALE`, as any hub run. Renewals are audited
+(`event: renew`, with the stored request). `lock up` also passes `--facade-keys-file FILE`,
+the local facades whose Ctrl-O may reveal a ticket's clear screen, sealed to them (audited
+`event: reveal`). A console started again without the hub flags withdraws the plans its hub
+mode left pending and refuses a run that names a `ticket` with `withdrawn` (plan again; the
+human approves on this terminal): `ticket` is a hub-mode param only.
 
 ## Client commands
 
