@@ -54,7 +54,7 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 
 ```sh
 lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
-              [--hub URL --hub-key-file FILE --instance NAME]
+              [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]
 ```
 
 The launcher runs it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
@@ -77,7 +77,7 @@ Keys and commands while it runs (lockkit's console):
 | `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved here, never auto-approved |
 | `:quit`, Ctrl-C | end the session |
 
-**Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (all three, never with
+**Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (the three go together, never with
 `--auto`; `lock up` writes them), reads and peeks are decided on lockhub, never on this
 terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq read`,
 `lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
@@ -93,6 +93,9 @@ read; the hub is told it was consumed. A denial is `denied`; an expired ticket i
 audited (`approval: hub`, `ticket`, `approver`, `facade`, `hub_sig`). The dry run's verdict
 is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lock up` to pin
 (made once in the console account's home, `0600`).
+`lock up` also passes `--hub-plain-http` for its `http://lockhub:8443` on the hub's own network:
+without it an `http://` hub URL other than loopback is refused, and with it the URL must still
+be a service name without a dot or a private address.
 
 The session ends after `idle_timeout` without a request, after
 `max_session`, on `lockmq logout` or when a loosening changes where the

@@ -63,7 +63,7 @@ const usageText = `usage: lockmq <command> [arguments]
 Human commands
   setup      [--project DIR]            add a broker profile to the project (asks)
   console    [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
-             [--hub URL --hub-key-file FILE --instance NAME]
+             [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]
                                         run the approval console (--hub: decided on lockhub)
   hub-key    --instance NAME            print the instance key for lockhub to pin
   doctor     [--profile P] [--fix [--yes]]

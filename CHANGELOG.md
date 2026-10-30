@@ -24,6 +24,8 @@ All notable changes to lockmq. The format follows
   and refuses a run naming a `ticket` with `withdrawn`, before anything runs.
 - Builds on lockkit main `cbdcf00` (`ticket.UncheckedInput`, to be v0.6.0; was v0.3.1).
 - A closed broker session is no longer the backend's: nothing reads on it.
+- `lockmq console`'s usage and `lockmq help` list `--hub-plain-http` (the flag `lock up`
+  passes for its `http://lockhub:8443`); `docs/usage.md` says when it is needed.
 
 ## [0.3.0] - 2026-10-30
 

@@ -19,7 +19,7 @@ import (
 // runConsole is `lockmq console`: the approval console of one profile, in
 // the human's terminal.
 func runConsole(e env, args []string) int {
-	const usage = "lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results] [--hub URL --hub-key-file FILE --instance NAME]"
+	const usage = "lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results] [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]"
 	fs := flag.NewFlagSet("console", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "profile to serve")
