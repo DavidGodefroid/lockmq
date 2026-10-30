@@ -279,7 +279,15 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		done := make(chan struct{})
 		// Stop the watch and wait for it before the state directory goes:
 		// it writes the hub state there.
-		t.Cleanup(func() { cancel(); <-done })
+		t.Cleanup(func() {
+			cancel()
+			<-done
+			// The plan store holds a lock file in the state directory
+			// (Windows refuses to remove it while open).
+			if err := h.Close(); err != nil {
+				t.Error(err)
+			}
+		})
 		go func() { defer close(done); h.Watch(ctx, r.io) }()
 	}
 	r.srv, err = console.NewServer(cfg)
