@@ -54,6 +54,7 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 
 ```sh
 lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
+              [--allowed-uids UID,...]
               [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]
 ```
 
@@ -65,6 +66,13 @@ name, the user and the password (or Vault), the connection
 (management API, then the stream readers), the privilege audit of the broker
 user (`administrator` or `policymaker`: refused on production, typed
 `continue` elsewhere), then the socket.
+
+`--allowed-uids UID,...` lets these uids connect besides the members of `lockmq-clients`,
+as `allowed_uids` in the image's `/etc/lockmq/system.toml` does: an agent in a container of
+its own whose uid has no account in the console's image
+([docs/docker.md](docker.md#agent-in-its-own-container)). Comma-separated decimal uids;
+root (0), leading zeros and the console's own uid are refused; the console prints them at
+start.
 
 Keys and commands while it runs (lockkit's console):
 
