@@ -12,7 +12,7 @@
 #   LOCKMQ_VERSION=$V sh install.sh
 #
 # Environment:
-#   LOCKMQ_VERSION      tag to install (default: the latest release), e.g. v0.3.0
+#   LOCKMQ_VERSION      tag to install (default: the latest release), e.g. v0.4.0
 #   LOCKMQ_INSTALL_DIR  target directory (default: /usr/local/bin, via sudo if needed)
 #   LOCKMQ_SKIP_COSIGN=1  install without cosign: the signature is then NOT checked
 #

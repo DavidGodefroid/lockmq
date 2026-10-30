@@ -6,6 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-30
+
+Hub mode on lockkit v0.6.0: expired tickets are approved again, reveal from a local
+facade, and a console restarted without the hub withdraws its hub plans.
+
 ### Added
 
 - Hub mode renewals (lockkit decision H1): the run of an expired ticket answers `pending`
