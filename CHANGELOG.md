@@ -6,6 +6,23 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Hub mode renewals (lockkit decision H1): the run of an expired ticket answers `pending`
+  with a new ticket that renews it, instead of a `timeout`. The plan records its plan-hash
+  inputs by name (`params`, `queue`); the renewal recomputes them under the policy in force
+  on the open broker session (no fetch, no peek, no new login) so the human sees which moved.
+  If the queue cannot be read then, it keeps its approved digest and the run's recheck still
+  refuses a moved queue. Renewals are audited (`renew`).
+- Hub mode reveal: `lockmq console --facade-keys-file FILE` (written by `lock up`) pins the
+  local facades that may reveal a ticket's clear screen (Ctrl-O), audited (`reveal`).
+
+### Changed
+
+- A console started without the hub flags after hub mode withdraws the plans left pending
+  and refuses a run naming a `ticket` with `withdrawn`, before anything runs.
+- Builds on lockkit v0.5.0 (was v0.3.1).
+
 ## [0.3.0] - 2026-10-30
 
 Hub mode: reads and peeks can be decided on lockhub instead of the console's own

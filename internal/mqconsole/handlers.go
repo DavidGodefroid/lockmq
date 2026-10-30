@@ -130,6 +130,13 @@ type errConnLost struct{ err error }
 func (e errConnLost) Error() string { return e.err.Error() }
 
 func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep, error) {
+	return b.prepareOn(ctx, env, p, true)
+}
+
+// prepareOn is prepare; with connect false it never reconnects (no
+// prompt, no Vault read): it reads on the session already open, else
+// answers errConnLost. A hub renewal's recompute prepares that way.
+func (b *Backend) prepareOn(ctx context.Context, env console.Env, p Params, connect bool) (*prep, error) {
 	op, ok := ops.Catalogue()[p.Op]
 	if !ok {
 		names := make([]string, 0, len(ops.Catalogue()))
@@ -178,8 +185,10 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 	} else if err := checkPeekArgs(pr, p); err != nil {
 		return nil, err
 	}
-	if _, err := env.Session(ctx); err != nil {
-		return nil, errConnLost{err}
+	if connect {
+		if _, err := env.Session(ctx); err != nil {
+			return nil, errConnLost{err}
+		}
 	}
 	s := b.session()
 	if s == nil {
