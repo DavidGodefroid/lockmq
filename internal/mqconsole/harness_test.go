@@ -299,6 +299,7 @@ func newRig(t *testing.T, o rigOpts) *rig {
 			t.Fatal(err)
 		}
 		cfg.Hub, cfg.Approver = h, h.Approver(console.NewTypedApprover(r.io))
+		r.be.OnHub(h) // as console.Run, through Options.OnHub
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		// Stop the watch and wait for it before the state directory goes:

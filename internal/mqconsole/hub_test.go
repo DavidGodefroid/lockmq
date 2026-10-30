@@ -320,6 +320,7 @@ func TestHubRecomputeConcurrent(t *testing.T) {
 func TestHubExpiredTicketRenewed(t *testing.T) {
 	clock := newClock()
 	r, hub, pub := hubRig(t, rigOpts{now: clock.now})
+	r.peer = &ipc.Cred{UID: 1000, PID: 1} // lockkit renews only plans of a known peer
 	p := readParams()
 	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
 	old := pendingOf(t, r.call(MethodRun, p)).Ticket

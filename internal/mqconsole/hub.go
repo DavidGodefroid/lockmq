@@ -201,28 +201,9 @@ func (b *Backend) renew(ctx context.Context, env console.Env, h *console.Hub, id
 	return resp
 }
 
-// OnHub registers the recompute of the hub's renewals on h. Until lockkit
-// v0.6.0's console.Options.OnHub calls it at hub start, withHub calls it
-// on the first request served in hub mode; a renewal the human asks on
-// the hub before that is made unchecked by lockkit (the run's recheck
-// still refuses a stale plan).
-func (b *Backend) OnHub(h *console.Hub) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.hub != h {
-		b.hub = h
-		h.Client.SetRecompute(b.recompute)
-	}
-}
-
-func (b *Backend) withHub(next console.Handler) console.Handler {
-	return func(ctx context.Context, req ipc.Request, env console.Env) ipc.Response {
-		if h := console.HubOf(env); h != nil {
-			b.OnHub(h)
-		}
-		return next(ctx, req, env)
-	}
-}
+// OnHub registers the recompute of the hub's renewals on h, before any
+// request is served (console.Options.OnHub).
+func (b *Backend) OnHub(h *console.Hub) { h.Client.SetRecompute(b.recompute) }
 
 // recompute gives, for a stored hub plan, its policy fingerprint, plan
 // hash and plan-hash inputs as they can be known now. It may run on the

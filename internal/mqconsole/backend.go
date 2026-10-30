@@ -57,9 +57,6 @@ type Backend struct {
 	// back wrapped (a Vault lease), so handlers use cur, the session the
 	// console vouches for once Env.Session returned without error.
 	cur *session
-	// hub is the hub mode whose renewals recompute through this backend
-	// (withHub).
-	hub *console.Hub
 
 	// seen keeps the delivery counts of peeks for the console session;
 	// refs the values behind redacted references. Both survive a
@@ -90,7 +87,7 @@ func Sanitizer() *sanitize.Sanitizer {
 
 // Methods implements console.Backend.
 func (b *Backend) Methods() map[string]console.Handler {
-	return map[string]console.Handler{MethodRun: b.withHub(b.run), MethodPlan: b.withHub(b.plan)}
+	return map[string]console.Handler{MethodRun: b.run, MethodPlan: b.plan}
 }
 
 // piiPath is the rules file: .lockmq/pii.toml in the project, else

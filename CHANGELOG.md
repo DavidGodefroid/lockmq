@@ -22,7 +22,8 @@ All notable changes to lockmq. The format follows
 
 - A console started without the hub flags after hub mode withdraws the plans left pending
   and refuses a run naming a `ticket` with `withdrawn`, before anything runs.
-- Builds on lockkit main `cbdcf00` (`ticket.UncheckedInput`, to be v0.6.0; was v0.3.1).
+- Builds on lockkit v0.6.0 (`ticket.UncheckedInput`, `console.Options.OnHub`: the recompute is
+  registered at hub start, before any request; was v0.3.1).
 - A closed broker session is no longer the backend's: nothing reads on it.
 - `lockmq console`'s usage and `lockmq help` list `--hub-plain-http` (the flag `lock up`
   passes for its `http://lockhub:8443`); `docs/usage.md` says when it is needed.
