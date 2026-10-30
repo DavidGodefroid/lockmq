@@ -6,6 +6,22 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `lockmq console --allowed-uids UID,...`: these uids may connect besides the members of
+  `lockmq-clients`, as `allowed_uids` of the image's `system.toml` (the `ALLOWED_UIDS` build
+  argument) does, for that console only, with the release image unchanged: an agent in a
+  container of its own whose uid has no account in the console's image (lea's agents run as
+  the host user's uid). Set only by whoever starts the console (the human: the launcher passes it on,
+  `lock up` of lockhub v0.2.4 a lock's reviewed `allowed_uids`); root, leading zeros, 65534
+  (nobody) and the console's own uid are refused; every isolation check sees the uids (a session or terminal of one is the
+  agent's), and the console prints them at start.
+
+### Changed
+
+- The `ALLOWED_UIDS` build argument also refuses 65534 (nobody, the kernel's overflow uid).
+- `scripts/hygiene.sh` no longer matches lockkit's `CheckIsolation`.
+
 ## [0.4.0] - 2026-10-30
 
 Hub mode on lockkit v0.6.0: expired tickets are approved again, reveal from a local

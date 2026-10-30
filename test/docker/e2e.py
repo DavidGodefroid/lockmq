@@ -106,7 +106,7 @@ def start_broker():
 class Console:
     """The console in a pseudo-terminal, answering its prompts."""
 
-    def __init__(self, project):
+    def __init__(self, project, *extra):
         self.out = b""
         self.lock = threading.Lock()
         self.answered = {}
@@ -115,7 +115,7 @@ class Console:
             os.execvp("docker", ["docker", "run", "-it", "--rm", "--name", CONSOLE, "--user", "lockmq",
                                  "--network", NET, "-v", f"{project}:{project}",
                                  "-v", f"{RUN_VOL}:/run/lockmq", "-v", f"{HOME_VOL}:/home/lockmq",
-                                 IMAGE, "console", "--project", project])
+                                 IMAGE, "console", "--project", project, *extra])
         threading.Thread(target=self.pump, daemon=True).start()
 
     def pump(self):
@@ -215,6 +215,31 @@ def main():
         con.stop()
         if failures:
             print(con.text()[-4000:])
+
+        # --allowed-uids: the release image as it is serves the uid of an
+        # agent in a container of its own (no account in the image), for
+        # this console only; no other such uid.
+        sh("docker", "wait", CONSOLE, check_=False)
+        con = Console(project, "--allowed-uids", "4242")
+        out4242 = None
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            r = agent(project, "status", user="4242", extra=["--group-add", "10010"])
+            if r.returncode == 0:
+                out4242 = r
+                break
+            time.sleep(2)
+        check(out4242 is not None, "--allowed-uids 4242: uid 4242 with gid 10010 served")
+        check("allowed uids besides lockmq-clients (--allowed-uids): 4242" in con.text(), "the console prints the allowed uids")
+        r = agent(project, "status", user="4243", extra=["--group-add", "10010"])
+        check(r.returncode != 0, f"--allowed-uids 4242: uid 4243 still refused (exit {r.returncode})")
+        check(agent(project, "status").returncode == 0, "--allowed-uids: the image's agent still served")
+        con.stop()
+        if failures:
+            print(con.text()[-4000:])
+        r = sh("docker", "run", "--rm", "--user", "lockmq", "-v", f"{RUN_VOL}:/run/lockmq", "-v", f"{HOME_VOL}:/home/lockmq",
+               IMAGE, "console", "--allowed-uids", "0", check_=False)
+        check(r.returncode != 0 and "leading zero" in r.stdout + r.stderr, f"--allowed-uids 0 refused\n{r.stdout}{r.stderr}")
     finally:
         cleanup()
     if failures:

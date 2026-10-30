@@ -43,7 +43,7 @@ ARG ALLOWED_UIDS=""
 # broker's certificate against them.
 RUN case "$ALLOWED_UIDS" in *[!0-9,]*|,*|*,|*,,*) echo "ALLOWED_UIDS: comma-separated uids, got '$ALLOWED_UIDS'" >&2; exit 1;; esac \
  && for u in $(echo "$ALLOWED_UIDS" | tr ',' ' '); do \
-      case "$u" in 0*|10011) echo "ALLOWED_UIDS: $u is root or the console account (or has a leading zero)" >&2; exit 1;; esac; \
+      case "$u" in 0*|10011|65534) echo "ALLOWED_UIDS: $u is root, the console account, nobody (or has a leading zero)" >&2; exit 1;; esac; \
     done \
  && apk add --no-cache ca-certificates \
  && addgroup -S -g 10010 lockmq-clients \

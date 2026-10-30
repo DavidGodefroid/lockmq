@@ -125,7 +125,7 @@ jobs:
         run: |
           docker build --build-arg ALLOWED_UIDS=4242,4243 -t lockmq-allowed .
           docker run --rm --entrypoint cat lockmq-allowed /etc/lockmq/system.toml | grep -x 'allowed_uids = \[4242,4243\]'
-          for bad in '1,,2' '0' '1000,0' '10011' '007'; do
+          for bad in '1,,2' '0' '1000,0' '10011' '007' '65534'; do
             if docker build --build-arg ALLOWED_UIDS="$bad" . >/dev/null 2>&1; then echo "ALLOWED_UIDS=$bad accepted" >&2; exit 1; fi
           done
       - name: docker build from the repository URL

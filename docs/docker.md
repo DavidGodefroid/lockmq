@@ -274,16 +274,28 @@ socket, the launcher cannot start the MCP server: the agent runs the
 console container. The two containers share only the socket volume.
 
 The console checks every peer by uid against its own container's accounts,
-where the agent's uid has none: name it at build time.
+where the agent's uid has none: name it when you start the console, with
+the release image as it is:
+
+```sh
+lockmq console --allowed-uids 1000
+```
+
+or at build time, in an image of your own:
 
 ```sh
 docker build -t lockmq --build-arg ALLOWED_UIDS=1000 .
 LOCKMQ_IMAGE=lockmq lockmq console
 ```
 
-`ALLOWED_UIDS` is a comma-separated list of uids, written to `allowed_uids`
-in the image's `/etc/lockmq/system.toml`; the build refuses root (0) and the
-console's own uid (10011). It is the uid the kernel reports
+`--allowed-uids` and `ALLOWED_UIDS` are comma-separated lists of uids: the
+build writes them to `allowed_uids` in the image's `/etc/lockmq/system.toml`,
+the flag adds them to it for that console only (the console prints them at
+start). Both refuse root (0), the console's own uid (10011) and 65534
+(nobody, the kernel's overflow uid). Only whoever starts the console sets
+them: the human, through the launcher (which passes the flag on) or
+through `lock up` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
+lockfamily.yaml lock up reviews with you); no client can. It is the uid the kernel reports
 for the agent's process, as the console sees it: the agent container's uid
 when neither container remaps user namespaces. Every process of that uid,
 in any container that mounts the socket volume, may then use the console:
@@ -360,7 +372,7 @@ with the broker's own rights.
 Inside Docker the boundary is the same as on a host: the agent's container
 holds no credential, has no broker connection and reaches the console only
 through the socket; a process that is neither the console account nor in
-`lockmq-clients` (nor in `ALLOWED_UIDS`) is refused.
+`lockmq-clients` (nor in `ALLOWED_UIDS` or `--allowed-uids`) is refused.
 
 Your own account is another matter. Whoever can run `docker` commands can
 `docker attach` to the console and type an approval, `docker exec` into it
