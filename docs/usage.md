@@ -54,7 +54,7 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 
 ```sh
 lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
-              [--hub URL --hub-key-file FILE --instance NAME]
+              [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]
 ```
 
 The launcher runs it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
@@ -78,7 +78,9 @@ Keys and commands while it runs (lockkit's console):
 | `:quit`, Ctrl-C | end the session |
 
 **Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (all three, never with
-`--auto`; `lock up` writes them), reads and peeks are decided on lockhub, never on this
+`--auto`; `lock up` writes them, with `--hub-plain-http` for its `http://lockhub:8443` on the
+hub's own network: an `http://` URL other than loopback is refused without it, and must name a
+service without a dot or a private address), reads and peeks are decided on lockhub, never on this
 terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq read`,
 `lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
 the request as a plan bound to the client's uid, the agent's lea token and the policy, pushes
