@@ -110,6 +110,7 @@ be a service name without a dot or a private address.
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.4.1 | v0.6.0 | as v0.4.0; `allowed_uids` (`--allowed-uids`, for lea's agents) from lockhub v0.2.4 |
 | v0.4.0 | v0.6.0 | v0.2.0 or later: hub mode, `devices: true` (paired phones), reveals (`reveal: true`, Ctrl-O) and renewals |
 | v0.3.0 | v0.3.1 | v0.2.0 or later: hub mode only; leave `devices` and `reveal` off |
 | v0.2.0 and older | older than v0.3.1 | none (no hub mode) |
@@ -117,7 +118,7 @@ be a service name without a dot or a private address.
 `lock up` runs these consoles from the `lock` CLI of lockhub v0.2.0 on (the console account, a
 terminal, the reviewed profile copy); the `lock up` of lockhub v0.1.x cannot run them. A console
 older than a feature `lockfamily.yaml` asks of it refuses the flag and does not start: leave
-`devices`/`reveal` off for it. A lock on lockkit older than v0.5.0 ignores the hub's reveal and
+`devices`/`reveal`/`allowed_uids` off for it. A lock on lockkit older than v0.5.0 ignores the hub's reveal and
 renewal requests, which then time out. lockhub's CI does not run a lockmq image: the table
 follows each release's lockkit and lockhub's
 [CHANGELOG](https://github.com/DavidGodefroid/lockhub/blob/main/CHANGELOG.md) ("Supported locks",
