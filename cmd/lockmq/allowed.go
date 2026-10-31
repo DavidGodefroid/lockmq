@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -26,18 +25,18 @@ func parseAllowedUIDs(s string) ([]int, error) {
 			return nil, errors.New("--allowed-uids: want comma-separated decimal uids")
 		}
 		if f[0] == '0' {
-			return nil, fmt.Errorf("--allowed-uids: %s is root or has a leading zero", f)
+			return nil, errors.New("--allowed-uids: a field is root or has a leading zero")
 		}
 		// 2^32-1 is (uid_t)-1, no account's.
 		v, err := strconv.ParseUint(f, 10, 32)
 		if err != nil || v == math.MaxUint32 {
-			return nil, fmt.Errorf("--allowed-uids: %s is not a uid", f)
+			return nil, errors.New("--allowed-uids: a field is not a uid")
 		}
 		n := int(v)
 		if n == 65534 {
 			// The overflow uid: any peer of a user namespace with no
 			// mapping for its uid, never one agent.
-			return nil, fmt.Errorf("--allowed-uids: 65534 is nobody, the kernel's overflow uid")
+			return nil, errors.New("--allowed-uids: 65534 is nobody, the kernel's overflow uid")
 		}
 		if !slices.Contains(uids, n) {
 			uids = append(uids, n)

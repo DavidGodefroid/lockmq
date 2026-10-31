@@ -223,6 +223,30 @@ func TestSetupPeekDefaultNo(t *testing.T) {
 	}
 }
 
+// A secret typed as setup's profile name is not echoed: lockkit's
+// CheckProfileName refuses an invalid one without quoting it, and a
+// duplicate is not named.
+func TestSetupProfileNameDoesNotEcho(t *testing.T) {
+	const tok = "glsa_CanarySecretToken123"
+	dupCfg := strings.Replace(oneProfile, "[profiles.dev]", "[profiles."+tok+"]", 1)
+	if dupCfg == oneProfile {
+		t.Fatal("oneProfile has no [profiles.dev]")
+	}
+	for _, c := range []struct{ name, cfg string }{
+		{"https://user:glsa_Canary@h/path?token=glsa_Canary", oneProfile}, // invalid
+		{tok, dupCfg}, // well-formed, already configured
+	} {
+		v := c.name
+		code, out, stderr := runWith(t, project(t, c.cfg), nil, nil, strings.Replace(setupAnswers(""), "uat", v, 1), "setup")
+		if code == exitOK {
+			t.Errorf("%s: accepted", v)
+		}
+		if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") {
+			t.Errorf("%s: exit %d, stdout %q stderr %q", v, code, out, stderr)
+		}
+	}
+}
+
 func TestDoctorShowsTier(t *testing.T) {
 	root := project(t, oneProfile+"\n[profiles.q]\nurl = \"http://127.0.0.1:15672\"\ntier = \"peek\"\n")
 	noConsole := &client.NoConsoleError{Product: product.P, Profile: "dev", Socket: "/x", Err: syscall.ECONNREFUSED}
@@ -297,6 +321,21 @@ func TestProfileFlagDoesNotEcho(t *testing.T) {
 			if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") || !strings.Contains(out+stderr, "--profile") {
 				t.Errorf("%s %s: stdout %q stderr %q", cmd, v, out, stderr)
 			}
+		}
+	}
+}
+
+// A secret pasted as an agent name or a flag of init is not echoed, by
+// lockmq or by agentwire.
+func TestInitUnknownAgentDoesNotEcho(t *testing.T) {
+	root := project(t, oneProfile)
+	for _, v := range []string{"glsa_CanarySecretToken123", "--glsa_CanarySecretToken123", "https://user:glsa_Canary@h/path?token=glsa_Canary"} {
+		code, out, stderr := runWith(t, root, &fakeConn{}, nil, "", "init", "claude", v)
+		if code != exitUsage {
+			t.Errorf("%s: exit %d, want %d", v, code, exitUsage)
+		}
+		if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") || !strings.Contains(stderr, "unknown agent; name one of: claude") {
+			t.Errorf("%s: stdout %q stderr %q", v, out, stderr)
 		}
 	}
 }

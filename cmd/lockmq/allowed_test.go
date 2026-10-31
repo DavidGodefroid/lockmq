@@ -147,9 +147,10 @@ func TestConsoleAllowedUIDsFlag(t *testing.T) {
 
 // A value pasted into --allowed-uids is not echoed.
 func TestParseAllowedUIDsDoesNotEcho(t *testing.T) {
-	for _, v := range []string{"glsa_CanarySecretToken123", "1000,https://user:glsa_Canary@h"} {
+	// Digits-only fields are not echoed either (a PIN, an account number).
+	for _, v := range []string{"glsa_CanarySecretToken123", "1000,https://user:glsa_Canary@h", "1000,0424242424242", "1000,424242424242424242"} {
 		_, err := parseAllowedUIDs(v)
-		if err == nil || strings.Contains(err.Error(), "glsa_Canary") || !strings.Contains(err.Error(), "--allowed-uids") {
+		if err == nil || strings.Contains(err.Error(), "glsa_Canary") || strings.Contains(err.Error(), "4242") || !strings.Contains(err.Error(), "--allowed-uids") {
 			t.Errorf("parseAllowedUIDs(%q) = %v", v, err)
 		}
 	}
