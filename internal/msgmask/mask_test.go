@@ -520,10 +520,10 @@ func TestRuleErrorsDoNotEchoValues(t *testing.T) {
 	const canary = "glsa_CanarySecretToken123"
 	for _, v := range []string{canary, "https://user:glsa_Canary@h"} {
 		files := []struct{ name, body, key string }{
-			{"queue glob", "[[mask]]\nqueue = [\"" + v + "\"]\nbody = \"$.a\"\n", "glob"},
+			{"queue glob", "[[mask]]\nqueue = [\"" + v + "\"]\nbody = \"$.a\"\n", "queue entry 1: glob"},
 			{"queue glob space", "[[mask]]\nqueue = [\"o/" + v + " x\"]\nbody = \"$.a\"\n", "glob"},
 			{"queue glob control", "[[mask]]\nqueue = [\"o/" + v + "\\u001b\"]\nbody = \"$.a\"\n", "glob"},
-			{"exchange glob", "[[mask]]\nexchange = [\"" + v + "\"]\nbody = \"$.a\"\n", "glob"},
+			{"exchange glob", "[[mask]]\nexchange = [\"o/q\", \"" + v + "\"]\nbody = \"$.a\"\n", "exchange entry 2: glob"},
 			{"header", "[[mask]]\nqueue = [\"o/q\"]\nheader = \"" + v + " x\"\n", "header"},
 			{"body", "[[mask]]\nqueue = [\"o/q\"]\nbody = \"" + v + "\"\n", "body"},
 			{"property", "[[mask]]\nqueue = [\"o/q\"]\nproperty = \"" + v + "\"\n", "property"},

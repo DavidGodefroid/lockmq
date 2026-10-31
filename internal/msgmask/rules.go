@@ -96,9 +96,15 @@ func build(r rawRule, mask bool) (Rule, error) {
 	if len(r.Queue) == 0 && len(r.Exchange) == 0 {
 		return Rule{}, errors.New("set queue or exchange (a list of vhost/name globs)")
 	}
-	for _, g := range append(slices.Clone(rule.Queues), rule.Exchanges...) {
-		if err := checkGlob(g, true); err != nil {
-			return Rule{}, err
+	// The entry is named by its position, never quoted.
+	for _, f := range []struct {
+		key   string
+		globs []string
+	}{{"queue", r.Queue}, {"exchange", r.Exchange}} {
+		for i, g := range f.globs {
+			if err := checkGlob(g, true); err != nil {
+				return Rule{}, fmt.Errorf("%s entry %d: %w", f.key, i+1, err)
+			}
 		}
 	}
 	n := 0

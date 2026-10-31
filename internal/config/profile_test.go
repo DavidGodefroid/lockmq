@@ -260,7 +260,7 @@ func TestParseTierDoesNotEcho(t *testing.T) {
 		t.Errorf("ParseTier(canary) = %v", err)
 	}
 	var tier Tier
-	if err := tier.UnmarshalText([]byte(canary)); err == nil || strings.Contains(err.Error(), canary) {
+	if err := tier.UnmarshalText([]byte(canary)); err == nil || strings.Contains(err.Error(), canary) || !strings.Contains(err.Error(), "tier") {
 		t.Errorf("UnmarshalText(canary) = %v", err)
 	}
 }
