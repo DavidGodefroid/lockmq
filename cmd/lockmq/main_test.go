@@ -119,8 +119,12 @@ func TestCLIExitCodes(t *testing.T) {
 	if !strings.Contains(stderr, "refused [E_TIER]") || !strings.Contains(stderr, "retry: ask_user") {
 		t.Errorf("refusal text: %s", stderr)
 	}
+	// No console: the hint asks the user to run `lox up` and carries no
+	// value (no profile or project flag, no project path, no hand start).
 	_, _, stderr = runWith(t, root, nil, noConsole, "", "overview")
-	if !strings.Contains(stderr, "lockmq console") {
+	if !strings.Contains(stderr, client.StartHint) || !strings.Contains(stderr, "`lox up`") ||
+		strings.Contains(stderr, "--profile") || strings.Contains(stderr, "--project") ||
+		strings.Contains(stderr, root) || strings.Contains(stderr, "lockmq console") {
 		t.Errorf("no console text: %s", stderr)
 	}
 }
@@ -262,7 +266,8 @@ func TestDoctorShowsTier(t *testing.T) {
 	noConsole := &client.NoConsoleError{Product: product.P, Profile: "dev", Socket: "/x", Err: syscall.ECONNREFUSED}
 	code, out, _ := runWith(t, root, nil, noConsole, "", "doctor")
 	if code != exitOK || !strings.Contains(out, "✓ separated setup: console account lockmq") || !strings.Contains(out, "profile dev: tier read") || !strings.Contains(out, "profile q: tier peek (NOT READ-ONLY") ||
-		!strings.Contains(out, "lockmq console") {
+		!strings.Contains(out, "console: not running; the console runs under `lox up`: run `lox up`, then `lox attach <instance>`") ||
+		strings.Contains(out, "--profile") || strings.Contains(out, "--project") || strings.Contains(out, "lockmq console") {
 		t.Errorf("exit %d:\n%s", code, out)
 	}
 }

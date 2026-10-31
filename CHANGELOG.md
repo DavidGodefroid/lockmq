@@ -17,7 +17,12 @@ The console is hub-attached only (DavidGodefroid/lockkit#110).
   `lox up`, `lox attach` and `lox approve`.
 - A pending answer of `lockmq read` or `lockmq peek` (decided on lockhub) prints the ticket to
   run with `--ticket`, no longer `null`.
-- Builds on lockkit's hub-only console (pseudo-version until its release).
+- No console running: the CLI, `lockmq_status` and the MCP tools now ask the user to run
+  `lox up` ("the console is started by `lox up` only: ask the user to run `lox up`"), no longer a
+  `lockmq console` command; the status's `start` is `lox up` and carries no profile or project.
+  `lockmq doctor` prints "the console runs under `lox up`: run `lox up`, then
+  `lox attach <instance>` for its questions". The agent skill says the same.
+- Builds on lockkit v0.9.1 (hub-only console, `lox up` start hint, console PolicyOnly mode).
 
 ### Removed
 
