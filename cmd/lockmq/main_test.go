@@ -282,3 +282,22 @@ func TestUsageNamesHubPlainHTTP(t *testing.T) {
 		t.Errorf("help does not name --hub-plain-http:\n%s", usageText)
 	}
 }
+
+// A secret pasted as a flag (name or value) of a client command is not
+// echoed by the usage error.
+func TestClientFlagErrorsDoNotEcho(t *testing.T) {
+	root := project(t, oneProfile)
+	for _, args := range [][]string{
+		{"queues", "--page", "https://user:glsa_Canary@h"},
+		{"queues", "--glsa_CanarySecretToken123"},
+		{"queues", "--glsa_CanarySecretToken123=x"},
+	} {
+		code, out, stderr := runWith(t, root, &fakeConn{}, nil, "", args...)
+		if code != exitUsage {
+			t.Errorf("%v: exit %d, want %d", args, code, exitUsage)
+		}
+		if strings.Contains(out+stderr, "glsa_Canary") || !strings.Contains(stderr, "wrong arguments") {
+			t.Errorf("%v: stderr %q", args, stderr)
+		}
+	}
+}

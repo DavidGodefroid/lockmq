@@ -164,7 +164,9 @@ func runClient(e env, cmd string, args []string) int {
 	o.flags(fs)
 	pos, err := parseInterleaved(fs, args)
 	if err != nil {
-		return usageFail(e, cmd, u.usage, err.Error())
+		// The flag package quotes the value it refuses, which may be a
+		// secret pasted in the wrong place.
+		return usageFail(e, cmd, u.usage, "wrong arguments")
 	}
 	if u.positional >= 0 && len(pos) != u.positional {
 		return usageFail(e, cmd, u.usage, "wrong number of arguments")

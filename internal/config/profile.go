@@ -37,14 +37,14 @@ const (
 
 var tierNames = [...]string{"read", "peek"}
 
-// ParseTier parses "read" or "peek".
+// ParseTier parses "read" or "peek". Its error never quotes s.
 func ParseTier(s string) (Tier, error) {
 	for i, n := range tierNames {
 		if s == n {
 			return Tier(i), nil
 		}
 	}
-	return TierRead, fmt.Errorf("unknown tier %q (want read or peek)", s)
+	return TierRead, errors.New("unknown tier (want read or peek)")
 }
 
 func (t Tier) String() string {
@@ -347,7 +347,7 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 	if r.Tier != "" {
 		t, err := ParseTier(r.Tier)
 		if err != nil {
-			return Profile{}, errf("tier: %v", err)
+			return Profile{}, errf("%v", err)
 		}
 		p.Tier = t
 	}
@@ -365,7 +365,7 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 			return Profile{}, errf("vault_path: want a path such as \"rabbitmq/creds/<role>\", without spaces and not starting with '-' or '/'")
 		}
 	default:
-		return Profile{}, errf("unknown credentials mode %q (want ask, keychain or vault)", p.Credentials)
+		return Profile{}, errf("unknown credentials mode (want ask, keychain or vault)")
 	}
 	if _, err := pii.Detectors(p.Detectors); err != nil {
 		return Profile{}, errf("detectors: %v", err)
@@ -373,10 +373,10 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 	switch p.BodyMode {
 	case "", BodyRedactUnknown, BodyDetect:
 	default:
-		return Profile{}, errf("unknown body_mode %q (want redact-unknown or detect)", p.BodyMode)
+		return Profile{}, errf("unknown body_mode (want redact-unknown or detect)")
 	}
 	if p.TLS != "" && kconfig.TLSRank(p.TLS) < 0 {
-		return Profile{}, errf("unknown tls mode %q (want disable, prefer, require, verify-ca or verify-full)", p.TLS)
+		return Profile{}, errf("unknown tls mode (want disable, prefer, require, verify-ca or verify-full)")
 	}
 	if (p.TLSCert == "") != (p.TLSKey == "") {
 		return Profile{}, errf("tls_cert and tls_key go together: set both, or neither")

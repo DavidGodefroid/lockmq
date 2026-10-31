@@ -513,3 +513,55 @@ func FuzzMaskNoPanic(f *testing.F) {
 		}
 	})
 }
+
+// A canary secret in any rule field never appears in the error, which
+// still names the field.
+func TestRuleErrorsDoNotEchoValues(t *testing.T) {
+	const canary = "glsa_CanarySecretToken123"
+	for _, v := range []string{canary, "https://user:glsa_Canary@h"} {
+		files := []struct{ name, body, key string }{
+			{"queue glob", "[[mask]]\nqueue = [\"" + v + "\"]\nbody = \"$.a\"\n", "queue entry 1: glob"},
+			{"queue glob space", "[[mask]]\nqueue = [\"o/" + v + " x\"]\nbody = \"$.a\"\n", "glob"},
+			{"queue glob control", "[[mask]]\nqueue = [\"o/" + v + "\\u001b\"]\nbody = \"$.a\"\n", "glob"},
+			{"exchange glob", "[[mask]]\nexchange = [\"o/q\", \"" + v + "\"]\nbody = \"$.a\"\n", "exchange entry 2: glob"},
+			{"header", "[[mask]]\nqueue = [\"o/q\"]\nheader = \"" + v + " x\"\n", "header"},
+			{"body", "[[mask]]\nqueue = [\"o/q\"]\nbody = \"" + v + "\"\n", "body"},
+			{"property", "[[mask]]\nqueue = [\"o/q\"]\nproperty = \"" + v + "\"\n", "property"},
+			{"mode", "[[mask]]\nqueue = [\"o/q\"]\nbody = \"$.a\"\nmode = \"" + v + "\"\n", "mode"},
+		}
+		for _, c := range files {
+			path := filepath.Join(t.TempDir(), "pii.toml")
+			if err := os.WriteFile(path, []byte(c.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := LoadRules(path)
+			checkNoEcho(t, c.name, err, c.key)
+		}
+		texts := []struct{ name, text, key string }{
+			{"text glob", "queue=" + v + " body=$.a", "glob"},
+			{"text field", v + "=x queue=o/q body=$.a", "field"},
+			{"text field no value", "queue=o/q " + v, "rule"},
+			{"text header", "queue=o/q header=" + v + "=", "header"},
+			{"text property", "queue=o/q property=" + v, "property"},
+		}
+		for _, c := range texts {
+			_, err := ParseRule(c.text)
+			checkNoEcho(t, c.name, err, c.key)
+		}
+	}
+}
+
+func checkNoEcho(t *testing.T, name string, err error, key string) {
+	t.Helper()
+	if err == nil {
+		t.Errorf("%s: accepted", name)
+		return
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "glsa_Canary") || strings.Contains(msg, "user:") {
+		t.Errorf("%s: error echoes the value: %q", name, msg)
+	}
+	if !strings.Contains(msg, key) {
+		t.Errorf("%s: error %q does not name %q", name, msg, key)
+	}
+}

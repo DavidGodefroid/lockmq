@@ -6,6 +6,24 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Config and rule errors no longer quote the value they refuse: a token or a URL with a
+  password pasted into the wrong key never reaches the terminal, a log or an agent. The
+  errors of `credentials`, `tier`, `body_mode` and `tls` in a profile, of the globs, `header`
+  and fields of a `.lockmq/pii.toml` or console mask rule, and of `console --allowed-uids`
+  name the key and the values it accepts; a refused glob is named by its key and position
+  (`queue entry 2`). A bad flag of a client command (`lockmq queues --page ...`) is reported as
+  "wrong arguments", as for the other commands, and the image's `ALLOWED_UIDS` build check no
+  longer prints the argument. Through lockkit v0.7.2, so do `detectors` (by position),
+  `ssh.credentials` and the `--hub` URL errors.
+
+### Changed
+
+- Builds on lockkit v0.7.2 (was v0.6.0). `console --hub` refuses a hub URL with a user or
+  password; a tightening that cannot be saved as the approved policy now applies anyway
+  (audited `policy`/`unsaved`), where the looser policy stayed in force before.
+
 ## [0.4.1] - 2026-10-30
 
 lea's agents reach the release image's console: `console --allowed-uids` (lea#226).
