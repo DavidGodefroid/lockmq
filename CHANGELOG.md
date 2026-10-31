@@ -12,7 +12,12 @@ All notable changes to lockmq. The format follows
   password pasted into the wrong key never reaches the terminal, a log or an agent. The
   errors of `credentials`, `tier`, `body_mode` and `tls` in a profile, of the globs, `header`
   and fields of a `.lockmq/pii.toml` or console mask rule, and of `console --allowed-uids`
-  name the key and the values it accepts.
+  name the key and the values it accepts. Through lockkit v0.7.2, so do `detectors`,
+  `ssh.credentials` and the `--hub` URL.
+
+### Changed
+
+- Builds on lockkit v0.7.2 (was v0.6.0).
 
 ## [0.4.1] - 2026-10-30
 

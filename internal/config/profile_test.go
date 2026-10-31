@@ -223,6 +223,12 @@ func TestErrorsDoNotEchoValues(t *testing.T) {
 			tc{"tls_ca " + v, minimal + "tls_ca = \"" + v + "\\u001b\"\n", "tls_ca"},
 			tc{"tls_cert " + v, minimal + "tls_cert = \"" + v + "\\u001b\"\n", "tls_cert"},
 			tc{"tls_key " + v, minimal + "tls_key = \"" + v + "\\u001b\"\n", "tls_key"},
+			tc{"detectors " + v, minimal + "detectors = [\"email\", " + q + "]\n", "detectors"},
+			tc{"ssh.credentials " + v, minimal + "[profiles.main.ssh]\nhost = \"bastion\"\nuser = \"u\"\nauth = \"password\"\ncredentials = " + q + "\n", "ssh.credentials"},
+			tc{"ssh.auth " + v, minimal + "[profiles.main.ssh]\nhost = \"bastion\"\nuser = \"u\"\nauth = " + q + "\n", "ssh.auth"},
+			tc{"ssh.host " + v, minimal + "[profiles.main.ssh]\nhost = \"" + v + "\\u001b\"\nuser = \"u\"\n", "ssh.host"},
+			tc{"ssh.user " + v, minimal + "[profiles.main.ssh]\nhost = \"bastion\"\nuser = \"" + v + "\\u001b\"\n", "ssh.user"},
+			tc{"ssh.key " + v, minimal + "[profiles.main.ssh]\nhost = \"bastion\"\nuser = \"u\"\nauth = \"key\"\nkey = \"" + v + "\\u001b\"\n", "ssh.key"},
 		)
 	}
 	cases = append(cases,
