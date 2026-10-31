@@ -82,7 +82,7 @@ func runWith(t *testing.T, root string, conn *fakeConn, dialErr error, stdin str
 
 func TestCLIExitCodes(t *testing.T) {
 	root := project(t, oneProfile)
-	noConsole := &client.NoConsoleError{Product: product.P, Profile: "dev", Socket: "/x", Err: syscall.ECONNREFUSED}
+	noConsole := &client.NoConsoleError{Product: product.P, Profile: "dev", Project: root, Socket: "/x", Err: syscall.ECONNREFUSED}
 	refused := &ipc.RPCError{Code: ipc.CodeRefused, Message: "peek needs tier peek", Data: &refusal.Info{Code: "E_TIER", Retry: refusal.RetryAskUser, Hint: "ask"}}
 	cases := []struct {
 		name    string

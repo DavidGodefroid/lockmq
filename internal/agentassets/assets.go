@@ -38,5 +38,5 @@ var Wiring = agentwire.Wiring{Product: product.P, Assets: agentwire.Assets{
 		"mcp__lockmq__lockmq_stream", "mcp__lockmq__lockmq_stream_offset", "mcp__lockmq__lockmq_pii_list",
 		"Bash(lockmq status:*)", "Bash(lockmq doctor:*)",
 	},
-	ClaudeNote: "Message reads (lockmq_read, lockmq_peek) are approved in the lockmq console, not in Claude Code.",
+	ClaudeNote: "Message reads (lockmq_read, lockmq_peek) are approved on lockhub (lox approve, the lea deck or a paired phone), not in Claude Code.",
 }}

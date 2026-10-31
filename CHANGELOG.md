@@ -22,6 +22,9 @@ The console is hub-attached only (DavidGodefroid/lockkit#110).
   `lockmq console` command; the status's `start` is `lox up` and carries no profile or project.
   `lockmq doctor` prints "the console runs under `lox up`: run `lox up`, then
   `lox attach <instance>` for its questions". The agent skill says the same.
+- The agent skill, the agent notes (`AGENTS.md`, Claude Code) and the README say message reads are
+  approved on lockhub (`lox approve`, the lea deck or a paired phone), no longer in the console;
+  the console still asks its own questions (credentials, policy) through `lox attach`.
 - Builds on lockkit v0.9.1 (hub-only console, `lox up` start hint, console PolicyOnly mode).
 
 ### Removed
