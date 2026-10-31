@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/DavidGodefroid/lockkit/client"
+	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/ipc"
 	"github.com/DavidGodefroid/lockkit/mcpkit"
 	"github.com/DavidGodefroid/lockkit/render"
@@ -72,8 +73,13 @@ func resolveProfile(e env, name string) (string, error) {
 	}
 	names := profileNames(ps)
 	if name != "" {
+		// The name is not quoted, as lockkit's CheckProfileName does not
+		// quote it: it may be a token or a URL pasted in the wrong place.
+		if err := kconfig.CheckProfileName(name, false); err != nil {
+			return "", usageError{"--profile: " + err.Error()}
+		}
 		if _, ok := ps[name]; !ok {
-			return "", usageError{fmt.Sprintf("unknown profile %q; configured profiles: %s", name, orNone(names))}
+			return "", usageError{"--profile names no configured profile; configured profiles: " + orNone(names)}
 		}
 		return name, nil
 	}

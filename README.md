@@ -350,7 +350,7 @@ read over AMQP.
 | `tls_ca`, `tls_cert`, `tls_key` | none | a private CA; a client certificate (both or neither) |
 | `tier` | `read` | `read` or `peek` |
 | `production` | `false` | typed approval, `redact-unknown` body mode, auto mode unavailable |
-| `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`; `[]` disables them |
+| `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`, `ip`, `secret`, `person_name`; `[]` disables them |
 | `body_mode` | `redact-unknown` on production, `detect` otherwise | |
 | `limits.request_timeout` | 10s | |
 | `limits.read_max` | 20 | ceiling 200 |

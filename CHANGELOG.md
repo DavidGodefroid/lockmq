@@ -6,6 +6,32 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `detectors` also accepts lockkit v0.8.0's opt-in `ip` (public IPv4 and IPv6 addresses),
+  `secret` (credentials, tokens, private keys, masked as `<redacted>`) and `person_name`;
+  none is in the default set.
+
+### Changed
+
+- Builds on lockkit v0.8.1 (was v0.7.2). `console --hub` takes `http(s)://host[:port]` only:
+  a hub URL with a path (`https://h/lockhub`), query, fragment, IPv6 zone, a host that is not
+  a DNS name or an IP address, or a port outside 1-65535 is refused, without quoting the URL
+  (such a URL never reached a working hub: lockhub serves `/v1/` at its root). A hub that
+  cannot be reached is named by scheme and host, no longer by the whole request URL.
+- Through lockkit v0.8.0, the detectors read a JSON `\n`, `\r` or `\t` escape, and the
+  `\u0026`-style escapes of `&`, `<`, `>`, `=` and quotes, as the blank or delimiter they stand
+  for: a value right after one (`{"msg":"tel:\t0475123456"}`) is now masked.
+
+### Fixed
+
+- `--profile` errors no longer quote the name given: an invalid name is refused with the
+  allowed form, a well-formed name that is not configured with the configured profiles only
+  (a token or URL pasted into `--profile` never reaches the terminal). Through lockkit
+  v0.8.1, neither do the errors of `--instance`, `hub-key`, a profile name in a config file,
+  `--require-device`, the IPC socket names, the `service_user` and `client_group` lookups and
+  the console's isolation refusals: they name the key and the allowed form.
+
 ## [0.4.2] - 2026-10-31
 
 Errors never echo a value that may be a secret; builds on lockkit v0.7.2.

@@ -65,6 +65,10 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("body_mode on production = %q, want redact-unknown", prod.BodyMode)
 	}
 
+	optIn, err := parseOne(t, minimal+`detectors = ["secret", "ip", "person_name"]`+"\n")
+	if err != nil || strings.Join(optIn.Detectors, ",") != "ip,person_name,secret" {
+		t.Errorf("opt-in detectors (lockkit v0.8.0): %v %v", optIn.Detectors, err)
+	}
 	explicit, err := parseOne(t, minimal+"detectors = []\n[profiles.main.limits]\ndelivery_headroom = 1\n")
 	if err != nil {
 		t.Fatal(err)

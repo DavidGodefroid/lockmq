@@ -283,6 +283,22 @@ func TestUsageNamesHubPlainHTTP(t *testing.T) {
 	}
 }
 
+// A secret pasted as --profile is not echoed: neither an invalid name
+// (lockkit v0.8.1's CheckProfileName does not quote it) nor a well-formed
+// one that names no configured profile.
+func TestProfileFlagDoesNotEcho(t *testing.T) {
+	root := project(t, oneProfile)
+	for _, v := range []string{"glsa_CanarySecretToken123", "https://user:glsa_Canary@h/path?token=glsa_Canary"} {
+		code, out, stderr := runWith(t, root, &fakeConn{}, nil, "", "overview", "--profile", v)
+		if code != exitUsage {
+			t.Errorf("%s: exit %d, want %d", v, code, exitUsage)
+		}
+		if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") || !strings.Contains(stderr, "--profile") {
+			t.Errorf("%s: stderr %q", v, stderr)
+		}
+	}
+}
+
 // A secret pasted as a flag (name or value) of a client command is not
 // echoed by the usage error.
 func TestClientFlagErrorsDoNotEcho(t *testing.T) {
