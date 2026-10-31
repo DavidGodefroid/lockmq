@@ -6,6 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-31
+
+Builds on lockkit v0.8.1: a `--hub` URL is `http(s)://host[:port]` only, opt-in `ip`, `secret`
+and `person_name` detectors, and no error echoes a value typed in the wrong place.
+
 ### Added
 
 - `detectors` also accepts lockkit v0.8.0's opt-in `ip` (public IPv4 and IPv6 addresses),
