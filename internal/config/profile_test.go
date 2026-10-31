@@ -191,3 +191,70 @@ func writeFile(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+// Canary secrets pasted into the wrong key: an error names the key and
+// never quotes the value (a pasted token, a URL with userinfo).
+const (
+	canary    = "glsa_CanarySecretToken123"
+	canaryURL = "https://user:glsa_Canary@h"
+)
+
+func TestErrorsDoNotEchoValues(t *testing.T) {
+	type tc struct{ name, body, key string }
+	var cases []tc
+	for _, v := range []string{canary, canaryURL} {
+		q := `"` + v + `"`
+		cases = append(cases,
+			tc{"credentials " + v, minimal + "credentials = " + q + "\n", "credentials"},
+			tc{"tier " + v, minimal + "tier = " + q + "\n", "tier"},
+			tc{"body_mode " + v, minimal + "body_mode = " + q + "\n", "body_mode"},
+			tc{"tls " + v, minimal + "tls = " + q + "\n", "tls"},
+			tc{"url " + v, "[profiles.main]\nurl = " + q + "\n", "url"},
+			tc{"amqp_url " + v, minimal + "amqp_url = " + q + "\n", "amqp_url"},
+			tc{"stream_url " + v, minimal + "stream_url = " + q + "\n", "stream_url"},
+			tc{"vault_path " + v, minimal + "credentials = \"vault\"\nvault_path = \"-" + v + "\"\n", "vault_path"},
+			tc{"vault_path unused " + v, minimal + "vault_path = " + q + "\n", "vault_path"},
+			tc{"credentials_ttl " + v, minimal + "credentials_ttl = " + q + "\n", "credentials_ttl"},
+			tc{"request_timeout " + v, minimal + "[profiles.main.limits]\nrequest_timeout = " + q + "\n", "request_timeout"},
+			tc{"idle_timeout " + v, minimal + "[profiles.main.limits]\nidle_timeout = " + q + "\n", "idle_timeout"},
+			tc{"max_session " + v, minimal + "[profiles.main.limits]\nmax_session = " + q + "\n", "max_session"},
+			tc{"vhosts " + v, minimal + "vhosts = [\"" + v + "\\u001b\"]\n", "vhosts"},
+			tc{"user " + v, minimal + "user = \"" + v + "\\u001b\"\n", "user"},
+			tc{"tls_ca " + v, minimal + "tls_ca = \"" + v + "\\u001b\"\n", "tls_ca"},
+			tc{"tls_cert " + v, minimal + "tls_cert = \"" + v + "\\u001b\"\n", "tls_cert"},
+			tc{"tls_key " + v, minimal + "tls_key = \"" + v + "\\u001b\"\n", "tls_key"},
+		)
+	}
+	cases = append(cases,
+		tc{"user dsn", minimal + "user = \"postgres://u:" + canary + "@h/db\"\n", "user"},
+		tc{"vault_path dsn", minimal + "credentials = \"vault\"\nvault_path = \"postgres://u:" + canary + "@h/db\"\n", "vault_path"},
+	)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := ParseProfiles([]byte(c.body), "test.toml")
+			if err == nil {
+				t.Fatalf("accepted:\n%s", c.body)
+			}
+			msg := err.Error()
+			for _, s := range []string{canary, "glsa_Canary", "user:"} {
+				if strings.Contains(msg, s) {
+					t.Errorf("error echoes the value (%q): %q", s, msg)
+				}
+			}
+			if !strings.Contains(msg, c.key) {
+				t.Errorf("error %q does not name %q", msg, c.key)
+			}
+		})
+	}
+}
+
+func TestParseTierDoesNotEcho(t *testing.T) {
+	_, err := ParseTier(canary)
+	if err == nil || strings.Contains(err.Error(), canary) || !strings.Contains(err.Error(), "tier") {
+		t.Errorf("ParseTier(canary) = %v", err)
+	}
+	var tier Tier
+	if err := tier.UnmarshalText([]byte(canary)); err == nil || strings.Contains(err.Error(), canary) {
+		t.Errorf("UnmarshalText(canary) = %v", err)
+	}
+}

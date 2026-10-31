@@ -144,3 +144,13 @@ func TestConsoleAllowedUIDsFlag(t *testing.T) {
 		}
 	}
 }
+
+// A value pasted into --allowed-uids is not echoed.
+func TestParseAllowedUIDsDoesNotEcho(t *testing.T) {
+	for _, v := range []string{"glsa_CanarySecretToken123", "1000,https://user:glsa_Canary@h"} {
+		_, err := parseAllowedUIDs(v)
+		if err == nil || strings.Contains(err.Error(), "glsa_Canary") || !strings.Contains(err.Error(), "--allowed-uids") {
+			t.Errorf("parseAllowedUIDs(%q) = %v", v, err)
+		}
+	}
+}

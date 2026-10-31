@@ -143,13 +143,13 @@ func build(r rawRule, mask bool) (Rule, error) {
 // checkGlob refuses a glob that the canonical text form could not hold.
 func checkGlob(g string, vhostName bool) error {
 	if g == "" || len(g) > 512 || strings.ContainsAny(g, " \t\r\n,=") {
-		return fmt.Errorf("glob %q: no spaces, commas or '='", g)
+		return errors.New("glob: want a non-empty glob of at most 512 bytes, with no spaces, commas or '='")
 	}
 	if err := kconfig.CheckValue(product.P, "glob", g); err != nil {
 		return err
 	}
 	if vhostName && !strings.Contains(g, "/") {
-		return fmt.Errorf("glob %q: want vhost/name (\"*/*\", \"//name\" for the vhost /)", g)
+		return errors.New(`glob: want vhost/name ("*/*", "//name" for the vhost /)`)
 	}
 	return nil
 }
@@ -246,7 +246,7 @@ func parseText(text string) (rawRule, error) {
 	for _, f := range strings.Fields(text) {
 		k, v, ok := strings.Cut(f, "=")
 		if !ok || v == "" || seen[k] {
-			return rawRule{}, fmt.Errorf("rule: want key=value fields (queue, exchange, body, header, property)")
+			return rawRule{}, errors.New("rule: want key=value fields (queue, exchange, body, header, property)")
 		}
 		seen[k] = true
 		switch k {
@@ -261,7 +261,7 @@ func parseText(text string) (rawRule, error) {
 		case "property":
 			r.Property = v
 		default:
-			return rawRule{}, fmt.Errorf("rule: unknown field %q", k)
+			return rawRule{}, errors.New("rule: unknown field (want queue, exchange, body, header or property)")
 		}
 	}
 	return r, nil

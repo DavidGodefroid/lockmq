@@ -6,6 +6,14 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Config and rule errors no longer quote the value they refuse: a token or a URL with a
+  password pasted into the wrong key never reaches the terminal, a log or an agent. The
+  errors of `credentials`, `tier`, `body_mode` and `tls` in a profile, of the globs, `header`
+  and fields of a `.lockmq/pii.toml` or console mask rule, and of `console --allowed-uids`
+  name the key and the values it accepts.
+
 ## [0.4.1] - 2026-10-30
 
 lea's agents reach the release image's console: `console --allowed-uids` (lea#226).
