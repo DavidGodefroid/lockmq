@@ -6,6 +6,10 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-31
+
+Errors never echo a value that may be a secret; builds on lockkit v0.7.2.
+
 ### Fixed
 
 - Config and rule errors no longer quote the value they refuse: a token or a URL with a
