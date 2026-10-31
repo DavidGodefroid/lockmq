@@ -62,8 +62,8 @@ func runDoctor(e env, args []string) int {
 	}
 	names := profileNames(ps)
 	if *only != "" {
-		if _, ok := ps[*only]; !ok {
-			fmt.Fprintf(e.stdout, "✗ profile %s: not configured (configured: %s)\n", *only, orNone(names))
+		if err := checkProfileArg(ps, *only); err != nil {
+			fmt.Fprintln(e.stdout, "✗ profile:", err)
 			return exitUsage
 		}
 		names = []string{*only}

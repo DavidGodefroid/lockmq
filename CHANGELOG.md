@@ -25,9 +25,11 @@ All notable changes to lockmq. The format follows
 
 ### Fixed
 
-- `--profile` errors no longer quote the name given: an invalid name is refused with the
-  allowed form, a well-formed name that is not configured with the configured profiles only
-  (a token or URL pasted into `--profile` never reaches the terminal). Through lockkit
+- `--profile` errors (client commands, `console`, `doctor`) no longer quote the name given:
+  an invalid name is refused with the allowed form, a well-formed name that is not configured
+  with the configured profiles only (a token or URL pasted into `--profile` never reaches the
+  terminal). An unknown command is no longer quoted either: the error prints the usage.
+  Through lockkit
   v0.8.1, neither do the errors of `--instance`, `hub-key`, a profile name in a config file,
   `--require-device`, the IPC socket names, the `service_user` and `client_group` lookups and
   the console's isolation refusals: they name the key and the allowed form.

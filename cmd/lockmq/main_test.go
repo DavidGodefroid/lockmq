@@ -283,17 +283,34 @@ func TestUsageNamesHubPlainHTTP(t *testing.T) {
 	}
 }
 
-// A secret pasted as --profile is not echoed: neither an invalid name
-// (lockkit v0.8.1's CheckProfileName does not quote it) nor a well-formed
-// one that names no configured profile.
+// A secret pasted as --profile is not echoed, by a client command or by
+// doctor: neither an invalid name (lockkit v0.8.1's CheckProfileName does
+// not quote it) nor a well-formed one that names no configured profile.
 func TestProfileFlagDoesNotEcho(t *testing.T) {
 	root := project(t, oneProfile)
+	for _, cmd := range []string{"overview", "doctor"} {
+		for _, v := range []string{"glsa_CanarySecretToken123", "https://user:glsa_Canary@h/path?token=glsa_Canary"} {
+			code, out, stderr := runWith(t, root, &fakeConn{}, nil, "", cmd, "--profile", v)
+			if code != exitUsage {
+				t.Errorf("%s %s: exit %d, want %d", cmd, v, code, exitUsage)
+			}
+			if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") || !strings.Contains(out+stderr, "--profile") {
+				t.Errorf("%s %s: stdout %q stderr %q", cmd, v, out, stderr)
+			}
+		}
+	}
+}
+
+// A secret pasted as the command is not echoed by the unknown-command
+// error.
+func TestUnknownCommandDoesNotEcho(t *testing.T) {
+	root := project(t, oneProfile)
 	for _, v := range []string{"glsa_CanarySecretToken123", "https://user:glsa_Canary@h/path?token=glsa_Canary"} {
-		code, out, stderr := runWith(t, root, &fakeConn{}, nil, "", "overview", "--profile", v)
+		code, out, stderr := runWith(t, root, &fakeConn{}, nil, "", v)
 		if code != exitUsage {
 			t.Errorf("%s: exit %d, want %d", v, code, exitUsage)
 		}
-		if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") || !strings.Contains(stderr, "--profile") {
+		if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") || !strings.Contains(stderr, "unknown command") {
 			t.Errorf("%s: stderr %q", v, stderr)
 		}
 	}

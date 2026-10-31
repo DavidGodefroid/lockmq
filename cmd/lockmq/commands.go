@@ -73,13 +73,8 @@ func resolveProfile(e env, name string) (string, error) {
 	}
 	names := profileNames(ps)
 	if name != "" {
-		// The name is not quoted, as lockkit's CheckProfileName does not
-		// quote it: it may be a token or a URL pasted in the wrong place.
-		if err := kconfig.CheckProfileName(name, false); err != nil {
-			return "", usageError{"--profile: " + err.Error()}
-		}
-		if _, ok := ps[name]; !ok {
-			return "", usageError{"--profile names no configured profile; configured profiles: " + orNone(names)}
+		if err := checkProfileArg(ps, name); err != nil {
+			return "", usageError{err.Error()}
 		}
 		return name, nil
 	}
@@ -90,6 +85,19 @@ func resolveProfile(e env, name string) (string, error) {
 		return names[0], nil
 	}
 	return "", usageError{fmt.Sprintf("several profiles are configured (%s): pass --profile", strings.Join(names, ", "))}
+}
+
+// checkProfileArg checks a --profile value against the configured
+// profiles. The value is never quoted, as lockkit's CheckProfileName does
+// not quote it: it may be a token or a URL pasted in the wrong place.
+func checkProfileArg(ps map[string]config.Profile, name string) error {
+	if err := kconfig.CheckProfileName(name, false); err != nil {
+		return errors.New("--profile: " + err.Error())
+	}
+	if _, ok := ps[name]; !ok {
+		return errors.New("--profile names no configured profile; configured profiles: " + orNone(profileNames(ps)))
+	}
+	return nil
 }
 
 func orNone(s []string) string {
