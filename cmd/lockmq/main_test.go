@@ -238,12 +238,22 @@ func TestSetupProfileNameDoesNotEcho(t *testing.T) {
 	} {
 		v := c.name
 		code, out, stderr := runWith(t, project(t, c.cfg), nil, nil, strings.Replace(setupAnswers(""), "uat", v, 1), "setup")
-		if code == exitOK {
-			t.Errorf("%s: accepted", v)
+		if code != exitUsage {
+			t.Errorf("%s: exit %d, want %d", v, code, exitUsage)
 		}
 		if strings.Contains(out+stderr, "glsa_Canary") || strings.Contains(out+stderr, "user:") {
 			t.Errorf("%s: exit %d, stdout %q stderr %q", v, code, out, stderr)
 		}
+	}
+}
+
+// A production profile named like an everyday answer is refused at setup
+// as a configuration error (exit 3), as it is in a config file.
+func TestSetupProductionReservedName(t *testing.T) {
+	answers := strings.Join([]string{"y", "http://127.0.0.1:15672", "", "", "", "", "", "y", ""}, "\n") + "\n"
+	code, _, stderr := runWith(t, project(t, oneProfile), nil, nil, answers, "setup")
+	if code != exitUsage || !strings.Contains(stderr, "production profile") {
+		t.Errorf("exit %d, want %d: %s", code, exitUsage, stderr)
 	}
 }
 

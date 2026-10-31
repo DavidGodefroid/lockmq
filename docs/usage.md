@@ -110,6 +110,7 @@ be a service name without a dot or a private address.
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.4.3 | v0.8.1 | as v0.4.2 |
 | v0.4.2 | v0.7.2 | as v0.4.1 |
 | v0.4.1 | v0.6.0 | as v0.4.0; `allowed_uids` (`--allowed-uids`, for lea's agents) from lockhub v0.2.4 |
 | v0.4.0 | v0.6.0 | v0.2.0 or later: hub mode, `devices: true` (paired phones), reveals (`reveal: true`, Ctrl-O) and renewals |

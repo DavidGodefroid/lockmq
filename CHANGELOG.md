@@ -6,6 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-31
+
+Builds on lockkit v0.8.1: a `--hub` URL is `http(s)://host[:port]` only, opt-in `ip`, `secret`
+and `person_name` detectors, and no error echoes a value typed in the wrong place.
+
 ### Added
 
 - `detectors` also accepts lockkit v0.8.0's opt-in `ip` (public IPv4 and IPv6 addresses),
@@ -29,12 +34,13 @@ All notable changes to lockmq. The format follows
   never reaches the terminal). The `--profile` errors of the client commands, `console` and
   `doctor` refuse an invalid name with the allowed form and an unconfigured one with the
   configured profiles only; `setup` checks the typed profile name with lockkit's
-  `CheckProfileName` and does not name a duplicate; an unknown command prints the usage, an
-  unknown agent of `init` (or a flag) the known agents, and a refused `--allowed-uids` field
-  is not repeated. Through lockkit v0.8.1, neither do the errors of `--instance`, `hub-key`,
-  a profile name in a config file, `--require-device`, the IPC socket names, the
-  `service_user` and `client_group` lookups and the console's isolation refusals: they name
-  the key and the allowed form.
+  `CheckProfileName` (an invalid or production-reserved name is a configuration error, exit
+  3) and does not name a duplicate; an unknown command prints the usage, an unknown agent of
+  `init` (or a flag) the known agents, and a refused `--allowed-uids` field is not repeated.
+  Through lockkit v0.8.1, neither do the errors of `--instance`, `hub-key`, a profile name
+  in a config file, `--require-device`, the IPC socket names, the `service_user` and
+  `client_group` lookups and the console's isolation refusals: they name the key and the
+  allowed form.
 
 ## [0.4.2] - 2026-10-31
 
