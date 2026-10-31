@@ -18,14 +18,21 @@ import (
 	"github.com/DavidGodefroid/lockkit/ipc"
 	"github.com/DavidGodefroid/lockkit/plans"
 	"github.com/DavidGodefroid/lockkit/ticket"
-
-	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
 const hubInstance = "queues"
 
 // hubRig is a console in hub mode beside a fake lockhub.
 func hubRig(t *testing.T, o rigOpts) (*rig, *hubtest.Hub, ed25519.PublicKey) {
+	t.Helper()
+	var hub *hubtest.Hub
+	var pub ed25519.PublicKey
+	o.hub, hub, pub = hubOptions(t)
+	return newRig(t, o), hub, pub
+}
+
+// hubOptions is a test hub and the console's options for it.
+func hubOptions(t *testing.T) (*console.HubOptions, *hubtest.Hub, ed25519.PublicKey) {
 	t.Helper()
 	home := t.TempDir()
 	key, err := hubclient.InstanceKey(home, hubInstance)
@@ -38,8 +45,7 @@ func hubRig(t *testing.T, o rigOpts) (*rig, *hubtest.Hub, ed25519.PublicKey) {
 	if err := os.WriteFile(hubKey, []byte(base64.StdEncoding.EncodeToString(hub.Pub)+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	o.hub = &console.HubOptions{URL: hub.URL(), KeyFile: hubKey, Instance: hubInstance, Home: home}
-	return newRig(t, o), hub, pub
+	return &console.HubOptions{URL: hub.URL(), KeyFile: hubKey, Instance: hubInstance, Home: home}, hub, pub
 }
 
 type pendingOut struct{ Status, Ticket, Lock, Instance string }
@@ -421,34 +427,5 @@ func TestHubRenewRequestFromHub(t *testing.T) {
 	mustOK(t, r.runDecided(run))
 	if r.broker.peekCount() != 1 {
 		t.Fatalf("peeks %d", r.broker.peekCount())
-	}
-}
-
-// Hub mode off (rollback D.5): a console started again without the hub
-// withdraws the plans hub mode left pending and refuses their tickets
-// explicitly; nothing is read, nothing is asked.
-func TestStandaloneAfterHubWithdraws(t *testing.T) {
-	r, _, _ := hubRig(t, rigOpts{})
-	p := readParams()
-	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
-	pd := pendingOf(t, r.call(MethodRun, p))
-	r.closeHub()
-	st := newRig(t, rigOpts{broker: r.broker, root: r.root, state: r.state})
-	run := p
-	run.Ticket = pd.Ticket
-	resp := st.call(MethodRun, run)
-	if resp.Error == nil || resp.Error.Code != ipc.CodeWithdrawn || !strings.Contains(resp.Error.Message, "withdrawn") {
-		t.Fatalf("standalone run of a hub ticket: %+v %s", resp.Error, resp.Result)
-	}
-	if st.reader.reads != 0 || r.reader.reads != 0 || st.io.promptCount() != 0 {
-		t.Fatalf("reads %d/%d prompts %d", st.reader.reads, r.reader.reads, st.io.promptCount())
-	}
-	ps, err := plans.Open(filepath.Join(r.state, product.P.Name, "hub", hubInstance, "plans"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ps.Close()
-	if untold := ps.Untold(); len(untold) != 1 || untold[0].State != plans.Withdrawn {
-		t.Fatalf("plans left: %+v", untold)
 	}
 }

@@ -99,7 +99,7 @@
 <tr><td><code>lockmq consumers</code>, <code>connections</code>, <code>channels</code></td><td>with prefetch and ack mode; on the served vhosts only</td><td>none</td></tr>
 <tr><td><code>lockmq stream NAME</code></td><td>a stream’s queue data and first/last offsets</td><td>none</td></tr>
 <tr><td><code>lockmq stream-offset NAME --consumer REF</code></td><td>a named consumer’s stored offset and its lag</td><td>none</td></tr>
-<tr><td><code>lockmq read STREAM --from first|last|N|TIMESTAMP</code></td><td>stream messages, masked</td><td>you, every time (auto mode outside production)</td></tr>
+<tr><td><code>lockmq read STREAM --from first|last|N|TIMESTAMP</code></td><td>stream messages, masked</td><td>you, on lockhub</td></tr>
 <tr><td><code>lockmq peek QUEUE --count N</code></td><td>the head of a classic or quorum queue, masked; tier <code>peek</code> only</td><td>you, every time, never auto</td></tr>
 </tbody>
 </table>
@@ -134,7 +134,7 @@
   <h2 id="peek">Queue peek: a per-profile setting</h2>
   <div class="prose">
     <p>Reading a classic or quorum queue is <strong>not strictly read-only</strong>. The management <code>get</code> takes up to <code>count</code> ready messages from the head and requeues them in the same call: they come back <code>redelivered=true</code>, a quorum queue’s delivery count grows by one (over the limit, the message is dead-lettered or dropped), the order seen by active consumers can change, and only ready messages at the head are visible.</p>
-    <p>So <code>peek</code> exists only on a profile you set to <code>tier = "peek"</code> (<code>lockmq setup</code> asks, default no). Every peek is approved by you, never by auto mode. On a quorum queue the console reads the effective delivery limit (argument, policy, operator policy; the lowest; RabbitMQ 4.x’s default 20) and refuses a peek within <code>delivery_headroom</code> of it, from the highest count it saw this session.</p>
+    <p>So <code>peek</code> exists only on a profile you set to <code>tier = "peek"</code> (<code>lockmq setup</code> asks, default no). Every peek is approved by you, never by the hub’s auto mode. On a quorum queue the console reads the effective delivery limit (argument, policy, operator policy; the lowest; RabbitMQ 4.x’s default 20) and refuses a peek within <code>delivery_headroom</code> of it, from the highest count it saw this session.</p>
   </div>
   <figure>
     <pre tabindex="0" class="term"><code>╭─ PROD · rabbitmq.example.com:15671 / orders · user lockmq-ro · tier peek ─────
@@ -194,7 +194,6 @@ body  = "$.items[*].sku"</code></pre>
 <tbody>
 <tr><td><code>:review</code></td><td>show the pending loosening and the change requests of clients, apply or refuse</td></tr>
 <tr><td><code>:status</code></td><td>the policy in force, the session</td></tr>
-<tr><td>Shift+Tab, <code>:mode</code></td><td>auto mode on/off (never on production; never for <code>peek</code>)</td></tr>
 <tr><td><code>:quit</code>, Ctrl-C</td><td>end the session</td></tr>
 </tbody>
 </table>

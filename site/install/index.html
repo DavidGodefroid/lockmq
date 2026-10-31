@@ -86,10 +86,13 @@ rabbitmqctl set_permissions -p orders lockmq-ro '^$' '^$' '^(order-events)$'</co
 </section>
 
 <section aria-labelledby="console">
-  <h2 id="console">4. Start the console</h2>
-  <p class="prose">In a terminal you keep in view, from the project directory (<code>LOCKMQ_DOCKER_ARGS="--network NAME"</code> for a broker container):</p>
-  <pre tabindex="0"><code>lockmq console</code></pre>
-  <p class="prose">It checks the isolation, asks you to approve the policy, asks for the password (or reads Vault), connects, audits the broker user’s privileges and opens the socket.</p>
+  <h2 id="console">4. Start the console with its hub</h2>
+  <p class="prose">The console runs attached to lockhub only: lockhub’s <code>lox</code> CLI declares the lock and starts it with its hub (<code>lockmq console</code> on its own refuses to start):</p>
+  <pre tabindex="0"><code>lox add lockmq events
+lox up
+lox attach events   # policy review, password (detach: Ctrl-P Ctrl-Q)
+lox approve         # the agent’s message reads</code></pre>
+  <p class="prose">The console checks the isolation, asks you to approve the policy, asks for the password (or reads Vault), connects, audits the broker user’s privileges and opens the socket; the agent’s reads and peeks are approved on lockhub.</p>
 </section>
 
 <section aria-labelledby="agents">

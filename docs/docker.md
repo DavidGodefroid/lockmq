@@ -191,13 +191,20 @@ is created anew, by `lockmq init` for example.
 
 ## Run the console
 
-In a terminal you keep in view, from the project directory:
+The console runs hub-attached only: lockhub's `lox up` starts it, with its
+hub flags (`lockmq console` on its own refuses to start: "launched by `lox
+up` only"). From the workspace:
 
 ```sh
-lockmq console
+lox add lockmq events
+lox up
+lox attach events   # the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
+lox approve         # the agent's reads and peeks
 ```
 
-Add `--profile P`, `--show-results`, `--auto` or `--allow-unmask`, and
+The rest of this page describes the launcher's own console container
+(`lockmq console` with the hub flags `lox up` writes): its options,
+`--profile P`, `--show-results` or `--allow-unmask`, and
 `LOCKMQ_DOCKER_ARGS="--network NAME"` for a broker container. The
 `lockmq-home` volume keeps the console account's state from one run to the
 next: the approved policy, the audit log and `~/.ssh/known_hosts` for an

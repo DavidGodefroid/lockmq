@@ -43,9 +43,8 @@ func TestCatalogNotPrompted(t *testing.T) {
 	mustRefused(t, r.call(MethodRun, Params{Op: "purge"}), "E_BAD_ARGS")
 }
 
-// A stream read is prompted in manual mode, auto-approved in auto mode
-// outside production, and its content comes out masked.
-func TestReadPromptedAndAutoOutsideProd(t *testing.T) {
+// A stream read is prompted, and its content comes out masked.
+func TestReadPromptedAndMasked(t *testing.T) {
 	r := newRig(t, rigOpts{answers: []string{"y"}})
 	out := mustOK(t, r.call(MethodRun, readParams()))
 	if r.io.promptCount() != 1 || r.reader.reads != 1 {
@@ -58,12 +57,6 @@ func TestReadPromptedAndAutoOutsideProd(t *testing.T) {
 		t.Errorf("screen:\n%s", r.io.output())
 	}
 
-	auto := newRig(t, rigOpts{auto: true})
-	mustOK(t, auto.call(MethodRun, readParams()))
-	if auto.io.promptCount() != 0 || auto.reader.reads != 1 {
-		t.Fatalf("auto: prompts %d reads %d", auto.io.promptCount(), auto.reader.reads)
-	}
-
 	denied := newRig(t, rigOpts{answers: []string{"n not now"}})
 	resp := denied.call(MethodRun, readParams())
 	if resp.Error == nil || resp.Error.Code != ipc.CodeDenied || denied.reader.reads != 0 {
@@ -71,10 +64,10 @@ func TestReadPromptedAndAutoOutsideProd(t *testing.T) {
 	}
 }
 
-// A peek is prompted every time, auto mode or not, framed in red, and
+// A peek is prompted every time (never auto-approved), framed in red, and
 // marks the delivery count it saw.
 func TestPeekNeverAuto(t *testing.T) {
-	r := newRig(t, rigOpts{tier: "peek", auto: true, answers: []string{"y", "y"}})
+	r := newRig(t, rigOpts{tier: "peek", answers: []string{"y", "y"}})
 	out := mustOK(t, r.call(MethodRun, peekParams("payments")))
 	if r.io.promptCount() != 1 || r.broker.peekCount() != 1 {
 		t.Fatalf("prompts %d peeks %d", r.io.promptCount(), r.broker.peekCount())
@@ -160,19 +153,19 @@ func TestDotSegmentsRefusedBeforeIO(t *testing.T) {
 }
 
 // unmask is refused unless the human allowed it in the console; allowed,
-// it is approved every time (auto mode or not), sends the messages in
+// it is approved every time (never auto-approved), sends the messages in
 // clear and is audited as such.
 func TestUnmask(t *testing.T) {
 	unmasked := readParams()
 	unmasked.Unmask = true
-	off := newRig(t, rigOpts{auto: true})
+	off := newRig(t, rigOpts{})
 	mustRefused(t, off.call(MethodRun, unmasked), "E_UNMASK_OFF")
 	if off.reader.reads != 0 || off.io.promptCount() != 0 {
 		t.Fatalf("off: reads %d prompts %d", off.reader.reads, off.io.promptCount())
 	}
 	mustRefused(t, off.call(MethodRun, Params{Op: "queues", Unmask: true}), "E_BAD_ARGS")
 
-	r := newRig(t, rigOpts{auto: true, allowUnmask: true, answers: []string{"y"}})
+	r := newRig(t, rigOpts{allowUnmask: true, answers: []string{"y", "y"}})
 	var pl Plan
 	if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodPlan, unmasked))), &pl); err != nil {
 		t.Fatal(err)
@@ -187,8 +180,8 @@ func TestUnmask(t *testing.T) {
 	if !strings.Contains(r.auditLog(), `"unmasked":true`) || strings.Contains(r.auditLog(), "alice") {
 		t.Errorf("audit: %s", r.auditLog())
 	}
-	// A masked read in the same console stays masked and unprompted.
-	if out := mustOK(t, r.call(MethodRun, readParams())); strings.Contains(out, "alice@example.com") || r.io.promptCount() != 1 {
+	// A masked read in the same console stays masked.
+	if out := mustOK(t, r.call(MethodRun, readParams())); strings.Contains(out, "alice@example.com") || r.io.promptCount() != 2 {
 		t.Errorf("masked read: prompts %d out %s", r.io.promptCount(), out)
 	}
 }
@@ -196,7 +189,7 @@ func TestUnmask(t *testing.T) {
 // With results on (Ctrl-O), the console prints the clear messages; the
 // client still gets them masked.
 func TestShowResults(t *testing.T) {
-	r := newRig(t, rigOpts{auto: true, showResults: true})
+	r := newRig(t, rigOpts{showResults: true, answers: []string{"y"}})
 	out := mustOK(t, r.call(MethodRun, readParams()))
 	if strings.Contains(out, "alice@example.com") {
 		t.Fatalf("client got clear text: %s", out)
@@ -204,7 +197,7 @@ func TestShowResults(t *testing.T) {
 	if !strings.Contains(r.io.output(), "alice@example.com") || !strings.Contains(r.io.output(), "shown here only") {
 		t.Errorf("console:\n%s", r.io.output())
 	}
-	hidden := newRig(t, rigOpts{auto: true})
+	hidden := newRig(t, rigOpts{answers: []string{"y"}})
 	mustOK(t, hidden.call(MethodRun, readParams()))
 	if strings.Contains(hidden.io.output(), "alice@example.com") {
 		t.Errorf("results off, console shows clear text:\n%s", hidden.io.output())
@@ -237,7 +230,7 @@ func TestPlanIsDryRun(t *testing.T) {
 
 // On production the profile name is typed: "y" is not enough.
 func TestProdTypedName(t *testing.T) {
-	r := newRig(t, rigOpts{production: true, auto: true, answers: []string{"y", "prod"}})
+	r := newRig(t, rigOpts{production: true, answers: []string{"y", "prod"}})
 	resp := r.call(MethodRun, readParams())
 	if resp.Error == nil || resp.Error.Code != ipc.CodeDenied || r.reader.reads != 0 {
 		t.Fatalf("y on production: %+v", resp.Error)
@@ -250,7 +243,7 @@ func TestProdTypedName(t *testing.T) {
 
 // Results are framed as untrusted data.
 func TestResultsFramedUntrusted(t *testing.T) {
-	r := newRig(t, rigOpts{auto: true})
+	r := newRig(t, rigOpts{answers: []string{"y"}})
 	for _, p := range []Params{{Op: "overview"}, readParams()} {
 		var res Result
 		if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodRun, p))), &res); err != nil {
@@ -264,7 +257,7 @@ func TestResultsFramedUntrusted(t *testing.T) {
 
 // The audit log holds what was asked, never what was read.
 func TestAuditHasNoContent(t *testing.T) {
-	r := newRig(t, rigOpts{tier: "peek", auto: true, answers: []string{"y"}})
+	r := newRig(t, rigOpts{tier: "peek", answers: []string{"y", "y"}})
 	mustOK(t, r.call(MethodRun, readParams()))
 	mustOK(t, r.call(MethodRun, peekParams("orders.failed")))
 	log := r.auditLog()
@@ -273,7 +266,7 @@ func TestAuditHasNoContent(t *testing.T) {
 			t.Errorf("audit holds %q:\n%s", leak, log)
 		}
 	}
-	for _, want := range []string{`"event":"auto"`, `"event":"approved"`, `"event":"run"`, `"op":"peek"`, `"target":"orders.failed"`, `"count":1`} {
+	for _, want := range []string{`"event":"approved"`, `"event":"run"`, `"op":"peek"`, `"target":"orders.failed"`, `"count":1`} {
 		if !strings.Contains(log, want) {
 			t.Errorf("audit misses %s:\n%s", want, log)
 		}
@@ -282,7 +275,7 @@ func TestAuditHasNoContent(t *testing.T) {
 
 // pii.add appends a mask rule to the project's rules file and applies it.
 func TestPIIAdd(t *testing.T) {
-	r := newRig(t, rigOpts{auto: true, pii: "[[allow]]\nqueue = [\"//order-events\"]\nbody = \"$.total\"\n"})
+	r := newRig(t, rigOpts{answers: []string{"y"}, pii: "[[allow]]\nqueue = [\"//order-events\"]\nbody = \"$.total\"\n"})
 	mustOK(t, r.call(ipc.MethodPIIAdd, ipc.PIIAddParams{Pattern: "queue=*/* header=x-trace"}))
 	var list ipc.PIIListResult
 	if err := json.Unmarshal([]byte(mustOK(t, r.call(ipc.MethodPIIList, nil))), &list); err != nil {
@@ -366,8 +359,9 @@ func TestPrivilegeAudit(t *testing.T) {
 	d := t.TempDir()
 	t.Setenv("LOCKMQ_RUNTIME_DIR", d)
 	env := isolation()
+	hub, _, _ := hubOptions(t)
 	err := console.Run(context.Background(), product.P, be, console.Options{Profile: "prod", ProjectRoot: root, IO: io, StateDir: state,
-		Isolation: &env, Harden: func() error { return nil }, Sanitizer: Sanitizer()})
+		Isolation: &env, Harden: func() error { return nil }, Sanitizer: Sanitizer(), Hub: *hub})
 	if err == nil || !strings.Contains(err.Error(), "administrator") {
 		t.Fatalf("err = %v\n%s", err, io.output())
 	}

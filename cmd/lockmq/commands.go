@@ -290,8 +290,9 @@ func callFail(e env, cmd string, err error) int {
 var outputCaps = render.Caps{MaxCellChars: 4096, MaxOutputBytes: 1 << 20}
 
 func printOut(e env, o cliOpts, what string, out any) int {
-	if res, ok := out.(map[string]any); ok && what != "" {
-		// op.run: the data, framed.
+	if res, ok := out.(map[string]any); ok && what != "" && res["status"] != "pending" {
+		// op.run: the data, framed. A pending answer (decided on lockhub)
+		// is printed whole: its ticket is what --ticket runs once decided.
 		out = res["data"]
 	}
 	if o.json {

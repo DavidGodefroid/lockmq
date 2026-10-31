@@ -53,13 +53,15 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 ## The console
 
 ```sh
-lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
+lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
+              [--profile P] [--project DIR] [--allow-unmask] [--show-results]
               [--allowed-uids UID,...]
-              [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]
 ```
 
-The launcher runs it in the console container, as `lockmq` ([docs/docker.md](docker.md#run-the-console)).
-In order: the isolation checks,
+The console is launched by `lox up` only (lockhub's CLI), which writes the
+hub flags: without `--hub`, `--hub-key-file` and `--instance` it refuses to
+start ("launched by `lox up` only"). There is no standalone console and no
+auto mode. In order: the isolation checks,
 the policy review (first start: describe and approve; later: tightenings
 apply, loosenings are asked), the production banner and the typed profile
 name, the user and the password (or Vault), the connection
@@ -80,13 +82,12 @@ Keys and commands while it runs (lockkit's console):
 |---|---|
 | `:review` | show the pending loosening and the change requests of clients, apply or refuse |
 | `:status` | the policy in force, the session |
-| Shift+Tab, `:mode` | auto mode on/off (never on production; never for `peek`) |
 | Ctrl-O, `:results` | print each read and peek result in clear in the console (the agent still gets it masked) |
-| `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved here, never auto-approved |
+| `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved on lockhub, never auto-approved |
 | `:quit`, Ctrl-C | end the session |
 
-**Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (the three go together, never with
-`--auto`; `lock up` writes them), reads and peeks are decided on lockhub, never on this
+**Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (the three are required;
+`lox up` writes them), reads and peeks are decided on lockhub, never on this
 terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq read`,
 `lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
 the request as a plan bound to the client's uid, the agent's lea token and the policy, pushes
@@ -163,15 +164,15 @@ console (the start command is printed), 3 usage or configuration error.
 | `lockmq connections [--page N]`, `lockmq channels [--page N]` | on the served vhosts only; user and connection names through the detectors |
 | `lockmq stream NAME [--vhost V]` | a stream's queue data and first/last offsets |
 | `lockmq stream-offset NAME --consumer REF [--vhost V]` | a named consumer's stored offset and its lag |
-| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--intent TEXT] [--unmask] [--dry-run]` | stream messages, masked; approved in the console |
+| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--intent TEXT] [--unmask] [--dry-run]` | stream messages, masked; approved on lockhub |
 | `lockmq peek QUEUE [--count N] [--intent TEXT] [--unmask] [--dry-run]` | NOT read-only; tier `peek` only; approved every time |
 | `lockmq pii list`, `lockmq pii add "RULE"` | the mask and allow rules; add a mask rule |
 | `lockmq request "CHANGE"` | queue a change for the human (`tier=peek`, `limits.read_max=50`) |
 | `lockmq logout` | end the console's session |
 
 `--dry-run` asks the console for its verdict and the approval screen without
-asking you anything and without reading a message: `run`, `auto`, `prompt`,
-`prompt-every-time` or `refused` with its code.
+asking you anything and without reading a message: `run`, `hub` or `refused`
+with its code.
 
 A mask rule's text: `queue=VHOST/GLOB` (or `exchange=`), then one of
 `body=$.json.path`, `header=NAME-GLOB` or `property=NAME`, e.g.
@@ -183,8 +184,8 @@ chunk more and a lag can be that much higher (`precision` in the output).
 
 `--unmask` asks for the messages in clear. It is refused (`E_UNMASK_OFF`)
 unless you allowed it in the console (`:unmask` or `--allow-unmask`); allowed,
-the request shows `PII: UNMASKED` on its screen, is approved every time, even
-in auto mode, and its audit record says `"unmasked":true`.
+the request shows `PII: UNMASKED` on its screen, is approved every time, never
+by the hub's auto mode, and its audit record says `"unmasked":true`.
 
 `--intent` is one line telling you why; it is shown on the approval screen
 and kept in the audit log.
