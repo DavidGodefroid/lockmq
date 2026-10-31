@@ -161,19 +161,27 @@ lockmq init claude
 lockmq setup
 lockmq doctor --fix --yes
 
-# 3. In a terminal you keep in view, start the console
-lockmq console
+# 3. Declare the lock and start it with its hub (lockhub's lox CLI)
+lox add lockmq events
+lox up
+lox attach events   # the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
+
+# 4. Approve the agent's message reads
+lox approve
 ```
+
+The console runs hub-attached only: `lox up` starts it with its hub flags,
+and `lockmq console` on its own refuses to start.
 
 `lockmq init claude` wires Claude Code to `lockmq mcp`, which the launcher
 runs in a throwaway container.
 
 Inside the containers `localhost` is the container itself: `setup` offers
 `host.docker.internal` for a broker on your machine, and a broker container
-is reached by its name on a network shared with the console
-(`LOCKMQ_DOCKER_ARGS="--network NAME" lockmq console`). Then ask your agent: "which queues have no consumer?", "why
-does orders.failed fill up?". Catalogue calls answer at once; message reads
-wait for your approval in the console.
+is reached by its name on a network shared with the console. Then ask your
+agent: "which queues have no consumer?", "why does orders.failed fill up?".
+Catalogue calls answer at once; message reads wait for your approval on
+lockhub (`lox approve`).
 
 ## How it works
 
@@ -184,6 +192,7 @@ sequenceDiagram
     autonumber
     participant A as 🤖 AI agent<br/>(lockmq mcp / CLI)
     participant C as 🔐 lockmq console<br/>(lockmq account)
+    participant L as 🏛️ lockhub
     actor H as 👤 You
     participant B as 🐇 RabbitMQ
     A->>C: lockmq_queues (catalogue)
@@ -192,8 +201,12 @@ sequenceDiagram
     C-->>A: selected fields (untrusted data)
     A->>C: lockmq_read order-events from last
     C->>B: stream metadata
-    C->>H: approval screen
-    H-->>C: y (or the profile name on production)
+    C->>L: signed ticket, masked screen
+    C-->>A: pending (ticket)
+    L->>H: approval screen (lox approve)
+    H-->>L: approve
+    A->>C: lockmq_read --ticket
+    C->>L: verify the decision
     C->>B: unnamed stream consumer, at most read_max
     B-->>C: messages
     C-->>A: masked, capped messages (untrusted data)
@@ -349,7 +362,7 @@ read over AMQP.
 | `tls` | `verify-full` | `disable`, `prefer`, `require`, `verify-ca`, `verify-full` |
 | `tls_ca`, `tls_cert`, `tls_key` | none | a private CA; a client certificate (both or neither) |
 | `tier` | `read` | `read` or `peek` |
-| `production` | `false` | typed approval, `redact-unknown` body mode, auto mode unavailable |
+| `production` | `false` | typed approval, `redact-unknown` body mode |
 | `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`, `ip`, `secret`, `person_name`; `[]` disables them |
 | `body_mode` | `redact-unknown` on production, `detect` otherwise | |
 | `limits.request_timeout` | 10s | |
@@ -398,9 +411,8 @@ a forged `x-death` can only add masking. The agent may add a mask rule
 |---|---|
 | `:review` | show the pending loosening and the change requests of clients, apply or refuse |
 | `:status` | the policy in force, the session |
-| Shift+Tab, `:mode` | auto mode on/off (never on production; never for `peek`) |
 | Ctrl-O, `:results` | print each read and peek result in clear here (the agent still gets it masked) |
-| `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved here, never auto-approved |
+| `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved on lockhub, never auto-approved |
 | `:quit`, Ctrl-C | end the session |
 
 The switches are console-only: no client, config file or environment

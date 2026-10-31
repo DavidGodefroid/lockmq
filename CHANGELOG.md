@@ -6,6 +6,26 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+The console is hub-attached only (DavidGodefroid/lockkit#110).
+
+### Changed
+
+- `lockmq console` is launched by `lox up` only: `--hub`, `--hub-key-file` and `--instance`
+  are required, and without them (or with only some) it refuses before anything else
+  ("the console is launched by `lox up` only", exit 3). The usage text and `lockmq help` list
+  them first. The quick start (README, docs, site) goes through `lox add lockmq <instance>`,
+  `lox up`, `lox attach` and `lox approve`.
+- A pending answer of `lockmq read` or `lockmq peek` (decided on lockhub) prints the ticket to
+  run with `--ticket`, no longer `null`.
+- Builds on lockkit's hub-only console (pseudo-version until its release).
+
+### Removed
+
+- `--auto` and auto mode (Shift+Tab, `:mode`); the dry run's `auto` verdict. Requests are
+  decided on lockhub; the console's own decisions (a policy change, `:unmask`) stay at its
+  terminal.
+- The standalone start that withdrew the plans hub mode had left pending.
+
 ## [0.4.3] - 2026-10-31
 
 Builds on lockkit v0.8.1: a `--hub` URL is `http(s)://host[:port]` only, opt-in `ip`, `secret`

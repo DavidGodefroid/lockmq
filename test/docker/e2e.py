@@ -2,11 +2,14 @@
 """End-to-end test of the lockmq image, following docs/docker.md.
 
 A RabbitMQ container and the console container share a network; the
-console runs in a pseudo-terminal this script answers (policy, password,
-approvals); the agent's commands run in throwaway containers that share
-only the socket volume and the project. It also checks the image's
-accounts and modes, and that the console refuses a peer that is neither
-lockmq nor in lockmq-clients.
+console runs in a pseudo-terminal this script answers (policy, password),
+attached to a hub as `lox up` starts it (the hub flags are required; the
+hub named here is not running, so a read stays pending: the decision on a
+real hub is lockhub's own end-to-end test); the agent's commands run in
+throwaway containers that share only the socket volume and the project.
+It also checks the image's accounts and modes, that the console refuses to
+start without its hub, and that it refuses a peer that is neither lockmq
+nor in lockmq-clients.
 
     python3 test/docker/e2e.py IMAGE
 
@@ -33,6 +36,7 @@ ADMIN, ADMIN_PASS = "admin", "e2e-admin-pass"
 RO, RO_PASS = "lockmq-ro", "e2e-ro-pass"
 MGMT = "http://127.0.0.1:15699"
 PAYLOAD = '{"order":"e2e-1"}'
+HUB_URL, INSTANCE = "http://lockmq-e2e-hub:8443", "mq-e2e"
 
 failures = []
 
@@ -107,6 +111,7 @@ class Console:
     """The console in a pseudo-terminal, answering its prompts."""
 
     def __init__(self, project, *extra):
+        hub = ["--hub", HUB_URL, "--hub-plain-http", "--hub-key-file", os.path.join(project, "hub.pub"), "--instance", INSTANCE]
         self.out = b""
         self.lock = threading.Lock()
         self.answered = {}
@@ -115,12 +120,12 @@ class Console:
             os.execvp("docker", ["docker", "run", "-it", "--rm", "--name", CONSOLE, "--user", "lockmq",
                                  "--network", NET, "-v", f"{project}:{project}",
                                  "-v", f"{RUN_VOL}:/run/lockmq", "-v", f"{HOME_VOL}:/home/lockmq",
-                                 IMAGE, "console", "--project", project, *extra])
+                                 IMAGE, "console", "--project", project, *hub, *extra])
         threading.Thread(target=self.pump, daemon=True).start()
 
     def pump(self):
         answers = [("Apply these changes? [y/N]", b"y\r"), ("Password for", RO_PASS.encode() + b"\r"),
-                   ('Type "continue" to proceed', b"continue\r"), ("Approve? [y/N]", b"y\r")]
+                   ('Type "continue" to proceed', b"continue\r")]
         while True:
             try:
                 r, _, _ = select.select([self.fd], [], [], 0.2)
@@ -178,7 +183,16 @@ def main():
         check(st.st_uid == 10011 and (st.st_mode & 0o777) == 0o755, f"doctor --fix gives .lockmq to uid 10011, 0755\n{r.stdout}{r.stderr}")
         check(os.stat(os.path.join(project, ".lockmq", "config.toml")).st_mode & 0o004 != 0, "config.toml readable by the console")
 
-        # Run the console.
+        # Without its hub the console refuses to start: launched by lox up only.
+        r = sh("docker", "run", "--rm", "--user", "lockmq", "-v", f"{project}:{project}",
+               IMAGE, "console", "--project", project, check_=False)
+        check(r.returncode != 0 and "launched by `lox up` only" in r.stdout + r.stderr, f"console without --hub refused\n{r.stdout}{r.stderr}")
+
+        # Run the console, attached to a hub (its pinned key; the hub itself
+        # is not running).
+        with open(os.path.join(project, "hub.pub"), "w") as f:
+            f.write(base64.b64encode(os.urandom(32)).decode() + "\n")
+        os.chmod(os.path.join(project, "hub.pub"), 0o644)
         con = Console(project)
         deadline, up = time.time() + 120, False
         while time.time() < deadline:
@@ -195,8 +209,9 @@ def main():
         check(r.returncode == 0 and "orders" in r.stdout, f"catalogue call (queues)\n{r.stdout}{r.stderr}")
 
         r = agent(project, "read", "orders", "--from", "first", "--max", "1", "--json")
-        check(r.returncode == 0 and "e2e-1" in r.stdout, f"stream read approved in the console\n{r.stdout}{r.stderr}")
-        check(con.answered.get("Approve? [y/N]", 0) >= 1, "the read was approved in the console")
+        check('"pending"' in r.stdout and "e2e-1" not in r.stdout, f"stream read pending on the hub, nothing read\n{r.stdout}{r.stderr}")
+        check("Approve? [y/N]" not in con.text(), "the read is never asked in the console")
+        check(f"Requests are decided on lockhub at {HUB_URL} as {INSTANCE}" in con.text(), "the console names its hub")
 
         # Peers outside the setup.
         r = agent(project, "status", user="4242")

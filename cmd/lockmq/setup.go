@@ -121,9 +121,9 @@ func runSetup(e env, args []string) int {
 	}
 	fmt.Fprintf(e.stdout, "\nProfile %s written to %s (tier %s; no secret in the file).\n", name, path, sp.Tier)
 	if container {
-		fmt.Fprintln(e.stdout, "Give .lockmq to the console account, then start the console: see docs/docker.md.")
+		fmt.Fprintln(e.stdout, "Give .lockmq to the console account, then start the console with its hub (lox add lockmq NAME, lox up): see docs/docker.md.")
 	} else {
-		fmt.Fprintf(e.stdout, "Start its console in a terminal of the lockmq account: lockmq console --profile %s --project %s\n", name, root)
+		fmt.Fprintf(e.stdout, "Start its console with its hub: lox add lockmq NAME (profile %s, project %s), then lox up\n", name, root)
 		fmt.Fprintln(e.stdout, "Wire your agents with: lockmq init")
 	}
 	return exitOK

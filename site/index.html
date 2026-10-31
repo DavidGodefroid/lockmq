@@ -149,10 +149,15 @@ lockmq init claude
 lockmq setup
 lockmq doctor --fix --yes
 
-# 3. Start the console in a terminal you keep in view
-lockmq console</code></pre>
+# 3. Declare the lock and start it with its hub (lockhub's lox CLI)
+lox add lockmq events
+lox up
+lox attach events   # policy review, password
+
+# 4. Approve the agent's message reads
+lox approve</code></pre>
   <p class="prose">Every <code>lockmq</code> command runs in the signed Docker image; <code>lockmq init claude</code> wires Claude Code to <code>lockmq mcp</code>, run in a throwaway container.</p>
-  <p class="prose">Then ask your agent: “which queues have no consumer?”. Catalogue calls answer at once; message reads wait for your approval in the console.</p>
+  <p class="prose">Then ask your agent: “which queues have no consumer?”. Catalogue calls answer at once; message reads wait for your approval on lockhub.</p>
   <p><a href="install/">The Docker setup, step by step</a></p>
 </section>
 

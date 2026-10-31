@@ -16,15 +16,15 @@ import (
 	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
-// runConsole is `lockmq console`: the approval console of one profile, in
-// the human's terminal.
+// runConsole is `lockmq console`: the console of one profile, attached to
+// its hub. It is launched by `lox up` only: the hub flags are required,
+// and requests are decided on lockhub.
 func runConsole(e env, args []string) int {
-	const usage = "lockmq console [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results] [--allowed-uids UID,...] [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]"
+	const usage = "lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME [--profile P] [--project DIR] [--allow-unmask] [--show-results] [--allowed-uids UID,...] (launched by lox up)"
 	fs := flag.NewFlagSet("console", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "profile to serve")
 	project := fs.String("project", "", "project directory (default: the current directory)")
-	auto := fs.Bool("auto", false, "start in auto mode (never on production; never for peek)")
 	allowUnmask := fs.Bool("allow-unmask", false, "let clients ask for unmasked output (each approved here)")
 	showResults := fs.Bool("show-results", false, "print results in clear in this console")
 	var allowed onceFlag
@@ -39,8 +39,13 @@ func runConsole(e env, args []string) int {
 	if err != nil {
 		return usageFail(e, "console", usage, err.Error())
 	}
+	if hub.URL == "" || hub.KeyFile == "" || hub.Instance == "" {
+		// Hub-attached only: refused before the terminal, the profile or
+		// any file is looked at.
+		return usageFail(e, "console", usage, console.ErrNoHub.Error())
+	}
 	if !e.tty {
-		fmt.Fprintln(e.stderr, "lockmq console: must run in a terminal: it asks the human for credentials and approvals")
+		fmt.Fprintln(e.stderr, "lockmq console: must run in a terminal: it asks the human for credentials and the console's own decisions")
 		return exitUsage
 	}
 	pe := e
@@ -62,7 +67,7 @@ func runConsole(e env, args []string) int {
 	}
 	term := console.NewTerminal(os.Stdin, e.stdout)
 	if err := term.Interactive(); err != nil {
-		fmt.Fprintln(e.stderr, "lockmq console: warning:", err, "(the mode keys and the status line are off)")
+		fmt.Fprintln(e.stderr, "lockmq console: warning:", err, "(the console keys and the status line are off)")
 	}
 	defer term.Restore()
 	ctx, stop := signalContext()
@@ -81,7 +86,7 @@ func runConsole(e env, args []string) int {
 	}
 	err = console.Run(ctx, p, be, console.Options{
 		Profile: name, ProjectRoot: root, IO: term, TTY: os.Stdin, Isolation: iso,
-		Auto: *auto, AllowUnmask: *allowUnmask, ShowResults: *showResults,
+		AllowUnmask: *allowUnmask, ShowResults: *showResults,
 		Sanitizer: mqconsole.Sanitizer(), Hub: hub, OnHub: be.OnHub,
 	})
 	if err != nil {

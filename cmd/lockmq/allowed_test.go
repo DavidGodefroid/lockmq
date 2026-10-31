@@ -145,6 +145,29 @@ func TestConsoleAllowedUIDsFlag(t *testing.T) {
 	}
 }
 
+// lockmq console is launched by lox up only: without its hub flags, or
+// with only some of them, it refuses before anything else (exit 3).
+func TestConsoleRequiresHub(t *testing.T) {
+	for _, args := range [][]string{
+		nil,
+		{"--profile", "uat"},
+		{"--hub", "http://lockhub:8443", "--instance", "mq-uat"},
+		{"--hub-key-file", "/run/lockfamily/hub.pub", "--instance", "mq-uat"},
+	} {
+		var out, errb bytes.Buffer
+		e := env{stdin: strings.NewReader(""), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: true}
+		if code := runConsole(e, args); code != exitUsage || !strings.Contains(errb.String(), "launched by `lox up` only") ||
+			!strings.Contains(errb.String(), "usage: lockmq console --hub URL") {
+			t.Errorf("%v: exit %d, %s", args, code, errb.String())
+		}
+	}
+	var out, errb bytes.Buffer
+	e := env{stdin: strings.NewReader(""), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: true}
+	if code := runConsole(e, []string{"--auto"}); code != exitUsage || !strings.Contains(errb.String(), "wrong arguments") {
+		t.Errorf("--auto: exit %d, %s", code, errb.String())
+	}
+}
+
 // A value pasted into --allowed-uids is not echoed.
 func TestParseAllowedUIDsDoesNotEcho(t *testing.T) {
 	// Digits-only fields are not echoed either (a PIN, an account number).
@@ -153,5 +176,23 @@ func TestParseAllowedUIDsDoesNotEcho(t *testing.T) {
 		if err == nil || strings.Contains(err.Error(), "glsa_Canary") || strings.Contains(err.Error(), "4242") || !strings.Contains(err.Error(), "--allowed-uids") {
 			t.Errorf("parseAllowedUIDs(%q) = %v", v, err)
 		}
+	}
+}
+
+// A pending answer of op.run (decided on lockhub) prints its ticket, not
+// an empty result.
+func TestPrintOutPending(t *testing.T) {
+	pending := map[string]any{"status": "pending", "ticket": "01JBDN0Z0000000000000000AB", "lock": "lockmq", "instance": "mq-uat"}
+	for _, js := range []bool{true, false} {
+		var out, errb bytes.Buffer
+		e := env{stdout: &out, stderr: &errb}
+		if code := printOut(e, cliOpts{json: js}, "read", pending); code != exitOK || !strings.Contains(out.String(), "01JBDN0Z0000000000000000AB") ||
+			!strings.Contains(out.String(), "pending") {
+			t.Errorf("json %v: exit %d out %q", js, code, out.String())
+		}
+	}
+	var out bytes.Buffer
+	if printOut(env{stdout: &out, stderr: &out}, cliOpts{json: true}, "read", map[string]any{"data": map[string]any{"n": 1}}); strings.Contains(out.String(), "status") {
+		t.Errorf("data result: %q", out.String())
 	}
 }

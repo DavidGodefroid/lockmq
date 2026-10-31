@@ -77,10 +77,10 @@ type Message struct {
 // without any approval. op.run decides again from scratch.
 type Plan struct {
 	Op string `json:"op"`
-	// Verdict is run (no approval), auto (approved by auto mode), prompt
-	// (the human approves), prompt-every-time (never auto-approved), hub
-	// (decided on the approval hub: op.run answers pending with a ticket)
-	// or refused.
+	// Verdict is run (no approval), hub (decided on the approval hub:
+	// op.run answers pending with a ticket), prompt or prompt-every-time
+	// (a console without a hub, in tests: the human approves; never
+	// auto-approved) or refused.
 	Verdict  string        `json:"verdict"`
 	Reason   string        `json:"reason,omitempty"`
 	Refusal  *refusal.Info `json:"refusal,omitempty"`
@@ -632,8 +632,6 @@ func (b *Backend) plan(ctx context.Context, req ipc.Request, env console.Env) ip
 			out.Verdict = "hub"
 		case pp.screen.NeverAuto:
 			out.Verdict = "prompt-every-time"
-		case env.Auto():
-			out.Verdict = "auto"
 		default:
 			out.Verdict = "prompt"
 		}

@@ -210,7 +210,6 @@ type rig struct {
 type rigOpts struct {
 	production bool
 	tier       string
-	auto       bool
 	pii        string
 	answers    []string
 	// allowUnmask and showResults are the console's switches at start.
@@ -287,13 +286,8 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		t.Fatal(err)
 	}
 	cfg := console.ServerConfig{Product: product.P, Backend: r.be, Policy: pol, Session: sess,
-		Audit: log, IO: r.io, Auto: o.auto, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer(), Now: o.now}
-	if o.hub == nil {
-		// As console.Run: a standalone start withdraws what hub mode left.
-		if _, err := console.WithdrawStandalone(product.P, r.state); err != nil {
-			t.Fatal(err)
-		}
-	} else {
+		Audit: log, IO: r.io, AllowUnmask: o.allowUnmask, ShowResults: o.showResults, Sanitizer: Sanitizer(), Now: o.now}
+	if o.hub != nil {
 		h, err := console.OpenHub(product.P, *o.hub, r.state, o.now)
 		if err != nil {
 			t.Fatal(err)

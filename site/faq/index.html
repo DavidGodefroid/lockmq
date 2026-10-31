@@ -63,7 +63,7 @@
 </section>
 <section aria-labelledby="setup">
   <h2 id="setup">How do I set it up?</h2>
-  <p>Install the <code>lockmq</code> launcher, which runs every command in the signed Docker image, then run <code>lockmq init</code> (your agents) and <code>lockmq setup</code> (a broker profile) in the project, give <code>.lockmq</code> to the console account with <code>lockmq doctor --fix</code> and start <code>lockmq console</code>; the agent runs <code>lockmq mcp</code> in a throwaway container. <a href="../install/">Setup steps</a>.</p>
+  <p>Install the <code>lockmq</code> launcher, which runs every command in the signed Docker image, then run <code>lockmq init</code> (your agents) and <code>lockmq setup</code> (a broker profile) in the project, give <code>.lockmq</code> to the console account with <code>lockmq doctor --fix</code>, then start the console with its hub (<code>lox add lockmq events</code>, <code>lox up</code>) and approve with <code>lox approve</code>; the agent runs <code>lockmq mcp</code> in a throwaway container. <a href="../install/">Setup steps</a>.</p>
 </section>
 <section aria-labelledby="agents">
   <h2 id="agents">Which AI agents does it work with?</h2>
@@ -83,7 +83,7 @@
 </section>
 <section aria-labelledby="self-approve">
   <h2 id="self-approve">Can the agent approve its own reads, or turn peek on?</h2>
-  <p>No. Approval comes only from the console terminal: no socket method approves and no socket method loosens the policy. Switching a profile to tier <code>peek</code> is a loosening: written by anyone, it takes effect only after you confirm it in the console. Auto mode switches only from the console’s keyboard, is unavailable on production profiles and never applies to a peek.</p>
+  <p>No. Approval comes only from the console terminal: no socket method approves and no socket method loosens the policy. Switching a profile to tier <code>peek</code> is a loosening: written by anyone, it takes effect only after you confirm it in the console. The agent’s reads and peeks are approved on lockhub, which never auto-approves a peek.</p>
 </section>
 <section aria-labelledby="own-account">
   <h2 id="own-account">Why does the console need its own OS account?</h2>
@@ -100,7 +100,7 @@
 </section>
 <section aria-labelledby="see-values">
   <h2 id="see-values">Can I see the real values myself?</h2>
-  <p>Yes, in the console only. Press Ctrl-O (or type <code>:results</code>) and the console prints each read and peek result in clear in its own terminal, while the agent still gets it masked. To let the agent itself receive clear values, type <code>:unmask</code>: a request with <code>--unmask</code> then shows <code>PII: UNMASKED</code> on its screen and is approved by you every time, never by auto mode. Both switches are console-only and audited.</p>
+  <p>Yes, in the console only. Press Ctrl-O (or type <code>:results</code>) and the console prints each read and peek result in clear in its own terminal, while the agent still gets it masked. To let the agent itself receive clear values, type <code>:unmask</code>: a request with <code>--unmask</code> then shows <code>PII: UNMASKED</code> on its screen and is approved by you every time, never by the hub’s auto mode. Both switches are console-only and audited.</p>
 </section>
 <section aria-labelledby="purge">
   <h2 id="purge">What permissions should the broker user have?</h2>

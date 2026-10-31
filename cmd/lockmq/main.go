@@ -62,10 +62,11 @@ const usageText = `usage: lockmq <command> [arguments]
 
 Human commands
   setup      [--project DIR]            add a broker profile to the project (asks)
-  console    [--profile P] [--project DIR] [--auto] [--allow-unmask] [--show-results]
+  console    --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
+             [--profile P] [--project DIR] [--allow-unmask] [--show-results]
              [--allowed-uids UID,...]
-             [--hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME]
-                                        run the approval console (--hub: decided on lockhub)
+                                        run the console, attached to lockhub, which decides
+                                        requests (launched by lox up)
   hub-key    --instance NAME            print the instance key for lockhub to pin
   doctor     [--profile P] [--fix [--yes]]
                                         check the config, each profile's tier, the consoles,
