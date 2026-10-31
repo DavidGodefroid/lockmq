@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -62,8 +63,8 @@ func runDoctor(e env, args []string) int {
 	}
 	names := profileNames(ps)
 	if *only != "" {
-		if _, ok := ps[*only]; !ok {
-			fmt.Fprintf(e.stdout, "✗ profile %s: not configured (configured: %s)\n", *only, orNone(names))
+		if err := checkProfileArg(ps, *only); err != nil {
+			fmt.Fprintln(e.stdout, "✗ profile:", err)
 			return exitUsage
 		}
 		names = []string{*only}
@@ -237,6 +238,16 @@ func runInit(e env, args []string) int {
 		agents = agentwire.Detect(env)
 		if len(agents) == 0 {
 			fmt.Fprintf(e.stderr, "lockmq init: no agent found; name one of: %s\n", strings.Join(agentwire.Agents(), ", "))
+			return exitUsage
+		}
+	}
+	known := agentwire.Agents()
+	for _, a := range agents {
+		// A name that is not an agent's (a flag, a token pasted in the
+		// wrong place) is not quoted, nor passed to agentwire, whose
+		// error would quote it.
+		if !slices.Contains(known, a) {
+			fmt.Fprintf(e.stderr, "lockmq init: unknown agent; name one of: %s\n", strings.Join(known, ", "))
 			return exitUsage
 		}
 	}

@@ -16,7 +16,6 @@ import (
 
 	"github.com/DavidGodefroid/lockkit/agentwire"
 	kconfig "github.com/DavidGodefroid/lockkit/config"
-	"github.com/DavidGodefroid/lockkit/sanitize"
 
 	"github.com/DavidGodefroid/lockmq/internal/config"
 	"github.com/DavidGodefroid/lockmq/internal/product"
@@ -85,7 +84,7 @@ func runSetup(e env, args []string) int {
 		return exitFail
 	}
 	if _, dup := existing[name]; dup {
-		fmt.Fprintf(e.stderr, "lockmq setup: profile %q is already in %s\n", name, path)
+		fmt.Fprintf(e.stderr, "lockmq setup: a profile of that name is already in %s\n", path)
 		return exitUsage
 	}
 	var buf bytes.Buffer
@@ -172,8 +171,10 @@ func askProfile(ask func(prompt, def string) (string, error), container bool) (s
 	if err != nil {
 		return "", sp, err
 	}
-	if sanitize.Terminal(name, false) != name {
-		return "", sp, errors.New("invalid profile name")
+	// lockkit's check, which does not quote the name: it may be a token
+	// typed at the wrong prompt.
+	if err := kconfig.CheckProfileName(name, yes(prod)); err != nil {
+		return "", sp, err
 	}
 	if container && sp.Credentials == kconfig.CredentialsKeychain {
 		return "", sp, errors.New("a container has no keychain: use ask or vault")

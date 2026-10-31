@@ -565,3 +565,36 @@ func checkNoEcho(t *testing.T, name string, err error, key string) {
 		t.Errorf("%s: error %q does not name %q", name, msg, key)
 	}
 }
+
+// lockkit v0.8.0's opt-in detectors work through the masker once a profile
+// names them: a token, a public IP address.
+func TestOptInDetectors(t *testing.T) {
+	ds, err := pii.Detectors([]string{"secret", "ip", "email"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := &pii.RefStore{}
+	m := NewMasker(Rules{}, ds, "detect", refs, 16384)
+	res := m.Mask(refs.Begin(), "orders", "q", Message{Body: []byte("auth Bearer glsa_CanarySecretToken123 from 8.8.8.8 ok"), ContentType: "text/plain"})
+	s, _ := res.Body.(string)
+	for _, gone := range []string{"glsa_Canary", "8.8.8.8"} {
+		if strings.Contains(s, gone) {
+			t.Errorf("%q in clear: %q", gone, s)
+		}
+	}
+	if !strings.Contains(s, "ok") {
+		t.Errorf("body = %q", s)
+	}
+}
+
+// lockkit v0.8.0: a JSON \t escape is read as the blank it stands for, so
+// a phone number right after one, in a text field of a log line, is found.
+func TestJSONEscapeBoundary(t *testing.T) {
+	refs := &pii.RefStore{}
+	m := NewMasker(Rules{}, detectors(t), "detect", refs, 16384)
+	res := m.Mask(refs.Begin(), "orders", "q", Message{Body: []byte(`{"msg":"tel:\t0475123456"}`), ContentType: "text/plain"})
+	s, _ := res.Body.(string)
+	if strings.Contains(s, "0475123456") {
+		t.Errorf("phone in clear: %q", s)
+	}
+}

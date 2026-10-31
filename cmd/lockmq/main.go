@@ -148,7 +148,9 @@ func run(e env, args []string) int {
 				return runClient(e, cmd, args[1:])
 			}
 		}
-		fmt.Fprintf(e.stderr, "lockmq: unknown command %q\n\n%s", cmd, usageText)
+		// The command is not quoted: it may be a token pasted in the
+		// wrong place.
+		fmt.Fprintf(e.stderr, "lockmq: unknown command; the commands are:\n\n%s", usageText)
 		return exitUsage
 	}
 }
