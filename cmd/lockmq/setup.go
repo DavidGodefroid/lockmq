@@ -83,6 +83,12 @@ func runSetup(e env, args []string) int {
 		fmt.Fprintln(e.stderr, "lockmq setup:", err)
 		return exitFail
 	}
+	// lockkit's check, which does not quote the name (it may be a token
+	// typed at the wrong prompt): a configuration error, as in a file.
+	if err := kconfig.CheckProfileName(name, sp.Production); err != nil {
+		fmt.Fprintln(e.stderr, "lockmq setup:", err)
+		return exitUsage
+	}
 	if _, dup := existing[name]; dup {
 		fmt.Fprintf(e.stderr, "lockmq setup: a profile of that name is already in %s\n", path)
 		return exitUsage
@@ -169,11 +175,6 @@ func askProfile(ask func(prompt, def string) (string, error), container bool) (s
 	q(&prod, "Production? [y/N] ", "n")
 	q(&peek, peekQuestion, "n")
 	if err != nil {
-		return "", sp, err
-	}
-	// lockkit's check, which does not quote the name: it may be a token
-	// typed at the wrong prompt.
-	if err := kconfig.CheckProfileName(name, yes(prod)); err != nil {
 		return "", sp, err
 	}
 	if container && sp.Credentials == kconfig.CredentialsKeychain {
