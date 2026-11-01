@@ -56,8 +56,19 @@ const oneProfile = "[profiles.dev]\nurl = \"http://127.0.0.1:15672\"\n"
 
 func runWith(t *testing.T, root string, conn *fakeConn, dialErr error, stdin string, args ...string) (int, string, string) {
 	t.Helper()
+	return runEnv(t, root, conn, dialErr, stdin, false, args...)
+}
+
+// runTTY runs a command whose stdin is a terminal, as a human types.
+func runTTY(t *testing.T, root, stdin string, args ...string) (int, string, string) {
+	t.Helper()
+	return runEnv(t, root, nil, nil, stdin, true, args...)
+}
+
+func runEnv(t *testing.T, root string, conn *fakeConn, dialErr error, stdin string, tty bool, args ...string) (int, string, string) {
+	t.Helper()
 	var out, errb bytes.Buffer
-	e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: root,
+	e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: root, tty: tty,
 		userConfig: filepath.Join(t.TempDir(), "none.toml"),
 		container:  func() bool { return false },
 		svc:        func(string) (svcAccount, bool) { return svcAccount{}, false },
@@ -186,18 +197,18 @@ func TestToolsListMatchesCLI(t *testing.T) {
 	}
 }
 
-func setupAnswers(peek string) string {
+func addAnswers(peek string) string {
 	return strings.Join([]string{"uat", "http://127.0.0.1:15672", "", "rabbitmq-stream://127.0.0.1:5552", "/, orders", "lockmq-ro", "", "", peek}, "\n") + "\n"
 }
 
 // An empty answer to the peek question writes tier = "read".
-func TestSetupPeekDefaultNo(t *testing.T) {
+func TestProfileAddPeekDefaultNo(t *testing.T) {
 	for _, c := range []struct {
 		answer string
 		tier   config.Tier
 	}{{"", config.TierRead}, {"n", config.TierRead}, {"y", config.TierPeek}} {
 		root := project(t, oneProfile)
-		code, out, stderr := runWith(t, root, nil, nil, setupAnswers(c.answer), "setup")
+		code, out, stderr := runTTY(t, root, addAnswers(c.answer), "profile", "add")
 		if code != exitOK {
 			t.Fatalf("exit %d: %s", code, stderr)
 		}
@@ -217,20 +228,21 @@ func TestSetupPeekDefaultNo(t *testing.T) {
 		}
 	}
 	root := project(t, oneProfile)
-	dup := strings.Replace(setupAnswers(""), "uat", "dev", 1)
-	if code, _, _ := runWith(t, root, nil, nil, dup, "setup"); code != exitUsage {
-		t.Errorf("duplicate profile: exit %d", code)
+	dup := strings.Replace(addAnswers(""), "uat", "dev", 1)
+	code, out, _ := runTTY(t, root, dup, "profile", "add")
+	if code != exitUsage || !strings.Contains(out, "Profile name") || strings.Contains(out, "Management API URL") {
+		t.Errorf("duplicate profile: exit %d, asked on after the name:\n%s", code, out)
 	}
-	bad := strings.Replace(setupAnswers(""), "http://127.0.0.1:15672", "http://u:p@127.0.0.1:15672", 1)
-	if code, _, stderr := runWith(t, project(t, ""), nil, nil, bad, "setup"); code != exitUsage || strings.Contains(stderr, "u:p") {
+	bad := strings.Replace(addAnswers(""), "http://127.0.0.1:15672", "http://u:p@127.0.0.1:15672", 1)
+	if code, _, stderr := runTTY(t, project(t, ""), bad, "profile", "add"); code != exitUsage || strings.Contains(stderr, "u:p") {
 		t.Errorf("url with password: exit %d %s", code, stderr)
 	}
 }
 
-// A secret typed as setup's profile name is not echoed: lockkit's
+// A secret typed as profile add's profile name is not echoed: lockkit's
 // CheckProfileName refuses an invalid one without quoting it, and a
 // duplicate is not named.
-func TestSetupProfileNameDoesNotEcho(t *testing.T) {
+func TestProfileAddNameDoesNotEcho(t *testing.T) {
 	const tok = "glsa_CanarySecretToken123"
 	dupCfg := strings.Replace(oneProfile, "[profiles.dev]", "[profiles."+tok+"]", 1)
 	if dupCfg == oneProfile {
@@ -241,7 +253,7 @@ func TestSetupProfileNameDoesNotEcho(t *testing.T) {
 		{tok, dupCfg}, // well-formed, already configured
 	} {
 		v := c.name
-		code, out, stderr := runWith(t, project(t, c.cfg), nil, nil, strings.Replace(setupAnswers(""), "uat", v, 1), "setup")
+		code, out, stderr := runTTY(t, project(t, c.cfg), strings.Replace(addAnswers(""), "uat", v, 1), "profile", "add")
 		if code != exitUsage {
 			t.Errorf("%s: exit %d, want %d", v, code, exitUsage)
 		}
@@ -251,11 +263,11 @@ func TestSetupProfileNameDoesNotEcho(t *testing.T) {
 	}
 }
 
-// A production profile named like an everyday answer is refused at setup
-// as a configuration error (exit 3), as it is in a config file.
-func TestSetupProductionReservedName(t *testing.T) {
+// A production profile named like an everyday answer is refused by profile
+// add as a configuration error (exit 3), as it is in a config file.
+func TestProfileAddProductionReservedName(t *testing.T) {
 	answers := strings.Join([]string{"y", "http://127.0.0.1:15672", "", "", "", "", "", "y", ""}, "\n") + "\n"
-	code, _, stderr := runWith(t, project(t, oneProfile), nil, nil, answers, "setup")
+	code, _, stderr := runTTY(t, project(t, oneProfile), answers, "profile", "add")
 	if code != exitUsage || !strings.Contains(stderr, "production profile") {
 		t.Errorf("exit %d, want %d: %s", code, exitUsage, stderr)
 	}

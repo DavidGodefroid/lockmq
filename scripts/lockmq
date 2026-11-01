@@ -8,7 +8,7 @@
 #                    capability, read-only root, bounded processes and
 #                    memory), with the socket and home volumes
 #   init             as you, with your home: it writes your agents' files
-#   setup            as you, so that the profile it writes is yours
+#   profile add      as you, so that the profile it writes is yours
 #   doctor --fix     as root, which gives .lockmq/ to the console account
 #   mcp, doctor and the client commands (status, queues, read, peek...)
 #                    as the agent account (agent), with the socket volume of
@@ -617,8 +617,8 @@ console)
 	fi
 	# No log driver: with a terminal, docker's json-file log would keep every
 	# screen of the console (results you chose to show) for anyone who runs
-	# docker logs. host.docker.internal is this machine, as the setup
-	# wizard offers it. The console holds the credentials: no capability, no
+	# docker logs. host.docker.internal is this machine, as profile add
+	# offers it. The console holds the credentials: no capability, no
 	# privilege gain, a read-only root with a small /tmp, bounded processes
 	# and memory.
 	set -- --name "$name" --log-driver none --user lockmq \
@@ -637,7 +637,7 @@ init)
 	mountable "$HOME"
 	docker_run "$tty" --user "$(id -u):$(id -g)" -e HOME="$HOME" -v "$HOME:$HOME" "$image" "$@"
 	;;
-setup)
+profile)
 	docker_run "$tty" --user "$(id -u):$(id -g)" -e HOME=/tmp "$image" "$@"
 	;;
 doctor)

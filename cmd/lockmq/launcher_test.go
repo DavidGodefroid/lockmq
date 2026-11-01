@@ -259,7 +259,12 @@ func TestLauncherAccountsPerCommand(t *testing.T) {
 		{[]string{"doctor"}, [][]string{sock}, [][]string{{"--user"}, fixed}},
 		{[]string{"doctor", "--fix", "--yes"}, [][]string{{"--user", "0"}}, [][]string{sock, fixed}},
 		{[]string{"init", "claude"}, [][]string{{"--user", me}, {"-e", "HOME=" + home}, {"-v", home + ":" + home}}, [][]string{sock, fixed}},
-		{[]string{"setup"}, [][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},
+		{[]string{"doctor", "--fix", "--yes", "--json"}, [][]string{{"--user", "0"}}, [][]string{sock, fixed}},
+		{[]string{"profile", "add"}, [][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},
+		// lox init's call: every flag reaches the image as given.
+		{[]string{"profile", "add", "--non-interactive", "--json", "--profile", "dev", "--credentials", "vault", "--vault-path", "rabbitmq/creds/ro",
+			"--url", "http://host.docker.internal:15672", "--user", "ro", "--vhost", "/", "--vhost", "orders"},
+			[][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},
 		{nil, nil, [][]string{{"--user"}, sock, fixed}},
 	} {
 		out, calls, err := f.run(t, f.project, nil, tc.args...)

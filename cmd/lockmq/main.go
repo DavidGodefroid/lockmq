@@ -61,18 +61,22 @@ type env struct {
 const usageText = `usage: lockmq <command> [arguments]
 
 Human commands
-  setup      [--project DIR]            add a broker profile to the project (asks)
-  console    --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
+  profile add [--non-interactive] [--json] [--project DIR] [--profile NAME] [--production]
+             [--credentials ask|vault [--vault-path P]] [--url URL] [--user USER] [--vhost V]...
+             [--amqp-url URL] [--stream-url URL] [--tier read|peek]
+                                        add a broker profile to the project (asks for what
+                                        the flags do not give; never for a secret)
+  console   --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
              [--profile P] [--project DIR] [--allow-unmask] [--show-results]
              [--allowed-uids UID,...]
                                         run the console, attached to lockhub, which decides
                                         requests (launched by lox up)
   hub-key    --instance NAME            print the instance key for lockhub to pin
-  doctor     [--profile P] [--fix [--yes]]
+  doctor     [--profile P] [--fix [--yes]] [--json]
                                         check the config, each profile's tier, the consoles,
                                         the project's .lockmq and the agent wiring
   init       [claude|codex|cursor|gemini ...]
-                                        wire agents to lockmq in the project
+                                        wire agents to lockmq in the project (never asks)
   update     [vX.Y.Z]                   update the launcher and its image (on the host;
                                         cosign signature and checksum checked)
 
@@ -132,8 +136,8 @@ func run(e env, args []string) int {
 		return runConsole(e, args[1:])
 	case "mcp":
 		return runMCP(e, args[1:])
-	case "setup":
-		return runSetup(e, args[1:])
+	case "profile":
+		return runProfile(e, args[1:])
 	case "doctor":
 		return runDoctor(e, args[1:])
 	case "init":

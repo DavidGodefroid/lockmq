@@ -80,7 +80,7 @@ func resolveProfile(e env, name string) (string, error) {
 	}
 	switch len(names) {
 	case 0:
-		return "", usageError{"no profile is configured: run lockmq setup, or add one to .lockmq/config.toml"}
+		return "", usageError{"no profile is configured: run lockmq profile add, or add one to .lockmq/config.toml"}
 	case 1:
 		return names[0], nil
 	}

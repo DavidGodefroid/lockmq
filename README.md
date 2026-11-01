@@ -158,7 +158,7 @@ less install.sh && LOCKMQ_VERSION=$V sh install.sh
 
 # 2. In your project: the agent files, a broker profile, then .lockmq for the console
 lockmq init claude
-lockmq setup
+lockmq profile add          # asks; or --non-interactive --url URL --user USER ...
 lockmq doctor --fix --yes
 
 # 3. Declare the lock and start it with its hub (lockhub's lox CLI)
@@ -176,7 +176,12 @@ and `lockmq console` on its own refuses to start.
 `lockmq init claude` wires Claude Code to `lockmq mcp`, which the launcher
 runs in a throwaway container.
 
-Inside the containers `localhost` is the container itself: `setup` offers
+`init`, `profile add` and `doctor` are the same three verbs in every lock
+of the family, which `lox init` drives (`profile add --non-interactive
+--json`, `init claude`, `doctor --fix --yes --json`); no form of `profile
+add` takes or asks for a password.
+
+Inside the containers `localhost` is the container itself: `profile add` offers
 `host.docker.internal` for a broker on your machine, and a broker container
 is reached by its name on a network shared with the console. Then ask your
 agent: "which queues have no consumer?", "why does orders.failed fill up?".

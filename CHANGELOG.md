@@ -6,6 +6,40 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+The same launcher verbs as every lock of the family, which `lox init` drives
+(DavidGodefroid/lockkit#111, T5; lockkit GUIDE §14). Builds on lockkit v0.10.0.
+
+### Added
+
+- **`lockmq profile add`** adds one broker profile to the project's `.lockmq/config.toml`
+  from its flags: `--profile NAME` (default `dev`), `--url` (management API), `--user`,
+  `--vhost` (repeatable), `--amqp-url`, `--stream-url`, `--production`,
+  `--credentials ask|vault [--vault-path P]`, `--tier read|peek`, `--project DIR`. Without
+  `--non-interactive`, in a terminal, it asks for what the flags did not give; without a
+  terminal it refuses rather than wait. `--non-interactive` never reads stdin (`--url` is then
+  required). No form takes, asks for or writes a secret: the arguments go through lockkit's
+  `verbs.Parse` and `verbs.RefuseSecrets` (a flag named like a secret, a value that embeds a
+  password, a positional argument) and `verbs.Credentials` (`keychain` refused), and an error
+  names the flag, never its value. A profile already in the config is refused with code
+  `exists` and nothing is written. `--json` prints exactly one line on stdout: `verbs.Profile`,
+  or `verbs.Error` (`usage`, `secret`, `exists`, `failed`); questions and messages then go to
+  stderr.
+- `lockmq doctor --json` prints one `verbs.Doctor` (`ok`, `fixed`, every check with its status
+  `ok|warn|fail`, detail and fix); a usage error prints a `verbs.Error`. The exit status is 0
+  exactly when no check fails: a console that does not run yet and unwired agents are warnings.
+
+### Changed
+
+- `lockmq doctor --fix` without a terminal and without `--yes` is refused before any check
+  (it was refused only when a repair was due); `--yes` without `--fix` stays a usage error.
+- The launcher runs `profile add` as you with `HOME=/tmp`, as it ran `setup`; every flag
+  reaches the image as given.
+- Builds on lockkit v0.10.0 (`verbs`).
+
+### Removed
+
+- `lockmq setup`, replaced by `lockmq profile add` (pre-release: no alias).
+
 ## [0.5.0] - 2026-11-01
 
 The console is hub-attached only (DavidGodefroid/lockkit#110): `lox up` starts it, and the

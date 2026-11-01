@@ -175,10 +175,18 @@ def main():
         r = sh("docker", "run", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "init", "claude")
         check(os.path.exists(os.path.join(project, ".lockmq", "config.toml")), "init writes .lockmq/config.toml")
         check(os.stat(os.path.join(project, ".lockmq")).st_uid == os.getuid(), "init files belong to the caller")
-        answers = "\n".join(["dev", f"http://{BROKER}:15672", f"amqp://{BROKER}:5672", "", "", RO, "", "", ""]) + "\n"
-        r = sh("docker", "run", "-i", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "setup", input=answers)
-        check("host.docker.internal" in r.stdout and "keychain" not in r.stdout, "setup knows it runs in a container")
-        r = sh("docker", "run", "--rm", "--user", "0", *mount, IMAGE, "doctor", "--fix", "--yes", check_=False)
+        # lox init's calls: profile add --non-interactive --json, doctor --fix --yes --json.
+        r = sh("docker", "run", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "profile", "add",
+               "--non-interactive", "--json", "--profile", "dev", "--url", f"http://{BROKER}:15672",
+               "--amqp-url", f"amqp://{BROKER}:5672", "--user", RO)
+        prof = json.loads(r.stdout)
+        check(prof.get("profile") == "dev" and prof.get("credentials") == "ask" and prof.get("lock") == "lockmq",
+              f"profile add --non-interactive --json writes the profile\n{r.stdout}{r.stderr}")
+        r = sh("docker", "run", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "profile", "add",
+               "--non-interactive", "--json", "--profile", "dev", "--url", f"http://{BROKER}:15672", check_=False)
+        check(r.returncode != 0 and json.loads(r.stdout).get("code") == "exists", f"profile add keeps an existing profile\n{r.stdout}{r.stderr}")
+        r = sh("docker", "run", "--rm", "--user", "0", *mount, IMAGE, "doctor", "--fix", "--yes", "--json", check_=False)
+        check("checks" in json.loads(r.stdout), f"doctor --json prints its checks\n{r.stdout}{r.stderr}")
         st = os.stat(os.path.join(project, ".lockmq"))
         check(st.st_uid == 10011 and (st.st_mode & 0o777) == 0o755, f"doctor --fix gives .lockmq to uid 10011, 0755\n{r.stdout}{r.stderr}")
         check(os.stat(os.path.join(project, ".lockmq", "config.toml")).st_mode & 0o004 != 0, "config.toml readable by the console")
