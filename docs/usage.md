@@ -155,6 +155,7 @@ be a service name without a dot or a private address.
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.6.0 | v0.10.0 | as v0.5.0 |
 | v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only, and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
 | v0.4.3 | v0.8.1 | as v0.4.2 |
 | v0.4.2 | v0.7.2 | as v0.4.1 |
@@ -167,7 +168,9 @@ be a service name without a dot or a private address.
 terminal, the reviewed profile copy; the CLI was named `lock` before v0.3.0); lockhub v0.1.x cannot run them. A console
 older than a feature `lockfamily.yaml` asks of it refuses the flag and does not start: leave
 `devices`/`reveal`/`allowed_uids` off for it. A lock on lockkit older than v0.5.0 ignores the hub's reveal and
-renewal requests, which then time out. lockhub's CI does not run a lockmq image: the table
+renewal requests, which then time out. lockhub's CI runs a lockmq image under `lox up` since
+lockhub#91 (on lockhub's main, in no lockhub release yet): a host `lockmq mcp`, lockmq v0.5.0's
+launcher and image, reads a stream message once its ticket is approved. Otherwise the table
 follows each release's lockkit and lockhub's
 [CHANGELOG](https://github.com/DavidGodefroid/lockhub/blob/main/CHANGELOG.md) ("Supported locks",
 v0.2.0).
