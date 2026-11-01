@@ -335,7 +335,7 @@ func runMCP(e env, args []string) int {
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "pin the server to one profile")
-	flagInstance := fs.String(client.FlagInstance, "", "reach this lock among several of this type")
+	flagInstance := fs.String(client.FlagInstance, "", "reach this lock among several of this type (lea mounts each at /run/lockmq/NAME)")
 	pos, err := parseInterleaved(fs, args)
 	if err != nil || len(pos) > 0 {
 		return usageFail(e, "mcp", usage, "wrong arguments")

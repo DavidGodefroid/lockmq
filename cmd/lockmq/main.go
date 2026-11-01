@@ -71,12 +71,13 @@ Human commands
              [--amqp-url URL] [--stream-url URL] [--tier read|peek]
                                         add a broker profile to the project (asks for what
                                         the flags do not give; never for a secret)
-  console   --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
+  console   --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME (hub instance name)
              [--profile P] [--project DIR] [--allow-unmask] [--show-results]
              [--allowed-uids UID,...]
                                         run the console, attached to lockhub, which decides
                                         requests (launched by lox up)
-  hub-key    --instance NAME            print the instance key for lockhub to pin
+  hub-key    --instance NAME (hub instance name)
+                                        print the instance key for lockhub to pin
   doctor     [--profile P] [--instance NAME] [--fix [--yes]] [--json]
                                         check the config, each profile's tier, the consoles,
                                         the project's .lockmq and the agent wiring
@@ -85,7 +86,8 @@ Human commands
   update     [vX.Y.Z]                   update the launcher and its image (on the host;
                                         cosign signature and checksum checked)
 
-Client commands (--profile P, --instance NAME, --json)
+Client commands (--profile P, --json)
+  --instance NAME  the lock to reach when lea mounts several (default: LOCKMQ_INSTANCE, else the one in LEA_LOCKMQ_INSTANCES); not the hub instance name of console/hub-key
   status
   overview
   queues        [--vhost V] [--filter GLOB] [--sort messages] [--page N]

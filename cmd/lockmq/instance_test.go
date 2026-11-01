@@ -93,7 +93,8 @@ func TestInstanceFlagDialsTheInstanceDirectory(t *testing.T) {
 	waitConn(t, got)
 }
 
-func TestInstanceFromTheEnvironmentDialsTheInstanceDirectory(t *testing.T) {
+// --instance=orders (the = form) with two locks listed picks orders.
+func TestInstanceFlagAmongSeveralListedDialsIt(t *testing.T) {
 	separatedSetup(t)
 	root := project(t, oneProfile)
 	t.Setenv("LEA_LOCKMQ_INSTANCES", "inventory orders")
@@ -101,6 +102,59 @@ func TestInstanceFromTheEnvironmentDialsTheInstanceDirectory(t *testing.T) {
 	var out, errb bytes.Buffer
 	run(realEnv(root, strings.NewReader(""), &out, &errb), []string{"queues", "--instance=orders"})
 	waitConn(t, got)
+}
+
+func TestInstanceFromLOCKMQ_INSTANCEDialsIt(t *testing.T) {
+	separatedSetup(t)
+	root := project(t, oneProfile)
+	t.Setenv("LOCKMQ_INSTANCE", "orders")
+	got := listenAt(t, root, "dev", "orders")
+	var out, errb bytes.Buffer
+	run(realEnv(root, strings.NewReader(""), &out, &errb), []string{"status"})
+	waitConn(t, got)
+}
+
+func TestTheOneListedInstanceIsTheDefault(t *testing.T) {
+	separatedSetup(t)
+	root := project(t, oneProfile)
+	t.Setenv("LEA_LOCKMQ_INSTANCES", "orders")
+	got := listenAt(t, root, "dev", "orders")
+	var out, errb bytes.Buffer
+	run(realEnv(root, strings.NewReader(""), &out, &errb), []string{"status"})
+	waitConn(t, got)
+}
+
+func TestDoctorInstanceDialsTheInstanceDirectory(t *testing.T) {
+	separatedSetup(t)
+	root := project(t, oneProfile)
+	got := listenAt(t, root, "dev", "orders")
+	var out, errb bytes.Buffer
+	run(realEnv(root, strings.NewReader(""), &out, &errb), []string{"doctor", "--instance", "orders"})
+	waitConn(t, got)
+}
+
+// Where no console is dialled (no profile), doctor --fix does not resolve
+// the instance: an ambiguous or bad one is no failure.
+func TestDoctorFixResolvesNoInstanceWithoutDialling(t *testing.T) {
+	separatedSetup(t)
+	root := project(t, "")
+	for _, tc := range []struct {
+		list string
+		args []string
+	}{
+		{"inventory orders", []string{"doctor", "--fix", "--yes"}},
+		{"", []string{"doctor", "--fix", "--yes", "--instance", "../x"}},
+	} {
+		t.Setenv("LEA_LOCKMQ_INSTANCES", tc.list)
+		var out, errb bytes.Buffer
+		run(realEnv(root, strings.NewReader(""), &out, &errb), tc.args)
+		all := out.String() + errb.String()
+		for _, bad := range []string{"several lockmq locks", "not a lock instance name"} {
+			if strings.Contains(all, bad) {
+				t.Errorf("%v: instance resolution failed doctor: %q", tc.args, all)
+			}
+		}
+	}
 }
 
 func TestMCPPassesTheInstanceToItsDialer(t *testing.T) {
@@ -141,7 +195,7 @@ func TestInstanceUsageErrors(t *testing.T) {
 	}{
 		{"a bad name", "", []string{"status", "--instance", "../x"}, []string{"--instance", "not a lock instance name", "usage: lockmq status"}},
 		{"a bad name for mcp", "", []string{"mcp", "--instance", "../x"}, []string{"--instance", "not a lock instance name", "usage: lockmq mcp"}},
-		{"a bad name for doctor", "", []string{"doctor", "--instance", "../x"}, []string{"--instance", "not a lock instance name", "usage: lockmq doctor"}},
+		{"a bad name for doctor", "", []string{"doctor", "--instance", "../x"}, []string{"--instance", "not a lock instance name"}},
 		{"several and none", "inventory orders", []string{"status"}, []string{"several lockmq locks: inventory orders", "--instance NAME"}},
 		{"several and none for mcp", "inventory orders", []string{"mcp"}, []string{"several lockmq locks: inventory orders", "--instance NAME"}},
 		{"several and none for doctor", "inventory orders", []string{"doctor"}, []string{"several lockmq locks: inventory orders", "--instance NAME"}},
@@ -171,6 +225,16 @@ func TestInstanceUsageErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Without instance the real dialer reaches the socket directory itself.
+func TestNoInstanceDialsTheSocketDirectoryItself(t *testing.T) {
+	separatedSetup(t)
+	root := project(t, oneProfile)
+	got := listenAt(t, root, "dev", "")
+	var out, errb bytes.Buffer
+	run(realEnv(root, strings.NewReader(""), &out, &errb), []string{"status"})
+	waitConn(t, got)
 }
 
 func TestNoInstanceIsToday(t *testing.T) {

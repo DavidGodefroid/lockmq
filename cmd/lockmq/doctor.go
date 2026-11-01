@@ -83,7 +83,7 @@ func runDoctor(e env, args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	only := fs.String("profile", "", "check one profile")
-	flagInstance := fs.String(client.FlagInstance, "", "check the console of this lock among several of this type")
+	flagInstance := fs.String(client.FlagInstance, "", "reach this lock among several of this type (lea mounts each at /run/lockmq/NAME)")
 	fix := fs.Bool(verbs.FlagFix, false, "make the project's .lockmq what lox up copies (as root: sudo, or directly when run as root)")
 	yes := fs.Bool(verbs.FlagYes, false, "with --fix: repair without asking")
 	fs.Bool(verbs.FlagJSON, false, "one line of JSON on stdout")
@@ -95,10 +95,6 @@ func runDoctor(e env, args []string) int {
 		return fail(errors.New("--yes is for --fix"))
 	case *fix && !*yes && !e.tty:
 		return fail(errors.New("--fix asks before each repair: confirm in a terminal, or run with --fix --yes"))
-	}
-	instance, err := resolveInstance(*flagInstance)
-	if err != nil {
-		return fail(err)
 	}
 	d := &doctorRun{e: e, asJSON: asJSON, out: e.stdout}
 	if asJSON {
@@ -170,9 +166,21 @@ func runDoctor(e env, args []string) int {
 			"✗ profiles: none; run lockmq profile add")
 		code = exitUsage
 	}
+	// The instance matters only where a console is dialled: --fix and the
+	// other checks run without it.
+	var instance string
+	var instanceErr error
+	if len(names) > 0 {
+		instance, instanceErr = resolveInstance(*flagInstance)
+	}
 	for _, n := range names {
 		sum := profileSummary(ps[n])
 		d.add(verbs.Check{Check: "profile " + n, Status: verbs.StatusOK, Detail: sum}, "✓ profile "+n+": "+sum)
+		if instanceErr != nil {
+			d.add(verbs.Check{Check: "console " + n, Status: verbs.StatusFail, Detail: instanceErr.Error()}, "    console: "+instanceErr.Error())
+			code = exitUsage
+			continue
+		}
 		status, detail := consoleState(e, instance, n)
 		d.add(verbs.Check{Check: "console " + n, Status: status, Detail: detail}, "    console: "+detail)
 	}
