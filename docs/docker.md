@@ -297,16 +297,25 @@ LOCKMQ_VAULT=1 VAULT_ADDR=https://vault.example.com lockmq console
 `VAULT_CACERT` names a file on your machine: the launcher mounts it
 read-only in the console's container, at the same path.
 
-Log in once as the console account, with its home volume; the token stays
-in `lockmq-home`, out of the agents' reach:
+The console account needs no `vault login`: at start the console asks
+`Vault token for <VAULT_ADDR>:` in its terminal (no echo) and keeps the
+token in memory for the session, never in `lockmq-home` or anywhere on
+disk.
+
+Get the token without storing it, then paste it at the prompt:
 
 ```sh
-docker run -it --rm --user lockmq -e VAULT_ADDR=https://vault.example.com \
-  -v lockmq-home:/home/lockmq --entrypoint vault \
-  ghcr.io/davidgodefroid/lockmq:X.Y.Z-vault login -method=oidc
+vault login -method=oidc -no-store -token-only
 ```
 
-Log in again when the token expires: the console then reports it.
+`-no-store -token-only` prints the token and writes no `~/.vault-token`.
+A plain `vault login` would store the token in your account, where the
+agent runs: the agent could read it and fetch the login from Vault itself,
+bypassing the console (`lockmq doctor` fails on it). For the same reason,
+do not leave `VAULT_TOKEN` set in that shell. When Vault refuses a read
+(`not authenticated or not allowed`: the token is expired or revoked, or
+its policy may not read `vault_path`), the console asks for a token again;
+three refusals in a row stop the connection.
 
 ## Wire the agent
 

@@ -118,7 +118,7 @@ func (e env) dialer(instance string) func(profile string) (mcptools.Conn, error)
 }
 
 // resolveInstance is the lock instance a client command reaches, resolved
-// once per process: --instance, else LOCKMQ_INSTANCE, else the one lock
+// at each call (nothing is cached): --instance, else LOCKMQ_INSTANCE, else the one lock
 // lea mounts.
 func resolveInstance(flagValue string) (string, error) {
 	return client.ResolveInstance(product.P, flagValue)
@@ -329,7 +329,7 @@ func printOut(e env, o cliOpts, what string, out any) int {
 	return exitOK
 }
 
-// runMCP is `lockmq mcp [--profile P]`: an MCP server on stdin/stdout.
+// runMCP is `lockmq mcp [--profile P] [--instance NAME]`: an MCP server on stdin/stdout.
 func runMCP(e env, args []string) int {
 	const usage = "lockmq mcp [--profile P] [--instance NAME]"
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
