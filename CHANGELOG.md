@@ -37,6 +37,8 @@ The console is hub-attached only (DavidGodefroid/lockkit#110).
   approved on lockhub (`lox approve`, the lea deck or a paired phone), no longer in the console;
   the console still asks its own questions (credentials, policy) through `lox attach`.
 - Builds on lockkit v0.9.1 (hub-only console, `lox up` start hint, console PolicyOnly mode).
+- The docs and comments name lockhub's host CLI `lox` (lockhub v0.3.0 renamed it from `lock`,
+  lockhub#79): `lox up` in docs/usage.md, docs/docker.md and `lockmq hub-key`'s comment.
 
 ### Removed
 

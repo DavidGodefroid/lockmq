@@ -173,7 +173,7 @@ func usageFail(e env, cmd, usage, msg string) int {
 }
 
 // runHubKey is `lockmq hub-key --instance NAME`: the instance's public key,
-// made on the first call in the console account's home, for `lock up`.
+// made on the first call in the console account's home, for `lox up`.
 func runHubKey(e env, args []string) int {
 	home := e.home
 	if home == "" {

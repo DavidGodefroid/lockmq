@@ -359,8 +359,8 @@ the flag adds them to it for that console only (the console prints them at
 start). Both refuse root (0), the console's own uid (10011) and 65534
 (nobody, the kernel's overflow uid). Only whoever starts the console sets
 them: the human, through the launcher (which passes the flag on) or
-through `lock up` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
-lockfamily.yaml lock up reviews with you); no client can. It is the uid the kernel reports
+through `lox up` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
+lockfamily.yaml `lox up` reviews with you); no client can. It is the uid the kernel reports
 for the agent's process, as the console sees it: the agent container's uid
 when neither container remaps user namespaces. Every process of that uid,
 in any container that mounts the socket volume, may then use the console:
