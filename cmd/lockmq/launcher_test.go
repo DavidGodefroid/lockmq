@@ -16,7 +16,10 @@ import (
 // "--". PATH holds only the tools the launcher needs.
 type launcherFixture struct {
 	root, bin, project, calls, script string
-	env                               []string
+	// fake holds what the fake docker prints for lox up's volumes and
+	// containers (launcher_lockup_test.go).
+	fake string
+	env  []string
 }
 
 func newLauncherFixture(t *testing.T) *launcherFixture {
@@ -30,13 +33,14 @@ func newLauncherFixture(t *testing.T) *launcherFixture {
 		bin:     filepath.Join(root, "bin"),
 		project: filepath.Join(root, "project"),
 		calls:   filepath.Join(root, "calls"),
+		fake:    filepath.Join(root, "fake"),
 	}
-	for _, d := range []string{f.bin, filepath.Join(f.project, ".lockmq"), filepath.Join(f.project, "sub")} {
+	for _, d := range []string{f.bin, f.fake, filepath.Join(f.project, ".lockmq"), filepath.Join(f.project, "sub")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, tool := range []string{"sh", "dirname", "id", "cat", "printf", "awk", "sha256sum", "shasum", "tar", "gzip", "install", "mktemp", "rm", "uname", "sed", "tr", "tail", "grep", "cksum"} {
+	for _, tool := range []string{"sh", "dirname", "id", "cat", "printf", "awk", "sha256sum", "shasum", "tar", "gzip", "install", "mktemp", "rm", "uname", "sed", "tr", "tail", "grep", "cksum", "find", "ls", "wc", "sort"} {
 		if p, err := exec.LookPath(tool); err == nil {
 			if err := os.Symlink(p, filepath.Join(f.bin, tool)); err != nil {
 				t.Fatal(err)
@@ -53,6 +57,8 @@ func newLauncherFixture(t *testing.T) *launcherFixture {
 	f.script = filepath.Join(root, "lockmq")
 	writeExec(t, f.script, string(launcher))
 	f.env = []string{"PATH=" + f.bin, "HOME=" + filepath.Join(root, "home")}
+	// The workspace (root) runs a lockmq lock mq under lox up.
+	f.loxUp(t, root, map[string]string{"mq": "lockmq"})
 	return f
 }
 
@@ -60,9 +66,12 @@ func (f *launcherFixture) fakeDocker(t *testing.T) {
 	writeExec(t, filepath.Join(f.bin, "docker"), `#!/bin/sh
 for a in "$@"; do printf '%s\n' "$a"; done >> '`+f.calls+`'
 echo -- >> '`+f.calls+`'
-case "$1" in
-inspect) printf '%s\n' "${DOCKER_INSPECT:-}" ;;
-run) for a in "$@"; do [ "$a" = version ] && echo "lockmq 9.9.9"; done ;;
+case "$1 ${2:-}" in
+"volume inspect") eval "v=\${$#}"; cat '`+f.fake+`'/"volume-$v" 2>/dev/null || exit 1 ;;
+"ps "*) for a in "$@"; do case "$a" in volume=*) cat '`+f.fake+`'/"ps-${a#volume=}" 2>/dev/null ;; esac; done ;;
+"inspect --type") eval "c=\${$#}"; cat '`+f.fake+`'/"container-$c" 2>/dev/null || exit 1 ;;
+"inspect "*) printf '%s\n' "${DOCKER_INSPECT:-}" ;;
+"run "*) for a in "$@"; do [ "$a" = version ] && echo "lockmq 9.9.9"; done ;;
 esac
 exit 0
 `)
@@ -236,19 +245,22 @@ func TestLauncherAccountsPerCommand(t *testing.T) {
 	f := newLauncherFixture(t)
 	me := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
 	home := filepath.Join(f.root, "home")
+	// The agent commands: lox up's socket volume, read-only; never the
+	// fixed one of a console the launcher started.
+	sock, fixed := mountOf(f.root, "mq"), []string{"-v", "lockmq-run:/run/lockmq"}
 	for _, tc := range []struct {
 		args       []string
 		want, deny [][]string
 	}{
-		{[]string{"mcp"}, [][]string{{"-i"}, {"-v", "lockmq-run:/run/lockmq"}}, [][]string{{"-it"}, {"--user"}, {"-v", "lockmq-home:/home/lockmq"}}},
-		{[]string{"status", "--json"}, [][]string{{"-v", "lockmq-run:/run/lockmq"}}, [][]string{{"--user"}, {"-v", "lockmq-home:/home/lockmq"}}},
-		{[]string{"queues", "--vhost", "/"}, [][]string{{"-v", "lockmq-run:/run/lockmq"}}, [][]string{{"--user"}}},
-		{[]string{"peek", "orders", "--count", "1"}, [][]string{{"-v", "lockmq-run:/run/lockmq"}}, [][]string{{"--user"}, {"-v", "lockmq-home:/home/lockmq"}}},
-		{[]string{"doctor"}, [][]string{{"-v", "lockmq-run:/run/lockmq"}}, [][]string{{"--user"}}},
-		{[]string{"doctor", "--fix", "--yes"}, [][]string{{"--user", "0"}}, [][]string{{"-v", "lockmq-run:/run/lockmq"}}},
-		{[]string{"init", "claude"}, [][]string{{"--user", me}, {"-e", "HOME=" + home}, {"-v", home + ":" + home}}, [][]string{{"-v", "lockmq-run:/run/lockmq"}}},
-		{[]string{"setup"}, [][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{{"-v", "lockmq-run:/run/lockmq"}, {"-v", home + ":" + home}}},
-		{nil, [][]string{{"-v", "lockmq-run:/run/lockmq"}}, [][]string{{"--user"}}},
+		{[]string{"mcp"}, [][]string{{"-i"}, sock}, [][]string{{"-it"}, {"--user"}, {"-v", "lockmq-home:/home/lockmq"}, fixed}},
+		{[]string{"status", "--json"}, [][]string{sock}, [][]string{{"--user"}, {"-v", "lockmq-home:/home/lockmq"}, fixed}},
+		{[]string{"queues", "--vhost", "/"}, [][]string{sock}, [][]string{{"--user"}, fixed}},
+		{[]string{"peek", "orders", "--count", "1"}, [][]string{sock}, [][]string{{"--user"}, {"-v", "lockmq-home:/home/lockmq"}, fixed}},
+		{[]string{"doctor"}, [][]string{sock}, [][]string{{"--user"}, fixed}},
+		{[]string{"doctor", "--fix", "--yes"}, [][]string{{"--user", "0"}}, [][]string{sock, fixed}},
+		{[]string{"init", "claude"}, [][]string{{"--user", me}, {"-e", "HOME=" + home}, {"-v", home + ":" + home}}, [][]string{sock, fixed}},
+		{[]string{"setup"}, [][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},
+		{nil, nil, [][]string{{"--user"}, sock, fixed}},
 	} {
 		out, calls, err := f.run(t, f.project, nil, tc.args...)
 		if err != nil {

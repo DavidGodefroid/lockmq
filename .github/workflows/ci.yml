@@ -113,8 +113,10 @@ jobs:
           # runs none (docs/docker.md); the repair itself is checked below.
           sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes || true
           test "$(stat -c %u .lockmq)" = 10011
-          code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" status --profile dev || code=$?
-          test "$code" = 2 # no console is running
+          # No lox up here: no console's socket to mount (exit 2, as a client
+          # that finds no console), never the fixed lockmq-run instead.
+          code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" status --profile dev 2>err || code=$?
+          test "$code" = 2 && grep -q 'no .lockfamily/up.json' err
           code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" install 2>err || code=$?
           test "$code" = 1 && grep -q 'runs in Docker' err
       - name: docker build --target vault

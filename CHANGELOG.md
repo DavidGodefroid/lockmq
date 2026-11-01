@@ -10,6 +10,17 @@ The console is hub-attached only (DavidGodefroid/lockkit#110).
 
 ### Changed
 
+- **The agent commands reach the console `lox up` runs** (lockhub#78). The
+  launcher's `mcp`, `doctor` and client commands (`status`, `queues`,
+  `read`, `peek`...) mount the socket volume of the workspace's lockmq lock
+  that `lox up` names in `.lockfamily/up.json`, read-only, once Docker
+  confirms it is lox up's (the checks of lea; no container lox up did not
+  start may mount it read-write), and no longer the fixed `lockmq-run`:
+  without `lox up` they exit 2 and say to run it (`doctor` runs without a
+  socket and says why). With several lockmq locks, `--instance NAME` picks
+  one (in `.mcp.json`: `"args": ["mcp", "--instance", "NAME"]`).
+  `.mcp.json` is unchanged ([docs/docker.md](docs/docker.md#the-socket-of-lox-ups-lock)).
+
 - `lockmq console` is launched by `lox up` only: `--hub`, `--hub-key-file` and `--instance`
   are required, and without them (or with only some) it refuses before anything else
   ("the console is launched by `lox up` only", exit 3). The usage text and `lockmq help` list

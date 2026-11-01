@@ -14,9 +14,10 @@ holds the separated setup that keeps the console apart from the agent:
 - `/etc/lockmq/system.toml` is owned by root and the binary by root; the
   image has no `sudo`;
 - the socket directory `/run/lockmq` (mode 2710, `lockmq:lockmq-clients`)
-  is a named volume, `lockmq-run`, shared by the console container and the
-  agent's containers. The kernel checks every peer on the socket as on a
-  host.
+  is a named volume, shared by the console container and the agent's
+  containers (read-only there): `lox up`'s socket volume of the lock
+  (`lockfamily-<hash>_<instance>-run`, named in `.lockfamily/up.json`). The
+  kernel checks every peer on the socket as on a host.
 
 The ids differ from the locksql image's, so that one agent image can be a
 client of both.
@@ -65,7 +66,8 @@ runs each command with the account it needs:
 | `init` | you (your uid and gid), with your home mounted: it writes the agents' files | |
 | `setup` | you, with `HOME=/tmp` | |
 | `doctor --fix` | root | |
-| everything else: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`, `help`... | `agent` | `lockmq-run` |
+| the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox up` runs, read-only ([below](#the-socket-of-lox-ups-lock)) |
+| everything else: `help`... | `agent` | none |
 
 The socket name is derived from the project path, so the console and the
 agent see the same one, and the console's hints name real paths. The
@@ -88,6 +90,62 @@ The launcher reads:
   too, with its file mounted read-only at its own path.
 
 The launcher never mounts the Docker socket.
+
+### The socket of lox up's lock
+
+The consoles run hub-attached only, started by `lox up` (lockhub): each
+under compose, with its socket in the volume
+`lockfamily-<8 hex of sha256(workspace)>_<instance>-run`, which `lox up`
+names in `<workspace>/.lockfamily/up.json` (lockhub's `docs/lox-up.md`).
+The agent commands mount that volume on `/run/lockmq`, read-only
+(connecting to a socket needs no write), and no other: without it they stop
+(exit 2) and say why, and what to do (`lox up`), never falling back to the
+fixed `lockmq-run`. The launcher takes the volume only after the checks
+lea makes for its own agents:
+
+- `up.json` is found in the nearest directory up from here whose
+  `.lockfamily` holds one (that directory is the workspace); the
+  `.lockfamily` directory and `up.json` are no link, are yours, and
+  neither group nor others may write them; `up.json` is lox up's state
+  (version 1, as `lox up` writes it: two-space indented JSON, the values
+  the launcher reads unescaped) of this very workspace (its `workspace`,
+  and its `project` `lockfamily-<8 hex of sha256(workspace)>`);
+- the lock is the workspace's only lockmq lock, or the one `--instance
+  NAME` names (the launcher's own option, taken out of the command line;
+  with several and no `--instance`, the error names them). In
+  `.mcp.json`, add it to the arguments: `"args": ["mcp", "--instance",
+  "NAME"]`;
+- its socket volume is the one `lox up` names for it, its clients group
+  the image's (10010);
+- Docker confirms the volume: lox up's labels (compose's project and
+  volume, `dev.lockfamily.role=socket`, its instance, type and workspace),
+  read as JSON and compared whole; and every container that mounts it is
+  lox up's own (compose ran it from lox up's state directory: its
+  `project.working_dir` is `$XDG_STATE_HOME/lockfamily/<project>` or
+  `~/.local/state/lockfamily/<project>`, its `config_files` `-` or that
+  directory's `compose.yaml`) or mounts it read-only (the agents', as the
+  launcher's own). A compose file written in the workspace, with lox up's
+  project name and volume, or any container mounting the volume
+  read-write, could serve the socket from an image of its own: the
+  launcher then trusts none of that socket.
+
+`up.json` only names the lock: what is mounted is what Docker's labels
+prove. Anything else fails closed.
+
+What these checks are for: mistakes (a stale or copied `up.json`, another
+workspace's lock, a volume or compose file of the same name) and files
+others than you can write. They are no boundary against an agent that
+runs as you on the host with Docker access (Claude Code started in a
+terminal usually does): it can write `up.json`, make volumes and
+containers with any labels, or `docker exec` into lox up's containers.
+Even then it holds none of the console's credentials and cannot sign a
+decision (the hub signs them, the console checks the hub's key), but it
+could serve an impostor socket to another agent. To contain the agent
+itself, run it in lea, whose containers have no Docker access.
+
+The socket's name derives from the project (`.lockmq/config.toml` up from
+the working directory) and the profile: run the agent from the workspace,
+whose `.lockmq` lox up's console serves.
 
 ### Paths
 
