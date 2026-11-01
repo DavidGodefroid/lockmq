@@ -6,6 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-01
+
+`doctor --fix` keeps `.lockmq` as `lox up` copies it and checks as the agent account. Builds
+on lockkit v0.10.0; lockhub as v0.6.0 (v0.3.0 or later).
+
 ### Fixed
 
 - **`lockmq doctor --fix` no longer breaks `lox up`** (found by `lox init`,
