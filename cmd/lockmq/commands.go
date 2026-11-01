@@ -22,6 +22,7 @@ import (
 	"github.com/DavidGodefroid/lockmq/internal/config"
 	"github.com/DavidGodefroid/lockmq/internal/mcptools"
 	"github.com/DavidGodefroid/lockmq/internal/mqconsole"
+	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
 // parseInterleaved parses flags anywhere among the positional arguments.
@@ -107,22 +108,32 @@ func orNone(s []string) string {
 	return strings.Join(s, ", ")
 }
 
-func (e env) dialer() func(profile string) (mcptools.Conn, error) {
+// dialer dials the console of the lock instance ("" is the one lock of
+// the socket directory itself).
+func (e env) dialer(instance string) func(profile string) (mcptools.Conn, error) {
 	if e.dial != nil {
 		return e.dial
 	}
-	return mcptools.DialClient(e.cwd, version)
+	return mcptools.DialClient(e.cwd, version, instance)
+}
+
+// resolveInstance is the lock instance a client command reaches, resolved
+// once per process: --instance, else LOCKMQ_INSTANCE, else the one lock
+// lea mounts.
+func resolveInstance(flagValue string) (string, error) {
+	return client.ResolveInstance(product.P, flagValue)
 }
 
 // cliOpts are the flags of the client commands.
 type cliOpts struct {
-	profile, vhost, filter, sort, from, consumer, queue, exchange, intent, ticket string
-	page, count, max                                                              int
-	json, dryRun, unmask                                                          bool
+	profile, instance, vhost, filter, sort, from, consumer, queue, exchange, intent, ticket string
+	page, count, max                                                                        int
+	json, dryRun, unmask                                                                    bool
 }
 
 func (o *cliOpts) flags(fs *flag.FlagSet) {
 	fs.StringVar(&o.profile, "profile", "", "profile")
+	fs.StringVar(&o.instance, client.FlagInstance, "", "reach this lock among several of this type (lea mounts each at /run/lockmq/NAME)")
 	fs.StringVar(&o.vhost, "vhost", "", "vhost")
 	fs.StringVar(&o.filter, "filter", "", "queue name glob")
 	fs.StringVar(&o.sort, "sort", "", "sort key")
@@ -146,23 +157,23 @@ var clientUsage = map[string]struct {
 	usage      string
 	positional int
 }{
-	"status":        {"lockmq status [--profile P] [--json]", 0},
-	"overview":      {"lockmq overview [--profile P] [--json]", 0},
-	"queues":        {"lockmq queues [--vhost V] [--filter GLOB] [--sort messages] [--page N] [--profile P] [--json]", 0},
-	"queue":         {"lockmq queue NAME [--vhost V] [--profile P] [--json]", 1},
-	"exchanges":     {"lockmq exchanges [--vhost V] [--page N] [--profile P] [--json]", 0},
-	"bindings":      {"lockmq bindings [--vhost V] [--queue Q | --exchange E] [--profile P] [--json]", 0},
-	"policies":      {"lockmq policies [--vhost V] [--profile P] [--json]", 0},
-	"consumers":     {"lockmq consumers [--vhost V] [--profile P] [--json]", 0},
-	"connections":   {"lockmq connections [--page N] [--profile P] [--json]", 0},
-	"channels":      {"lockmq channels [--page N] [--profile P] [--json]", 0},
-	"stream":        {"lockmq stream NAME [--vhost V] [--profile P] [--json]", 1},
-	"stream-offset": {"lockmq stream-offset NAME --consumer REF [--vhost V] [--profile P] [--json]", 1},
-	"read":          {"lockmq read STREAM --from first|last|N|TIMESTAMP [--max N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T] [--profile P] [--json]", 1},
-	"peek":          {"lockmq peek QUEUE [--count N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T] [--profile P] [--json]", 1},
-	"pii":           {`lockmq pii list | add "queue=VHOST/GLOB body=$.path" [--profile P] [--json]`, -1},
-	"request":       {`lockmq request "CHANGE" [--profile P] [--json]`, 1},
-	"logout":        {"lockmq logout [--profile P] [--json]", 0},
+	"status":        {"lockmq status [--profile P] [--instance NAME] [--json]", 0},
+	"overview":      {"lockmq overview [--profile P] [--instance NAME] [--json]", 0},
+	"queues":        {"lockmq queues [--vhost V] [--filter GLOB] [--sort messages] [--page N] [--profile P] [--instance NAME] [--json]", 0},
+	"queue":         {"lockmq queue NAME [--vhost V] [--profile P] [--instance NAME] [--json]", 1},
+	"exchanges":     {"lockmq exchanges [--vhost V] [--page N] [--profile P] [--instance NAME] [--json]", 0},
+	"bindings":      {"lockmq bindings [--vhost V] [--queue Q | --exchange E] [--profile P] [--instance NAME] [--json]", 0},
+	"policies":      {"lockmq policies [--vhost V] [--profile P] [--instance NAME] [--json]", 0},
+	"consumers":     {"lockmq consumers [--vhost V] [--profile P] [--instance NAME] [--json]", 0},
+	"connections":   {"lockmq connections [--page N] [--profile P] [--instance NAME] [--json]", 0},
+	"channels":      {"lockmq channels [--page N] [--profile P] [--instance NAME] [--json]", 0},
+	"stream":        {"lockmq stream NAME [--vhost V] [--profile P] [--instance NAME] [--json]", 1},
+	"stream-offset": {"lockmq stream-offset NAME --consumer REF [--vhost V] [--profile P] [--instance NAME] [--json]", 1},
+	"read":          {"lockmq read STREAM --from first|last|N|TIMESTAMP [--max N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T] [--profile P] [--instance NAME] [--json]", 1},
+	"peek":          {"lockmq peek QUEUE [--count N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T] [--profile P] [--instance NAME] [--json]", 1},
+	"pii":           {`lockmq pii list | add "queue=VHOST/GLOB body=$.path" [--profile P] [--instance NAME] [--json]`, -1},
+	"request":       {`lockmq request "CHANGE" [--profile P] [--instance NAME] [--json]`, 1},
+	"logout":        {"lockmq logout [--profile P] [--instance NAME] [--json]", 0},
 }
 
 func signalContext() (context.Context, context.CancelFunc) {
@@ -189,11 +200,15 @@ func runClient(e env, cmd string, args []string) int {
 	if err != nil {
 		return usageFail(e, cmd, u.usage, err.Error())
 	}
+	instance, err := resolveInstance(o.instance)
+	if err != nil {
+		return usageFail(e, cmd, u.usage, err.Error())
+	}
 	profile, err := resolveProfile(e, o.profile)
 	if err != nil {
 		return usageFail(e, cmd, u.usage, err.Error())
 	}
-	c, err := e.dialer()(profile)
+	c, err := e.dialer(instance)(profile)
 	if err != nil {
 		var nc *client.NoConsoleError
 		if errors.As(err, &nc) {
@@ -316,13 +331,18 @@ func printOut(e env, o cliOpts, what string, out any) int {
 
 // runMCP is `lockmq mcp [--profile P]`: an MCP server on stdin/stdout.
 func runMCP(e env, args []string) int {
-	const usage = "lockmq mcp [--profile P]"
+	const usage = "lockmq mcp [--profile P] [--instance NAME]"
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "pin the server to one profile")
+	flagInstance := fs.String(client.FlagInstance, "", "reach this lock among several of this type")
 	pos, err := parseInterleaved(fs, args)
 	if err != nil || len(pos) > 0 {
 		return usageFail(e, "mcp", usage, "wrong arguments")
+	}
+	instance, err := resolveInstance(*flagInstance)
+	if err != nil {
+		return usageFail(e, "mcp", usage, err.Error())
 	}
 	if _, _, err := e.loadProfiles(); err != nil {
 		return usageFail(e, "mcp", usage, err.Error())
@@ -338,7 +358,7 @@ func runMCP(e env, args []string) int {
 			ps, _, err := e.loadProfiles()
 			return profileNames(ps), err
 		},
-		Dial:    e.dialer(),
+		Dial:    e.dialer(instance),
 		Version: version,
 	})
 	ctx, stop := signalContext()

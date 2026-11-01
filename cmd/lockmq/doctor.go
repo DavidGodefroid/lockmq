@@ -77,12 +77,13 @@ func mark(status string) string {
 // project's .lockmq, each profile's tier, whether its console runs, and
 // the agent wiring (lockkit GUIDE §14).
 func runDoctor(e env, args []string) int {
-	const usage = "lockmq doctor [--profile P] [--fix [--yes]] [--json]"
+	const usage = "lockmq doctor [--profile P] [--instance NAME] [--fix [--yes]] [--json]"
 	asJSON := verbs.WantsJSON(args)
 	fail := func(err error) int { return verbFail(e, "doctor", usage, asJSON, err) }
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	only := fs.String("profile", "", "check one profile")
+	flagInstance := fs.String(client.FlagInstance, "", "check the console of this lock among several of this type")
 	fix := fs.Bool(verbs.FlagFix, false, "make the project's .lockmq what lox up copies (as root: sudo, or directly when run as root)")
 	yes := fs.Bool(verbs.FlagYes, false, "with --fix: repair without asking")
 	fs.Bool(verbs.FlagJSON, false, "one line of JSON on stdout")
@@ -94,6 +95,10 @@ func runDoctor(e env, args []string) int {
 		return fail(errors.New("--yes is for --fix"))
 	case *fix && !*yes && !e.tty:
 		return fail(errors.New("--fix asks before each repair: confirm in a terminal, or run with --fix --yes"))
+	}
+	instance, err := resolveInstance(*flagInstance)
+	if err != nil {
+		return fail(err)
 	}
 	d := &doctorRun{e: e, asJSON: asJSON, out: e.stdout}
 	if asJSON {
@@ -168,7 +173,7 @@ func runDoctor(e env, args []string) int {
 	for _, n := range names {
 		sum := profileSummary(ps[n])
 		d.add(verbs.Check{Check: "profile " + n, Status: verbs.StatusOK, Detail: sum}, "✓ profile "+n+": "+sum)
-		status, detail := consoleState(e, n)
+		status, detail := consoleState(e, instance, n)
 		d.add(verbs.Check{Check: "console " + n, Status: status, Detail: detail}, "    console: "+detail)
 	}
 	if env, err := e.agents(); err == nil {
@@ -348,8 +353,8 @@ func profileSummary(p config.Profile) string {
 
 // consoleState tells whether the profile's console runs: a console that
 // does not run is a warning (it runs under lox up, after the setup).
-func consoleState(e env, profile string) (string, string) {
-	c, err := e.dialer()(profile)
+func consoleState(e env, instance, profile string) (string, string) {
+	c, err := e.dialer(instance)(profile)
 	if err != nil {
 		var nc *client.NoConsoleError
 		if errors.As(err, &nc) {

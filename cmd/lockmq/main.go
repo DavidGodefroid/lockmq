@@ -77,7 +77,7 @@ Human commands
                                         run the console, attached to lockhub, which decides
                                         requests (launched by lox up)
   hub-key    --instance NAME            print the instance key for lockhub to pin
-  doctor     [--profile P] [--fix [--yes]] [--json]
+  doctor     [--profile P] [--instance NAME] [--fix [--yes]] [--json]
                                         check the config, each profile's tier, the consoles,
                                         the project's .lockmq and the agent wiring
   init       [claude|codex|cursor|gemini ...]
@@ -85,7 +85,7 @@ Human commands
   update     [vX.Y.Z]                   update the launcher and its image (on the host;
                                         cosign signature and checksum checked)
 
-Client commands (--profile P, --json)
+Client commands (--profile P, --instance NAME, --json)
   status
   overview
   queues        [--vhost V] [--filter GLOB] [--sort messages] [--page N]
@@ -103,7 +103,7 @@ Client commands (--profile P, --json)
   pii           list | add "queue=VHOST/GLOB body=$.path"
   request       "tier=peek"             queue a change for the human (never applied)
   logout
-  mcp           [--profile P]           MCP server on stdin/stdout
+  mcp           [--profile P] [--instance NAME]  MCP server on stdin/stdout
 
 Other
   version, help

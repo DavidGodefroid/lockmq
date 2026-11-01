@@ -39,10 +39,11 @@ type Options struct {
 	Version string
 }
 
-// DialClient dials the console of the project of cwd.
-func DialClient(cwd, version string) func(profile string) (Conn, error) {
+// DialClient dials the console of the project of cwd, of the lock
+// instance (client.ResolveInstance; "" is the socket directory itself).
+func DialClient(cwd, version, instance string) func(profile string) (Conn, error) {
 	return func(profile string) (Conn, error) {
-		c, err := client.Dial(product.P, cwd, profile)
+		c, err := client.DialInstance(product.P, cwd, profile, instance)
 		if err != nil {
 			return nil, err
 		}

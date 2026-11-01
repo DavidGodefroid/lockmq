@@ -6,6 +6,14 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `--instance NAME`: reach one lock among several of this type (lea mounts each at
+  /run/lockmq/NAME). Every agent-side command, `mcp` and `doctor` take it; it defaults to
+  `LOCKMQ_INSTANCE`, then to the one lock listed in `LEA_LOCKMQ_INSTANCES`.
+- `credentials = "vault"`: the console asks the Vault token at its start (masked), under
+  `lox up` too.
+
 ## [0.6.1] - 2026-11-01
 
 `doctor --fix` keeps `.lockmq` as `lox up` copies it and checks as the agent account. Builds
