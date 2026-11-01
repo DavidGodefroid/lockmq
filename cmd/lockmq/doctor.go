@@ -212,7 +212,7 @@ func consoleLine(e env, profile string) string {
 	if err != nil {
 		var nc *client.NoConsoleError
 		if errors.As(err, &nc) {
-			return "console: not running; start it with: " + nc.Command()
+			return fmt.Sprintf("console: not running; the console runs under `%[1]s`: run `%[1]s`, then `lox attach <instance>` for its questions", nc.Command())
 		}
 		return "console: " + err.Error()
 	}

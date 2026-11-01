@@ -284,8 +284,8 @@ only guide the agent. The full model, its threats and its limits are in
 - **Read-only by default.** Tier `read` reads metadata and streams, and moves
   nothing. Tier `peek` is not strictly read-only and is labelled as such
   everywhere.
-- **Human approval.** Every `read` and `peek` is shown and approved in the
-  console terminal; no socket method can approve. On a production profile you
+- **Human approval.** Every `read` and `peek` is shown and approved on
+  lockhub (`lox approve`, the lea deck or a paired phone); no socket method can approve. On a production profile you
   type the profile name. No answer within 5 minutes means denied.
 - **Credentials.** Asked at console start (no echo), or read from Vault at
   every connection (a container has no keychain). Errors that
