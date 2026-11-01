@@ -32,9 +32,7 @@ jobs:
         run: test ! -e site/CNAME
       # Relative links, assets and external links (releases, docs on GitHub).
       # 404.html uses absolute /lockmq/ paths, valid only once deployed; the
-      # site's own URL is not live before the first deployment. The lox-add guide
-      # lands on lockhub main with the lockhub first-run change (DavidGodefroid/lockhub
-      # pull 98): drop its exclusion below once that is merged.
+      # site's own URL is not live before the first deployment.
       - name: links
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
@@ -43,7 +41,6 @@ jobs:
             --max-retries 3
             --exclude-path site/404.html
             --exclude '^https://davidgodefroid\.github\.io/'
-            --exclude '^https://github\.com/DavidGodefroid/lockhub/blob/main/docs/lox-add\.md$'
             --exclude '^https://token\.actions\.githubusercontent\.com'
             'site/**/*.html'
             README.md
