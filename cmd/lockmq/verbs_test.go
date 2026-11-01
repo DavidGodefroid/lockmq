@@ -38,7 +38,7 @@ func readConfig(t *testing.T, root string) string {
 	return string(data)
 }
 
-// lox init's call: the profile is written from the flags alone, with no
+// lox add's call: the profile is written from the flags alone, with no
 // question, and reported as one verbs.Profile.
 func TestProfileAddNonInteractiveJSON(t *testing.T) {
 	root := project(t, oneProfile)
@@ -239,7 +239,7 @@ func TestDoctorFlagRules(t *testing.T) {
 	}
 }
 
-// lox init's doctor --fix --yes --json repairs, reports the repairs in
+// lox add's doctor --fix --yes --json repairs, reports the repairs in
 // fixed and the checks after them.
 func TestDoctorFixYesJSON(t *testing.T) {
 	root := project(t, oneProfile)

@@ -151,16 +151,20 @@ Docker only: one `lockmq` command, the launcher, runs every command in the
 signed release image. The full guide is [docs/docker.md](docs/docker.md).
 
 The shortest path is the Lock Family's: install it with Homebrew, then let
-[`lox init`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-init.md)
-find your broker and set up its lock:
+[`lox add lockmq`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-add.md)
+ask where your broker is, set up its lock and start its console:
 
 ```sh
 brew trust davidgodefroid/tap                # Homebrew asks you to trust a third-party tap once
 brew install davidgodefroid/tap/lockfamily   # or only this tool: brew install davidgodefroid/tap/lockmq
 cd ~/projects                                 # with lea: its projects directory; with claude: the project
-lox init                                      # detects RabbitMQ, sets up the lock, runs lox up
+lox add lockmq                                # asks about the broker, sets up the lock, runs lox up
 lea                                           # or: claude, then lox approve
 ```
+
+If a lea container already runs for the project, `lox add` says `lea gets lock
+NAME at its next start: lea stop, then lea`: lea mounts the locks' sockets
+when its container starts, so `lea stop`, then `lea` brings the new lock in.
 
 By hand, with lockmq's own installer:
 
@@ -191,7 +195,7 @@ and `lockmq console` on its own refuses to start.
 runs in a throwaway container.
 
 `init`, `profile add` and `doctor` are the same three verbs in every lock
-of the family, which `lox init` drives (`profile add --non-interactive
+of the family, which `lox add` drives (`profile add --non-interactive
 --json`, `init claude`, `doctor --fix --yes --json`); no form of `profile
 add` takes or asks for a password.
 
@@ -276,6 +280,12 @@ sequenceDiagram
 ```
 
 </details>
+
+Every client command, `lockmq mcp` and `lockmq doctor` also take `--instance NAME`, to
+reach one lock among several of this type that lea mounts (without it:
+`$LOCKMQ_INSTANCE`, else the one lock in `$LEA_LOCKMQ_INSTANCES`). `lockmq console`
+and `lockmq hub-key` take an `--instance` too, but that one is the name `lox up`
+gives the lock.
 
 ## Protocols
 

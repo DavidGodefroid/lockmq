@@ -265,7 +265,7 @@ func TestLauncherAccountsPerCommand(t *testing.T) {
 		{[]string{"init", "claude"}, [][]string{{"--user", me}, {"-e", "HOME=" + home}, {"-v", home + ":" + home}}, [][]string{sock, fixed, hostUID}},
 		{[]string{"doctor", "--fix", "--yes", "--json"}, [][]string{{"--user", "0"}, sock, hostUID}, [][]string{fixed}},
 		{[]string{"profile", "add"}, [][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},
-		// lox init's call: every flag reaches the image as given.
+		// lox add's call: every flag reaches the image as given.
 		{[]string{"profile", "add", "--non-interactive", "--json", "--profile", "dev", "--credentials", "vault", "--vault-path", "rabbitmq/creds/ro",
 			"--url", "http://host.docker.internal:15672", "--user", "ro", "--vhost", "/", "--vhost", "orders"},
 			[][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},

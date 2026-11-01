@@ -175,7 +175,7 @@ def main():
         r = sh("docker", "run", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "init", "claude")
         check(os.path.exists(os.path.join(project, ".lockmq", "config.toml")), "init writes .lockmq/config.toml")
         check(os.stat(os.path.join(project, ".lockmq")).st_uid == os.getuid(), "init files belong to the caller")
-        # lox init's calls: profile add --non-interactive --json, doctor --fix --yes --json.
+        # lox add's calls: profile add --non-interactive --json, doctor --fix --yes --json.
         r = sh("docker", "run", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "profile", "add",
                "--non-interactive", "--json", "--profile", "dev", "--url", f"http://{BROKER}:15672",
                "--amqp-url", f"amqp://{BROKER}:5672", "--user", RO)

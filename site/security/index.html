@@ -113,7 +113,7 @@
 
 <section aria-labelledby="credentials">
   <h2 id="credentials">Credentials</h2>
-  <p class="prose">Asked at console start (echo off), or read from Vault at every connection (the console never handles the Vault token; a lease is renewed by reconnecting before it ends). They never appear in argv, the environment, a file, the socket, the audit log or an error: errors are generic, URIs are built without userinfo (AMQP and stream logins go through SASL), and every error text that leaves the console is scrubbed of known secrets, URI userinfo and <code>Authorization</code> headers. URIs inside runtime parameters (shovels, federation) lose their userinfo before they reach a client.</p>
+  <p class="prose">Asked at console start (echo off), or read from Vault at every connection (the Vault token is asked of the human at start, kept in console memory and handed to the vault CLI in its environment only; a lease is renewed by reconnecting before it ends). They never appear in argv, the environment, a file, the socket, the audit log or an error: errors are generic, URIs are built without userinfo (AMQP and stream logins go through SASL), and every error text that leaves the console is scrubbed of known secrets, URI userinfo and <code>Authorization</code> headers. URIs inside runtime parameters (shovels, federation) lose their userinfo before they reach a client.</p>
 </section>
 
 <section aria-labelledby="content">

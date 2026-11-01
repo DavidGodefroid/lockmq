@@ -77,12 +77,13 @@ func mark(status string) string {
 // project's .lockmq, each profile's tier, whether its console runs, and
 // the agent wiring (lockkit GUIDE §14).
 func runDoctor(e env, args []string) int {
-	const usage = "lockmq doctor [--profile P] [--fix [--yes]] [--json]"
+	const usage = "lockmq doctor [--profile P] [--instance NAME] [--fix [--yes]] [--json]"
 	asJSON := verbs.WantsJSON(args)
 	fail := func(err error) int { return verbFail(e, "doctor", usage, asJSON, err) }
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	only := fs.String("profile", "", "check one profile")
+	flagInstance := fs.String(client.FlagInstance, "", "reach this lock among several of this type (lea mounts each at /run/lockmq/NAME)")
 	fix := fs.Bool(verbs.FlagFix, false, "make the project's .lockmq what lox up copies (as root: sudo, or directly when run as root)")
 	yes := fs.Bool(verbs.FlagYes, false, "with --fix: repair without asking")
 	fs.Bool(verbs.FlagJSON, false, "one line of JSON on stdout")
@@ -165,10 +166,22 @@ func runDoctor(e env, args []string) int {
 			"✗ profiles: none; run lockmq profile add")
 		code = exitUsage
 	}
+	// The instance matters only where a console is dialled: --fix and the
+	// other checks run without it.
+	var instance string
+	var instanceErr error
+	if len(names) > 0 {
+		instance, instanceErr = resolveInstance(*flagInstance)
+	}
 	for _, n := range names {
 		sum := profileSummary(ps[n])
 		d.add(verbs.Check{Check: "profile " + n, Status: verbs.StatusOK, Detail: sum}, "✓ profile "+n+": "+sum)
-		status, detail := consoleState(e, n)
+		if instanceErr != nil {
+			d.add(verbs.Check{Check: "console " + n, Status: verbs.StatusFail, Detail: instanceErr.Error()}, "    console: "+instanceErr.Error())
+			code = exitUsage
+			continue
+		}
+		status, detail := consoleState(e, instance, n)
 		d.add(verbs.Check{Check: "console " + n, Status: status, Detail: detail}, "    console: "+detail)
 	}
 	if env, err := e.agents(); err == nil {
@@ -348,8 +361,8 @@ func profileSummary(p config.Profile) string {
 
 // consoleState tells whether the profile's console runs: a console that
 // does not run is a warning (it runs under lox up, after the setup).
-func consoleState(e env, profile string) (string, string) {
-	c, err := e.dialer()(profile)
+func consoleState(e env, instance, profile string) (string, string) {
+	c, err := e.dialer(instance)(profile)
 	if err != nil {
 		var nc *client.NoConsoleError
 		if errors.As(err, &nc) {

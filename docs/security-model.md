@@ -78,8 +78,9 @@ Recommended: tag `monitoring` (metadata of every vhost), permissions
 ## Credentials
 
 Asked at console start (echo off), read from the console account's OS
-keychain, or read from Vault at every connection (the console never handles
-the Vault token; a lease is renewed by reconnecting before it ends). They
+keychain, or read from Vault at every connection (the Vault token is asked of
+the human at start, kept in console memory and handed to the vault CLI in its
+environment only; a lease is renewed by reconnecting before it ends). They
 never appear in argv, the environment, a file, the socket, the audit log or
 an error: errors are generic (`mgmt: HTTP 401`), URIs are built without
 userinfo (AMQP and stream logins go through SASL), and every error text that

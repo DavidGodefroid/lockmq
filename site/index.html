@@ -139,11 +139,11 @@
 
 <section aria-labelledby="quick-start">
   <h2 id="quick-start">Quick start</h2>
-  <p class="prose">The shortest path is the Lock Family’s: install it with Homebrew, then let <a href="https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-init.md"><code>lox init</code></a> find your broker and set up its lock:</p>
+  <p class="prose">The shortest path is the Lock Family’s: install it with Homebrew, then let <a href="https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-add.md"><code>lox add lockmq</code></a> ask where your broker is, set up its lock and start its console:</p>
   <pre tabindex="0" class="term"><code>brew trust davidgodefroid/tap                # Homebrew asks you to trust a third-party tap once
 brew install davidgodefroid/tap/lockfamily   # or only this tool: brew install davidgodefroid/tap/lockmq
 cd ~/projects                                 # with lea: its projects directory; with claude: the project
-lox init                                      # detects RabbitMQ, sets up the lock, runs lox up
+lox add lockmq                                # asks about the broker, sets up the lock, runs lox up
 lea                                           # or: claude, then lox approve</code></pre>
   <p class="prose">By hand, with lockmq’s own installer:</p>
   <pre tabindex="0" class="term"><code># 1. Install the launcher (cosign checks the release and its image)
