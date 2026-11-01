@@ -155,8 +155,9 @@ The shortest path is the Lock Family's: install it with Homebrew, then let
 find your broker and set up its lock:
 
 ```sh
+brew trust davidgodefroid/tap                # Homebrew asks you to trust a third-party tap once
 brew install davidgodefroid/tap/lockfamily   # or only this tool: brew install davidgodefroid/tap/lockmq
-cd ~/projects/shop
+cd ~/projects                                 # with lea: its projects directory; with claude: the project
 lox init                                      # detects RabbitMQ, sets up the lock, runs lox up
 lea                                           # or: claude, then lox approve
 ```
@@ -484,8 +485,9 @@ same console, separation and approval model:
 
 ## Install
 
-lockmq runs in Docker. `brew install davidgodefroid/tap/lockmq` (or
-`davidgodefroid/tap/lockfamily` for the whole family) or
+lockmq runs in Docker. `brew trust davidgodefroid/tap` then
+`brew install davidgodefroid/tap/lockmq` (or `davidgodefroid/tap/lockfamily`
+for the whole family; Homebrew asks you to trust a third-party tap once) or
 `scripts/install.sh` installs the `lockmq` launcher,
 which runs every command in `ghcr.io/davidgodefroid/lockmq:X.Y.Z`; the
 release's `-vault` image adds the pinned Vault CLI for
