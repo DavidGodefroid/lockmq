@@ -43,7 +43,7 @@ waits for **your** approval before any message content leaves it. The agent
 never sees a credential and never opens a connection.
 
 > [!NOTE]
-> **Pre-release** (`v0.1.x`). The CLI, the MCP tools and the config files may
+> **Pre-release** (`v0.6.x`). The CLI, the MCP tools and the config files may
 > still change before v1. See [Install](#install).
 
 ## Why lockmq?
@@ -149,6 +149,19 @@ the user, or stop.
 
 Docker only: one `lockmq` command, the launcher, runs every command in the
 signed release image. The full guide is [docs/docker.md](docs/docker.md).
+
+The shortest path is the Lock Family's: install it with Homebrew, then let
+[`lox init`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-init.md)
+find your broker and set up its lock:
+
+```sh
+brew install davidgodefroid/tap/lockfamily   # or only this tool: brew install davidgodefroid/tap/lockmq
+cd ~/projects/shop
+lox init                                      # detects RabbitMQ, sets up the lock, runs lox up
+lea                                           # or: claude, then lox approve
+```
+
+By hand, with lockmq's own installer:
 
 ```sh
 # 1. Install the launcher (cosign checks the release and its image)
@@ -425,7 +438,7 @@ variable can set them, and each change is audited.
 
 ## Limitations
 
-- No writes of any kind in v0.1 (purge, move, requeue, publish, shovel).
+- No writes of any kind (purge, move, requeue, publish, shovel), as of v0.6.x.
 - RabbitMQ only; JSON and UTF-8 text bodies only, other bodies are shown as
   size and hash.
 - Masking is best effort: a value in a free-text field that no detector,
@@ -441,11 +454,9 @@ variable can set them, and each change is audited.
 
 ## Roadmap
 
-Not in v0.1, and not promised for a given release:
+Not in v0.6.x, and not promised for a given release:
 
-- a prebuilt image;
-- body formats beyond JSON and UTF-8 text;
-- an `update` command that checks the release signature, as `locksql update`.
+- body formats beyond JSON and UTF-8 text.
 
 ## The lock family
 
@@ -473,7 +484,9 @@ same console, separation and approval model:
 
 ## Install
 
-lockmq runs in Docker. `scripts/install.sh` installs the `lockmq` launcher,
+lockmq runs in Docker. `brew install davidgodefroid/tap/lockmq` (or
+`davidgodefroid/tap/lockfamily` for the whole family) or
+`scripts/install.sh` installs the `lockmq` launcher,
 which runs every command in `ghcr.io/davidgodefroid/lockmq:X.Y.Z`; the
 release's `-vault` image adds the pinned Vault CLI for
 `credentials = "vault"` (`LOCKMQ_VAULT=1`). `lockmq version` prints the
