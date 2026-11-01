@@ -51,7 +51,7 @@
     <div class="wrap">
 
 <section class="hero" aria-labelledby="hero-title">
-  <p class="eyebrow"><a href="https://github.com/DavidGodefroid/lockmq/releases/tag/v0.1.0"><span class="badge">v0.1</span> Pre-release · open source, Apache 2.0</a></p>
+  <p class="eyebrow"><a href="https://github.com/DavidGodefroid/lockmq/releases/tag/v0.6.1"><span class="badge">v0.6</span> Pre-release · open source, Apache 2.0</a></p>
   <h1 id="hero-title">Your AI reads the queue. <br><span class="key">You hold the key.</span></h1>
   <p class="lead">Let Claude Code, Codex, Cursor or Gemini CLI inspect your RabbitMQ brokers without ever handing them a password.</p>
   <p class="intro">lockmq puts a <strong>human-held console</strong> between your AI agent and RabbitMQ. The agent asks; the console, running in a terminal you keep in view under its own account, holds the broker credentials and the only broker connections, serves an allowlist of read-only operations, masks personal data in messages and waits for <strong>your</strong> approval before any message content leaves it. The agent never sees a credential and never opens a connection.</p>
@@ -139,6 +139,12 @@
 
 <section aria-labelledby="quick-start">
   <h2 id="quick-start">Quick start</h2>
+  <p class="prose">The shortest path is the Lock Family’s: install it with Homebrew, then let <a href="https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-init.md"><code>lox init</code></a> find your broker and set up its lock:</p>
+  <pre tabindex="0" class="term"><code>brew install davidgodefroid/tap/lockfamily   # or only this tool: brew install davidgodefroid/tap/lockmq
+cd ~/projects/shop
+lox init                                      # detects RabbitMQ, sets up the lock, runs lox up
+lea                                           # or: claude, then lox approve</code></pre>
+  <p class="prose">By hand, with lockmq’s own installer:</p>
   <pre tabindex="0" class="term"><code># 1. Install the launcher (cosign checks the release and its image)
 V=vX.Y.Z
 curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
@@ -176,7 +182,7 @@ lox approve</code></pre>
 <section aria-labelledby="limits">
   <h2 id="limits">Know the limits</h2>
   <div class="prose">
-    <p>The console is the enforcement point; skills and tool descriptions only guide the agent. Masking is best effort. A queue peek is not read-only (messages are requeued), so it is off unless you allow it on a profile. RabbitMQ lets the <code>read</code> permission purge a queue: lockmq never does, but grant <code>read</code> narrowly. v0.1 has no writes of any kind.</p>
+    <p>The console is the enforcement point; skills and tool descriptions only guide the agent. Masking is best effort. A queue peek is not read-only (messages are requeued), so it is off unless you allow it on a profile. RabbitMQ lets the <code>read</code> permission purge a queue: lockmq never does, but grant <code>read</code> narrowly. lockmq has no writes of any kind (v0.6.x).</p>
     <p><a href="security/">Read the security model</a></p>
   </div>
 </section>
@@ -192,7 +198,7 @@ lox approve</code></pre>
         <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
         <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
       </ul>
-      <p>Pre-release (<code>v0.1.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p>Pre-release (<code>v0.6.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
       <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockhttp">lockhttp</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
     </div>
   </footer>

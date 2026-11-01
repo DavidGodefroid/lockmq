@@ -53,7 +53,8 @@
 <h1>Install lockmq</h1>
 <div class="prose">
   <p class="lead">lockmq runs in Docker: on your machine, Docker and one <code>lockmq</code> command, a launcher that runs every command in the signed release image with the account it needs. The image holds the separated setup: the console as <code>lockmq</code>, the agent as <code>agent</code> in <code>lockmq-clients</code>, a root-owned <code>/etc/lockmq/system.toml</code> and the socket directory shared through a named volume.</p>
-  <p>lockmq is a pre-release (<code>v0.1.x</code>): the CLI, the MCP tools and the config files may still change before v1.</p>
+  <p>lockmq is a pre-release (<code>v0.6.x</code>): the CLI, the MCP tools and the config files may still change before v1.</p>
+  <p>The shortest path is the Lock Family’s: <code>brew install davidgodefroid/tap/lockfamily</code> (or <code>brew install davidgodefroid/tap/lockmq</code> for this launcher alone), then <code>lox init</code> in your project, which finds your broker and sets up its lock (<a href="https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-init.md">lox init</a>). The steps below do it by hand.</p>
 </div>
 
 <section aria-labelledby="launcher">
@@ -113,7 +114,7 @@ lox approve         # the agent’s message reads</code></pre>
         <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
         <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
       </ul>
-      <p>Pre-release (<code>v0.1.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p>Pre-release (<code>v0.6.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
       <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockhttp">lockhttp</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
     </div>
   </footer>
