@@ -311,7 +311,8 @@ vault login -method=oidc -no-store -token-only
 `-no-store -token-only` prints the token and writes no `~/.vault-token`.
 A plain `vault login` would store the token in your account, where the
 agent runs: the agent could read it and fetch the login from Vault itself,
-bypassing the console (`lockmq doctor` fails on it). For the same reason,
+bypassing the console. The console does not read a stored token (`VAULT_TOKEN`
+wins), so a stored one can be deleted. For the same reason,
 do not leave `VAULT_TOKEN` set in that shell. When Vault refuses a read
 (`not authenticated or not allowed`: the token is expired or revoked, or
 its policy may not read `vault_path`), the console asks for a token again;
