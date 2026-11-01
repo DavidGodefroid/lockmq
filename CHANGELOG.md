@@ -6,8 +6,12 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-01
+
 The same launcher verbs as every lock of the family, which `lox init` drives
-(DavidGodefroid/lockkit#111, T5; lockkit GUIDE §14). Builds on lockkit v0.10.0.
+(DavidGodefroid/lockkit#111, T5; lockkit GUIDE §14): `lockmq profile add` replaces
+`lockmq setup`, which is removed. Builds on lockkit v0.10.0; lockhub as v0.5.0 (v0.3.0 or
+later).
 
 ### Added
 
