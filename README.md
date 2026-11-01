@@ -156,7 +156,7 @@ V=vX.Y.Z
 curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
 less install.sh && LOCKMQ_VERSION=$V sh install.sh
 
-# 2. In your project: the agent files, a broker profile, then .lockmq for the console
+# 2. In your project: the agent files, a broker profile, then a check of the setup
 lockmq init claude
 lockmq profile add          # asks; or --non-interactive --url URL --user USER ...
 lockmq doctor --fix --yes

@@ -6,6 +6,29 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`lockmq doctor --fix` no longer breaks `lox up`** (found by `lox init`,
+  DavidGodefroid/lockhub#92). It gave the project's `.lockmq/` to the console account
+  (uid 10011), a leftover of the standalone console that read `.lockmq` itself; `lox up`
+  reads it as you and copies only your own files, so it then refused it ("owned by uid
+  10011, not by you"). `doctor` now checks `.lockmq` as `lox up` copies it: yours, as are
+  the files and directories in it, none writable by group or others, no link. `--fix`
+  takes group and others' write away there, and gives back to you what an older
+  `doctor --fix` gave the console account (`.lockmq` itself and its copy of `pii.toml`);
+  a link or a file of another account is reported, never repaired. Removed with the
+  standalone era: the console account's ownership of `.lockmq` and `pii.toml`, and the
+  "readable by the console account" repair of `config.toml` (`lox up` keeps owner-only
+  modes in its copy, which the console account owns).
+- **`doctor --fix` checks as the agent account, not as root.** The launcher ran the whole
+  `doctor --fix` as root, without lox up's socket: the console's check always failed (the
+  console refuses root as a client) and the checks read files as root. The launcher now
+  passes your uid (`LOCKMQ_HOST_UID`) and lox up's socket to every `doctor`; with
+  `--fix` the image starts as root for the repairs only, then becomes the agent account
+  for good before any check, as a `doctor` without `--fix` runs. On a fresh setup
+  `doctor --fix --yes --json` exits 0 (warnings only). The project-access check now names
+  the agent account, which must enter the project, instead of the console account.
+
 ## [0.6.0] - 2026-11-01
 
 The same launcher verbs as every lock of the family, which `lox init` drives

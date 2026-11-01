@@ -248,6 +248,7 @@ func TestLauncherAccountsPerCommand(t *testing.T) {
 	// The agent commands: lox up's socket volume, read-only; never the
 	// fixed one of a console the launcher started.
 	sock, fixed := mountOf(f.root, "mq"), []string{"-v", "lockmq-run:/run/lockmq"}
+	hostUID := []string{"-e", "LOCKMQ_HOST_UID=" + strconv.Itoa(os.Getuid())}
 	for _, tc := range []struct {
 		args       []string
 		want, deny [][]string
@@ -256,10 +257,13 @@ func TestLauncherAccountsPerCommand(t *testing.T) {
 		{[]string{"status", "--json"}, [][]string{sock}, [][]string{{"--user"}, {"-v", "lockmq-home:/home/lockmq"}, fixed}},
 		{[]string{"queues", "--vhost", "/"}, [][]string{sock}, [][]string{{"--user"}, fixed}},
 		{[]string{"peek", "orders", "--count", "1"}, [][]string{sock}, [][]string{{"--user"}, {"-v", "lockmq-home:/home/lockmq"}, fixed}},
-		{[]string{"doctor"}, [][]string{sock}, [][]string{{"--user"}, fixed}},
-		{[]string{"doctor", "--fix", "--yes"}, [][]string{{"--user", "0"}}, [][]string{sock, fixed}},
-		{[]string{"init", "claude"}, [][]string{{"--user", me}, {"-e", "HOME=" + home}, {"-v", home + ":" + home}}, [][]string{sock, fixed}},
-		{[]string{"doctor", "--fix", "--yes", "--json"}, [][]string{{"--user", "0"}}, [][]string{sock, fixed}},
+		// doctor checks .lockmq for your uid, as lox up copies it; --fix
+		// starts as root for its repairs (the image then becomes the agent
+		// account to check, with the same socket).
+		{[]string{"doctor"}, [][]string{sock, hostUID}, [][]string{{"--user"}, fixed}},
+		{[]string{"doctor", "--fix", "--yes"}, [][]string{{"--user", "0"}, sock, hostUID}, [][]string{fixed}},
+		{[]string{"init", "claude"}, [][]string{{"--user", me}, {"-e", "HOME=" + home}, {"-v", home + ":" + home}}, [][]string{sock, fixed, hostUID}},
+		{[]string{"doctor", "--fix", "--yes", "--json"}, [][]string{{"--user", "0"}, sock, hostUID}, [][]string{fixed}},
 		{[]string{"profile", "add"}, [][]string{{"--user", me}, {"-e", "HOME=/tmp"}}, [][]string{sock, fixed, {"-v", home + ":" + home}}},
 		// lox init's call: every flag reaches the image as given.
 		{[]string{"profile", "add", "--non-interactive", "--json", "--profile", "dev", "--credentials", "vault", "--vault-path", "rabbitmq/creds/ro",

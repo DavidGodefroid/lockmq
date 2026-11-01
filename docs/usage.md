@@ -271,18 +271,24 @@ sends progress notifications so the client does not time out.
 lockmq doctor [--profile P] [--fix [--yes]] [--json]
 ```
 
-Checks the config, the separated setup, the project's `.lockmq` (owned by
-the console account, mode 0755, `pii.toml` owned by the console account,
-the files readable), each profile (tier
-first; `peek` flagged NOT READ-ONLY), whether its console runs (with its
-start command), and the agent wiring.
+Checks the config, the separated setup, the project's `.lockmq` as `lox up`
+copies it (yours, as are the files and directories in it, none of them
+writable by group or others, no link), each profile (tier first; `peek`
+flagged NOT READ-ONLY), whether its console runs (with its start command),
+and the agent wiring. In the image `doctor` runs as the agent account and
+checks `.lockmq` for your uid, which the launcher passes.
 
-`--fix` repairs `.lockmq` as root: the launcher runs `lockmq doctor --fix`
-as root in the image. The repair enters the directory and never follows a symbolic link;
-a `.lockmq` that is itself a link, a directory or file owned by root and a
-file with more than one link are reported, not repaired. `--fix` asks
-before the repair; `--yes` skips the question. Without a terminal `--fix`
-needs `--yes`, and `--yes` without `--fix` is a usage error.
+`--fix` makes `.lockmq` what `lox up` copies: it takes group and others'
+write away there, and gives back to you what an older `lockmq doctor --fix`
+gave the console account (`.lockmq` itself and a copy of `pii.toml`). The
+launcher runs `lockmq doctor --fix` as root in the image, for those repairs
+only: before any check it becomes the agent account, so the checks are a
+`doctor`'s without `--fix`. The repair enters each directory and never
+follows a symbolic link; a link, a file or directory of another account
+(root's included) and a file of the console account with more than one link
+are reported, not repaired. `--fix` asks before the repair; `--yes` skips
+the question. Without a terminal `--fix` needs `--yes`, and `--yes` without
+`--fix` is a usage error.
 
 The exit status is 0 exactly when no check fails: a console that does not
 run yet and unwired agents are warnings. `--json` prints one line, lockkit's

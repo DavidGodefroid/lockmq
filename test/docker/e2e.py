@@ -185,11 +185,38 @@ def main():
         r = sh("docker", "run", "--rm", "--user", me, "-e", "HOME=/tmp", *mount, IMAGE, "profile", "add",
                "--non-interactive", "--json", "--profile", "dev", "--url", f"http://{BROKER}:15672", check_=False)
         check(r.returncode != 0 and json.loads(r.stdout).get("code") == "exists", f"profile add keeps an existing profile\n{r.stdout}{r.stderr}")
-        r = sh("docker", "run", "--rm", "--user", "0", *mount, IMAGE, "doctor", "--fix", "--yes", "--json", check_=False)
-        check("checks" in json.loads(r.stdout), f"doctor --json prints its checks\n{r.stdout}{r.stderr}")
-        st = os.stat(os.path.join(project, ".lockmq"))
-        check(st.st_uid == 10011 and (st.st_mode & 0o777) == 0o755, f"doctor --fix gives .lockmq to uid 10011, 0755\n{r.stdout}{r.stderr}")
-        check(os.stat(os.path.join(project, ".lockmq", "config.toml")).st_mode & 0o004 != 0, "config.toml readable by the console")
+        # As the launcher runs it: root for the repairs, your uid for the
+        # checks of .lockmq, which then run as the agent account.
+        host_uid = ["-e", f"LOCKMQ_HOST_UID={os.getuid()}"]
+        r = sh("docker", "run", "--rm", "--user", "0", *host_uid, *mount, IMAGE, "doctor", "--fix", "--yes", "--json", check_=False)
+        doc = json.loads(r.stdout)
+        check(r.returncode == 0 and doc.get("ok") is True, f"doctor --fix --yes --json passes on a fresh setup\n{r.stdout}{r.stderr}")
+
+        def lox_up_copies(why):
+            # lox up copies only your own files and directories that no one
+            # else can write (lockhub's docs/lox-up.md).
+            bad = []
+            for d, dirs, files in os.walk(os.path.join(project, ".lockmq")):
+                for p in [d] + [os.path.join(d, f) for f in files]:
+                    st = os.lstat(p)
+                    if st.st_uid != os.getuid() or st.st_mode & 0o022:
+                        bad.append(f"{p} uid {st.st_uid} mode {st.st_mode & 0o777:04o}")
+            check(not bad, f"{why}: .lockmq is yours, written by you only {bad}\n{r.stdout}{r.stderr}")
+
+        lox_up_copies("doctor --fix")
+        # What an older doctor --fix left (.lockmq and pii.toml given to the
+        # console account) is given back to you.
+        with open(os.path.join(project, ".lockmq", "pii.toml"), "w") as f:
+            f.write("[[mask]]\n")
+        sh("docker", "run", "--rm", "--user", "0", "--entrypoint", "chown", *mount, IMAGE, "10011",
+           os.path.join(project, ".lockmq"), os.path.join(project, ".lockmq", "pii.toml"))
+        r = sh("docker", "run", "--rm", *host_uid, *mount, IMAGE, "doctor", "--json", check_=False)
+        check(r.returncode == 1 and "as an older lockmq doctor --fix left it" in r.stdout, f"doctor reports the console account's .lockmq\n{r.stdout}{r.stderr}")
+        r = sh("docker", "run", "--rm", "--user", "0", *host_uid, *mount, IMAGE, "doctor", "--fix", "--yes", "--json", check_=False)
+        doc = json.loads(r.stdout)
+        check(r.returncode == 0 and doc.get("ok") is True and doc.get("fixed"), f"doctor --fix gives it back\n{r.stdout}{r.stderr}")
+        lox_up_copies("doctor --fix after an older one")
+        os.remove(os.path.join(project, ".lockmq", "pii.toml"))
 
         # Without its hub the console refuses to start: launched by lox up only.
         r = sh("docker", "run", "--rm", "--user", "lockmq", "-v", f"{project}:{project}",

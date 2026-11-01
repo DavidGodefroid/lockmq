@@ -7,13 +7,16 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/DavidGodefroid/lockkit/agentwire"
 	"github.com/DavidGodefroid/lockkit/client"
+	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/ipc"
 	"github.com/DavidGodefroid/lockkit/sysconf"
 	"github.com/DavidGodefroid/lockkit/verbs"
@@ -80,7 +83,7 @@ func runDoctor(e env, args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	only := fs.String("profile", "", "check one profile")
-	fix := fs.Bool(verbs.FlagFix, false, "repair the project's .lockmq as root (sudo, or directly when run as root)")
+	fix := fs.Bool(verbs.FlagFix, false, "make the project's .lockmq what lox up copies (as root: sudo, or directly when run as root)")
 	yes := fs.Bool(verbs.FlagYes, false, "with --fix: repair without asking")
 	fs.Bool(verbs.FlagJSON, false, "one line of JSON on stdout")
 	pos, err := parseInterleaved(fs, args)
@@ -95,6 +98,30 @@ func runDoctor(e env, args []string) int {
 	d := &doctorRun{e: e, asJSON: asJSON, out: e.stdout}
 	if asJSON {
 		d.out = e.stderr
+	}
+	// .lockmq is checked for you, who run lox up; the console account only
+	// to recognise what an older doctor --fix gave it.
+	you, youErr := e.you()
+	sys, sysErr := e.sysconf()
+	var svc svcAccount
+	if sysErr == nil && sys != nil {
+		svc, _ = e.service(sys.ServiceUser)
+	}
+	// The repairs first, as root when they need it (the launcher runs
+	// --fix as root); then every check runs as the agent account, as a
+	// doctor without --fix does: never as root, which reads any file and
+	// which the console refuses as a client.
+	if *fix && youErr == nil {
+		if r, ok := kconfig.FindProjectRoot(product.P, e.cwd); ok {
+			d.repair(r, you, svc, *yes)
+		}
+	}
+	if e.geteuid() == 0 {
+		if err := e.leaveRootNow(); err != nil {
+			detail := "doctor runs as root and cannot become the agent account (" + agentAccount + "): " + err.Error()
+			d.add(verbs.Check{Check: "account", Status: verbs.StatusFail, Detail: detail, Fix: "run lockmq through the launcher (docs/docker.md)"}, "✗ account: "+detail)
+			return d.finish(exitFail)
+		}
 	}
 	ps, root, err := e.loadProfiles()
 	if err != nil {
@@ -115,18 +142,23 @@ func runDoctor(e env, args []string) int {
 	}
 	d.add(verbs.Check{Check: "config", Status: verbs.StatusOK, Detail: where}, "✓ config: "+where)
 	const sysFix = "run lockmq through the launcher (docs/docker.md)"
-	switch sys, err := e.sysconf(); {
-	case err != nil:
-		d.add(verbs.Check{Check: "separated setup", Status: verbs.StatusFail, Detail: err.Error(), Fix: sysFix}, "✗ separated setup: "+err.Error())
+	switch {
+	case sysErr != nil:
+		d.add(verbs.Check{Check: "separated setup", Status: verbs.StatusFail, Detail: sysErr.Error(), Fix: sysFix}, "✗ separated setup: "+sysErr.Error())
 	case sys == nil:
 		const detail = "none (/etc/lockmq/system.toml): the console refuses to start; lockmq runs in Docker: run it through the launcher (docs/docker.md)"
 		d.add(verbs.Check{Check: "separated setup", Status: verbs.StatusFail, Detail: detail, Fix: sysFix}, "✗ separated setup: "+detail)
 	default:
 		detail := fmt.Sprintf("console account %s, clients group %s", sys.ServiceUser, sys.ClientGroup)
 		d.add(verbs.Check{Check: "separated setup", Status: verbs.StatusOK, Detail: detail}, "✓ separated setup: "+detail)
-		if root != "" {
-			d.project(root, sys.ServiceUser, *fix, *yes)
-		}
+	}
+	if root != "" {
+		d.project(root, you, youErr, svc, *fix)
+	} else if dir := closedProject(e.cwd); dir != "" {
+		// No repair: opening a directory to others is the human's choice.
+		detail := fmt.Sprintf("%s (or a directory above it) is closed to this account (uid %d), as which the agent commands run: they find no profile; run: chmod o+x %s (or setfacl -m u:%d:x %s)",
+			dir, os.Geteuid(), shellQuote(dir), os.Geteuid(), shellQuote(dir))
+		d.add(verbs.Check{Check: "project access", Status: verbs.StatusFail, Detail: detail}, "✗ project access: "+detail)
 	}
 	if len(names) == 0 {
 		d.add(verbs.Check{Check: "profiles", Status: verbs.StatusFail, Detail: "none", Fix: "lockmq profile add"},
@@ -158,21 +190,50 @@ func runDoctor(e env, args []string) int {
 	return d.finish(code)
 }
 
-// project checks the project's .lockmq for the console account and, with
-// fix, repairs it as root, then checks again.
-func (d *doctorRun) project(root, service string, fix, yes bool) {
-	e := d.e
-	svc, ok := e.service(service)
-	if !ok {
-		detail := fmt.Sprintf("account %s not found on this machine; not checked", service)
+// project checks the project's .lockmq as `lox up` reads it, for you (uid
+// you; youErr when doctor cannot tell it).
+func (d *doctorRun) project(root string, you int, youErr error, svc svcAccount, fix bool) {
+	if youErr != nil {
+		detail := "not checked: " + youErr.Error()
 		d.add(verbs.Check{Check: "project", Status: verbs.StatusWarn, Detail: detail},
 			fmt.Sprintf("- project %s: %s", product.P.ProjectDir(), detail))
 		return
 	}
-	first := len(d.checks)
-	var repairs, repaired []string
-	for _, c := range projectChecks(root, svc) {
+	repairable := false
+	for _, c := range projectChecks(root, you, svc) {
 		d.addProject(c)
+		repairable = repairable || c.repair != ""
+	}
+	if repairable && !fix {
+		fmt.Fprintln(d.out, "  repair: lockmq doctor --fix")
+	}
+}
+
+// closedProject is the directory up from cwd that this account may not
+// enter, where it cannot look for .lockmq ("" for none): the topmost of
+// those whose .lockmq it may not look up, the one that closes the way.
+func closedProject(cwd string) string {
+	closed := ""
+	for d := cwd; ; d = filepath.Dir(d) {
+		_, err := os.Stat(filepath.Join(d, product.P.ProjectDir()))
+		switch {
+		case errors.Is(err, fs.ErrPermission):
+			closed = d
+		case closed != "":
+			return closed
+		}
+		if d == filepath.Dir(d) {
+			return closed
+		}
+	}
+}
+
+// repair makes the repairs of the project's .lockmq, as root, after the
+// human's yes (or with yes); the checks that follow show the result.
+func (d *doctorRun) repair(root string, you int, svc svcAccount, yes bool) {
+	e := d.e
+	var repairs, repaired []string
+	for _, c := range projectChecks(root, you, svc) {
 		if c.repair != "" {
 			repairs = append(repairs, c.repair)
 			repaired = append(repaired, c.line)
@@ -181,9 +242,9 @@ func (d *doctorRun) project(root, service string, fix, yes bool) {
 	if len(repairs) == 0 {
 		return
 	}
-	if !fix {
-		fmt.Fprintln(d.out, "  repair: lockmq doctor --fix (as root in the image: see docs/docker.md)")
-		return
+	fmt.Fprintln(d.out, "To repair:")
+	for _, l := range repaired {
+		fmt.Fprintln(d.out, "  - "+l)
 	}
 	script := "set -eu\n" + strings.Join(repairs, "\n") + "\n"
 	fmt.Fprintf(d.out, "These repairs run as root:\n    %s\n", strings.ReplaceAll(strings.TrimRight(script, "\n"), "\n", "\n    "))
@@ -204,17 +265,15 @@ func (d *doctorRun) project(root, service string, fix, yes bool) {
 		return
 	}
 	d.fixed = append(d.fixed, repaired...)
-	// The checks after the repairs replace those before them.
-	d.checks = d.checks[:first]
-	for _, c := range projectChecks(root, svc) {
-		d.addProject(c)
-	}
 }
 
 // addProject records one check of the project's .lockmq.
 func (d *doctorRun) addProject(c projectCheck) {
 	status, fix := verbs.StatusOK, ""
-	if !c.ok {
+	switch {
+	case c.warn:
+		status = verbs.StatusWarn
+	case !c.ok:
 		status = verbs.StatusFail
 		if c.repair != "" {
 			fix = "lockmq doctor --fix"
@@ -229,6 +288,18 @@ func (e env) service(name string) (svcAccount, bool) {
 		return e.svc(name)
 	}
 	return lookupService(name)
+}
+
+// agentAccount is the image's account of the agent commands (the
+// Dockerfile's USER), which a doctor run as root becomes for its checks.
+const agentAccount = "agent"
+
+// leaveRootNow makes this process the agent account, for good.
+func (e env) leaveRootNow() error {
+	if e.leaveRoot != nil {
+		return e.leaveRoot()
+	}
+	return becomeAccount(agentAccount)
 }
 
 // geteuid is the effective uid.

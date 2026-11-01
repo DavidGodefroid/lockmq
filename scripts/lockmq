@@ -9,13 +9,15 @@
 #                    memory), with the socket and home volumes
 #   init             as you, with your home: it writes your agents' files
 #   profile add      as you, so that the profile it writes is yours
-#   doctor --fix     as root, which gives .lockmq/ to the console account
 #   mcp, doctor and the client commands (status, queues, read, peek...)
 #                    as the agent account (agent), with the socket volume of
 #                    the workspace's lockmq lock that `lox up` runs (read
 #                    from .lockfamily/up.json and checked with Docker;
 #                    --instance NAME picks one of several): none without
-#                    lox up, but doctor then runs anyway and says why
+#                    lox up, but doctor then runs anyway and says why.
+#                    doctor checks .lockmq/ for your uid (LOCKMQ_HOST_UID),
+#                    as lox up copies it; doctor --fix starts as root for
+#                    its repairs, then becomes the agent account to check
 #   anything else    as the agent account, with no socket: help...
 #
 # The project (the nearest directory up from here that holds .lockmq/, or
@@ -641,15 +643,21 @@ profile)
 	docker_run "$tty" --user "$(id -u):$(id -g)" -e HOME=/tmp "$image" "$@"
 	;;
 doctor)
+	# .lockmq/ must be yours, as `lox up` copies it: doctor learns your uid
+	# here (in the image it never runs as you). --fix starts as root, for
+	# the repairs that need it (giving back to you what an older doctor
+	# --fix gave the console account), then the image becomes the agent
+	# account before any check: the checks run as the agent commands do.
+	set -- -e "LOCKMQ_HOST_UID=$(id -u)" "$image" "$@"
 	if has_flag --fix "$@"; then
-		docker_run "$tty" --user 0 "$image" "$@"
+		set -- --user 0 "$@"
 	fi
 	# The checks run without lox up's socket too: then they say so.
 	if command -v docker >/dev/null 2>&1 && lockup_volume "$instance"; then
-		docker_run "$tty" --mount "type=volume,src=$lockup_vol,dst=/run/lockmq,readonly" "$image" "$@"
+		docker_run "$tty" --mount "type=volume,src=$lockup_vol,dst=/run/lockmq,readonly" "$@"
 	fi
 	[ -z "$lockup_why" ] || say "$lockup_why"
-	docker_run "$tty" "$image" "$@"
+	docker_run "$tty" "$@"
 	;;
 mcp)
 	# The agent speaks MCP on stdin and stdout: no terminal.
