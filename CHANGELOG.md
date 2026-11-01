@@ -6,7 +6,11 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
-The console is hub-attached only (DavidGodefroid/lockkit#110).
+## [0.5.0] - 2026-11-01
+
+The console is hub-attached only (DavidGodefroid/lockkit#110): `lox up` starts it, and the
+launcher's agent commands reach the console `lox up` runs through `.lockfamily/up.json`
+(lockhub#78). Builds on lockkit v0.9.1.
 
 ### Changed
 
