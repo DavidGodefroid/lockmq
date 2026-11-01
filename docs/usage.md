@@ -155,6 +155,7 @@ be a service name without a dot or a private address.
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.6.1 | v0.10.0 | as v0.6.0 |
 | v0.6.0 | v0.10.0 | as v0.5.0 |
 | v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only, and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
 | v0.4.3 | v0.8.1 | as v0.4.2 |
