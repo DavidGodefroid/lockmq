@@ -72,7 +72,7 @@ LOCKMQ_VERSION=$V sh install.sh</code></pre>
 lockmq profile add</code></pre>
   <div class="prose">
     <p><code>profile add</code> asks for the management API URL, the optional AMQP and stream URLs, the vhosts, the user, where the password comes from (<code>ask</code> or <code>vault</code>; never the password itself), production or not, and whether to allow queue peeks (default no). Flags give the answers instead (<code>--url</code>, <code>--user</code>, <code>--vhost</code>, ...), and <code>--non-interactive</code> never asks. In a container <code>localhost</code> is the container itself: a broker on your machine is <code>host.docker.internal</code>, a broker container is its name on a network shared with the console.</p>
-    <p>Then give <code>.lockmq/</code> to the console account; the launcher runs the repair as root in the image (it never follows a symbolic link):</p>
+    <p>Then check the setup. <code>.lockmq/</code> stays yours: <code>lox up</code> copies it for the console, and takes only your own files that no one else can write. <code>--fix</code> repairs what <code>lox up</code> would refuse, as root in the image for those repairs only (it never follows a symbolic link):</p>
   </div>
   <pre tabindex="0"><code>lockmq doctor --fix --yes</code></pre>
 </section>

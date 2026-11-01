@@ -111,10 +111,21 @@ jobs:
           sh "$GITHUB_WORKSPACE/scripts/lockmq" profile add --non-interactive --json --url http://host.docker.internal:15672 | grep -q '"profile":"dev"'
           code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" profile add --non-interactive --json --url http://host.docker.internal:15672 >out || code=$?
           test "$code" != 0 && grep -q '"code":"exists"' out
-          # Non-zero: the console's checks fail from this container, which
-          # runs none (docs/docker.md); the repair itself is checked below.
-          sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes || true
-          test "$(stat -c %u .lockmq)" = 10011
+          # A fresh setup passes (warnings only: no console runs here), and
+          # .lockmq stays what lox up copies: yours, written by you only.
+          sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes --json >out
+          grep -q '"ok":true' out && grep -q '"check":"project","status":"ok"' out
+          test "$(stat -c %u .lockmq)" = "$(id -u)" && test -z "$(find .lockmq \( -perm -0020 -o -perm -0002 -o ! -user "$(id -u)" \) -print)"
+          # What an older doctor --fix left (.lockmq and pii.toml given to
+          # the console account) is given back to you.
+          printf '[[mask]]\n' >.lockmq/pii.toml
+          docker run --rm --user 0 --entrypoint chown -v "$PWD:$PWD" lockmq 10011 "$PWD/.lockmq" "$PWD/.lockmq/pii.toml"
+          code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --json >out || code=$?
+          test "$code" = 1 && grep -q 'as an older lockmq doctor --fix left it' out
+          sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes --json >out
+          grep -q '"ok":true' out && grep -q '"fixed":\["' out
+          test "$(stat -c %u .lockmq)" = "$(id -u)" && test "$(stat -c %u .lockmq/pii.toml)" = "$(id -u)"
+          test -z "$(find .lockmq \( -perm -0020 -o -perm -0002 -o ! -user "$(id -u)" \) -print)"
           # No lox up here: no console's socket to mount (exit 2, as a client
           # that finds no console), never the fixed lockmq-run instead.
           code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" status --profile dev 2>err || code=$?

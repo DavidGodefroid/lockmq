@@ -246,7 +246,7 @@ func runProfileAdd(e env, args []string) int {
 	}
 	fmt.Fprintf(out, "Profile %s written to %s (tier %s; no secret in the file).\n", pname, path, np.Tier)
 	if container {
-		fmt.Fprintln(out, "Give .lockmq to the console account (lockmq doctor --fix), then start the console with its hub (lox add lockmq NAME, lox up): see docs/docker.md.")
+		fmt.Fprintln(out, "Check the setup (lockmq doctor), then start the console with its hub (lox add lockmq NAME, lox up): see docs/docker.md.")
 	} else {
 		fmt.Fprintf(out, "Start its console with its hub: lox add lockmq NAME (profile %s, project %s), then lox up\n", pname, root)
 		fmt.Fprintln(out, "Wire your agents with: lockmq init <agent>")

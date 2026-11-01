@@ -56,6 +56,11 @@ type env struct {
 	euid func() int
 	// svc looks up the console account; nil is the real lookup.
 	svc func(name string) (svcAccount, bool)
+	// getenv reads the environment; nil is os.Getenv.
+	getenv func(name string) string
+	// leaveRoot makes doctor, run as root, the agent account; nil is the
+	// real switch.
+	leaveRoot func() error
 }
 
 const usageText = `usage: lockmq <command> [arguments]

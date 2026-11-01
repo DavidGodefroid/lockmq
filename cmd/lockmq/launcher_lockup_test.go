@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -498,5 +499,21 @@ func TestLauncherDoctorWithoutLockUp(t *testing.T) {
 	}
 	if !strings.Contains(out, "no .lockfamily/up.json in "+f.project) || !strings.Contains(out, "lox up") {
 		t.Errorf("output:\n%s", out)
+	}
+	// --fix too: one container, root for the repairs, your uid, no socket.
+	out, calls, err = f.run(t, f.project, nil, "doctor", "--fix", "--yes", "--json")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	runs := 0
+	for _, c := range calls {
+		if len(c) > 0 && c[0] == "run" {
+			runs++
+		}
+	}
+	run := lastRun(t, calls)
+	if runs != 1 || strings.Contains(strings.Join(run, " "), "/run/lockmq") || !hasSeq(run, "--user", "0") ||
+		!hasSeq(run, "-e", "LOCKMQ_HOST_UID="+strconv.Itoa(os.Getuid())) || !strings.Contains(out, "no .lockfamily/up.json in "+f.project) {
+		t.Errorf("runs %d %q\n%s", runs, run, out)
 	}
 }

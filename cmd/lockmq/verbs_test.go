@@ -243,9 +243,9 @@ func TestDoctorFlagRules(t *testing.T) {
 // fixed and the checks after them.
 func TestDoctorFixYesJSON(t *testing.T) {
 	root := project(t, oneProfile)
-	// .lockmq is 0700: the console account (here, this uid) must have it
-	// 0755.
-	svc := svcAccount{name: "lockmq", uid: os.Getuid()}
+	// .lockmq is 0775: lox up refuses a directory others than you can
+	// write.
+	svc := svcAccount{name: "lockmq", uid: os.Getuid() + 7}
 	var out, errb bytes.Buffer
 	var scripts []string
 	e := containerEnv(t, root, "", &out, &errb)
@@ -257,7 +257,7 @@ func TestDoctorFixYesJSON(t *testing.T) {
 		return os.Chmod(filepath.Join(root, ".lockmq"), 0o755)
 	}
 	e.dial = func(string) (mcptools.Conn, error) { return nil, os.ErrNotExist }
-	if err := os.Chmod(filepath.Join(root, ".lockmq", "config.toml"), 0o644); err != nil {
+	if err := os.Chmod(filepath.Join(root, ".lockmq"), 0o775); err != nil {
 		t.Fatal(err)
 	}
 	code := run(e, []string{"doctor", "--fix", "--yes", "--json"})

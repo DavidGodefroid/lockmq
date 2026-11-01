@@ -65,15 +65,16 @@ runs each command with the account it needs:
 | `console` | `lockmq`, in a container of its own per project (`lockmq-console-<n>`; `LOCKMQ_CONSOLE_NAME` names it), with `--add-host=host.docker.internal:host-gateway`, no log driver, no capability, `no-new-privileges`, a read-only root with a 64 MB `/tmp`, at most 256 processes and 1 GB of memory | `lockmq-run`, `lockmq-home` |
 | `init` | you (your uid and gid), with your home mounted: it writes the agents' files | |
 | `profile add` | you, with `HOME=/tmp` | |
-| `doctor --fix` | root | |
 | the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox up` runs, read-only ([below](#the-socket-of-lox-ups-lock)) |
+| `doctor --fix` | root for its repairs only, then `agent` for every check, as `doctor` | as `doctor` |
 | everything else: `help`... | `agent` | none |
 
 The socket name is derived from the project path, so the console and the
-agent see the same one, and the console's hints name real paths. The
-console account must enter and list the project directory, the only one of
-the path that keeps its host mode in the container: mode 0755, the usual,
-does it (`lockmq doctor` reports a project it cannot enter).
+agent see the same one, and the console's hints name real paths. The agent
+account must enter the project directory, the only one of the path that
+keeps its host mode in the container: mode 0755, the usual, does it
+(`lockmq doctor` reports a project it cannot enter). `doctor` checks
+`.lockmq/` for your uid, which the launcher passes as `LOCKMQ_HOST_UID`.
 
 The launcher reads:
 
@@ -158,8 +159,9 @@ between that check and Docker's own mount: an agent that can replace
 `.lockmq` in that instant could redirect the console's writable mount.
 Mount `.lockmq` read-only in the agents' containers to close it.
 
-On macOS (Docker Desktop), `lockmq doctor --fix` giving `.lockmq/` to uid
-10011 (a `chown` through Docker Desktop's file sharing) is untested so far.
+On macOS (Docker Desktop), `lockmq doctor --fix` giving back to you a
+`.lockmq/` an older release gave to uid 10011 (a `chown` through Docker
+Desktop's file sharing) is untested so far.
 
 ### Your own build
 
@@ -233,23 +235,26 @@ container itself, and `profile add` knows it:
   (`tls = "verify-full"` by default); a production profile on a remote host
   refuses plain ones.
 
-Then give `.lockmq/` to the console account. The console writes `pii.toml`
-there, and a directory your account owns would let the agent replace that
-file, and with it the masking rules. The account exists only in the image,
-where the launcher runs the repair as root:
+Then check the setup:
 
 ```sh
 lockmq doctor --fix --yes
 ```
 
-It makes uid 10011 the owner of `.lockmq/` (mode 0755), replaces a
-`pii.toml` it does not own with a copy it owns (review its rules: the agent
-may have changed them), and makes `config.toml` readable; `config.toml`
-stays yours to edit (the console shows any change to the policy and asks you
-to approve it). The repair enters the directory and never follows a
-symbolic link. The checks of the console fail from this container, which
-runs no console: read the `project` lines. Run it again whenever `.lockmq/`
-is created anew, by `lockmq init` for example.
+`.lockmq/` stays yours: `lox up` reads it as you and copies only your own
+regular files and directories that neither group nor others can write
+(lockhub's `docs/lox-up.md`, "Profiles: a reviewed copy"); the console reads
+that copy, never the project, and `lox up` shows you every line of its
+TOML files before the copy. `doctor` reports what `lox up` would refuse;
+`--fix` takes group and others' write away from your files and
+directories there, and gives back to you what an older `lockmq doctor
+--fix` gave the console account (uid 10011: `.lockmq/` itself and a copy of
+`pii.toml`). Those repairs run as root (the launcher starts `doctor --fix`
+as root); every check then runs as `agent`, as a `doctor` without `--fix`
+does. A link, or a file of another account, is never repaired: replace it
+with your own. The repair enters each directory and never follows a
+symbolic link. On a fresh setup `doctor` exits 0: the console's line is a
+warning while `lox up` runs none.
 
 ## Run the console
 
@@ -331,7 +336,7 @@ and Codex in the `[mcp_servers.lockmq]` table `lockmq init codex` prints for
 
 The client commands run the same way: `lockmq status`, `lockmq queues`...
 
-`lockmq doctor` runs as `agent`; `docker run --rm --user lockmq -v
+`lockmq doctor` runs as `agent` (`--fix` makes its repairs as root first); `docker run --rm --user lockmq -v
 lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq
 ghcr.io/davidgodefroid/lockmq:X.Y.Z doctor` checks the console account.
 
