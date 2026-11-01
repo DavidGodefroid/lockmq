@@ -64,7 +64,7 @@ runs each command with the account it needs:
 |---|---|---|
 | `console` | `lockmq`, in a container of its own per project (`lockmq-console-<n>`; `LOCKMQ_CONSOLE_NAME` names it), with `--add-host=host.docker.internal:host-gateway`, no log driver, no capability, `no-new-privileges`, a read-only root with a 64 MB `/tmp`, at most 256 processes and 1 GB of memory | `lockmq-run`, `lockmq-home` |
 | `init` | you (your uid and gid), with your home mounted: it writes the agents' files | |
-| `setup` | you, with `HOME=/tmp` | |
+| `profile add` | you, with `HOME=/tmp` | |
 | `doctor --fix` | root | |
 | the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox up` runs, read-only ([below](#the-socket-of-lox-ups-lock)) |
 | everything else: `help`... | `agent` | none |
@@ -179,7 +179,8 @@ The base images are pinned by digest in the `Dockerfile`.
 
 From the former Docker guide: its `docker run ... lockmq ...` commands keep
 working, but the launcher replaces them. Install it, then
-use `lockmq console`, `lockmq init`, `lockmq setup`; the `lockmq-run` and
+use `lockmq console`, `lockmq init`, `lockmq profile add` (formerly
+`lockmq setup`, removed); the `lockmq-run` and
 `lockmq-home` volumes are the same. An agent entry that runs
 `sh -c 'exec docker run ... lockmq mcp'` keeps working; `lockmq init` now
 writes `lockmq mcp`, which goes through the launcher.
@@ -205,23 +206,26 @@ lockmq init claude
 The MCP command it writes, `lockmq mcp`, is the launcher: the agent starts
 the MCP server in a throwaway container ([Wire the agent](#wire-the-agent)).
 
-Add a broker profile with the wizard:
+Add a broker profile:
 
 ```sh
-lockmq setup
+lockmq profile add
 ```
 
 It asks for the management API URL, the AMQP and stream URLs, the vhosts,
 the broker user and where the password comes from, never for the password
-itself, and appends the profile to `.lockmq/config.toml`. Inside a
-container, `localhost` is the container itself, and the wizard knows it:
+itself, and appends the profile to `.lockmq/config.toml`. Flags give the
+answers instead, and `--non-interactive` never asks
+(`lockmq profile add --non-interactive --url http://host.docker.internal:15672 --user ro`;
+[usage](usage.md#profiles)). Inside a container, `localhost` is the
+container itself, and `profile add` knows it:
 
 - a broker on your machine is `host.docker.internal` (the default), which
   the launcher maps to your machine;
 - a broker in another container is reached by its name on a shared network
   (`LOCKMQ_DOCKER_ARGS="--network NAME" lockmq console`), as in
   [A broker in a container](#a-broker-in-a-container);
-- the wizard refuses `localhost`, `127.0.0.1` and `::1`;
+- `profile add` refuses `localhost`, `127.0.0.1` and `::1`;
 - `credentials = "keychain"` needs an OS keychain, which the container does
   not have: use `credentials = "ask"`, or `"vault"` with the image below;
 - a remote broker takes TLS URLs (`https`, `amqps`,

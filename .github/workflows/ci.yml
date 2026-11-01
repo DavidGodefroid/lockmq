@@ -108,7 +108,9 @@ jobs:
           sh "$GITHUB_WORKSPACE/scripts/lockmq" init claude
           grep -Eq '"command": ?"lockmq"' .mcp.json
           test "$(stat -c %u .mcp.json)" = "$(id -u)"
-          printf '[profiles.dev]\nurl = "http://host.docker.internal:15672"\n' >> .lockmq/config.toml
+          sh "$GITHUB_WORKSPACE/scripts/lockmq" profile add --non-interactive --json --url http://host.docker.internal:15672 | grep -q '"profile":"dev"'
+          code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" profile add --non-interactive --json --url http://host.docker.internal:15672 >out || code=$?
+          test "$code" != 0 && grep -q '"code":"exists"' out
           # Non-zero: the console's checks fail from this container, which
           # runs none (docs/docker.md); the repair itself is checked below.
           sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes || true

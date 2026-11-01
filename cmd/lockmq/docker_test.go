@@ -16,7 +16,8 @@ import (
 	"github.com/DavidGodefroid/lockmq/internal/mcptools"
 )
 
-// containerEnv is an env for setup and doctor as they run in the image.
+// containerEnv is an env for profile add and doctor as they run in the
+// image.
 func containerEnv(t *testing.T, root, stdin string, out, errb *bytes.Buffer) env {
 	t.Helper()
 	return env{stdin: strings.NewReader(stdin), stdout: out, stderr: errb, cwd: root,
@@ -27,15 +28,21 @@ func containerEnv(t *testing.T, root, stdin string, out, errb *bytes.Buffer) env
 		}}
 }
 
-// In a container the wizard names the machine host.docker.internal and
+// In a container profile add names the machine host.docker.internal and
 // refuses the keychain and loopback hosts, which are the container itself.
-func TestSetupInContainer(t *testing.T) {
+func TestProfileAddInContainer(t *testing.T) {
 	answers := func(url, creds string) string {
 		return strings.Join([]string{"dev", url, "", "", "", "lockmq-ro", creds, "", ""}, "\n") + "\n"
 	}
+	ttyEnv := func(root, stdin string, out, errb *bytes.Buffer) env {
+		e := containerEnv(t, root, stdin, out, errb)
+		e.tty = true
+		return e
+	}
+	add := []string{"profile", "add"}
 	root := project(t, "")
 	var out, errb bytes.Buffer
-	if code := run(containerEnv(t, root, answers("", ""), &out, &errb), []string{"setup"}); code != exitOK {
+	if code := run(ttyEnv(root, answers("", ""), &out, &errb), add); code != exitOK {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
 	for _, want := range []string{"[http://host.docker.internal:15672]", "Credentials: ask or vault [ask]", "localhost is the container itself", "docs/docker.md"} {
@@ -60,9 +67,16 @@ func TestSetupInContainer(t *testing.T) {
 	} {
 		out.Reset()
 		errb.Reset()
-		if code := run(containerEnv(t, project(t, ""), answers(c.url, c.creds), &out, &errb), []string{"setup"}); code == exitOK || !strings.Contains(errb.String(), c.want) {
+		if code := run(ttyEnv(project(t, ""), answers(c.url, c.creds), &out, &errb), add); code == exitOK || !strings.Contains(errb.String(), c.want) {
 			t.Errorf("%+v: exit %d, %s", c, code, errb.String())
 		}
+	}
+	// The non-interactive form refuses a loopback host too.
+	out.Reset()
+	errb.Reset()
+	args := append(add, "--non-interactive", "--url", "http://localhost:15672")
+	if code := run(containerEnv(t, project(t, ""), "", &out, &errb), args); code != exitUsage || !strings.Contains(errb.String(), "the console's own container") {
+		t.Errorf("non-interactive loopback: exit %d, %s", code, errb.String())
 	}
 }
 

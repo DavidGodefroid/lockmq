@@ -146,7 +146,7 @@ less install.sh &amp;&amp; LOCKMQ_VERSION=$V sh install.sh
 
 # 2. In your project: the agent files, a broker profile, .lockmq for the console
 lockmq init claude
-lockmq setup
+lockmq profile add
 lockmq doctor --fix --yes
 
 # 3. Declare the lock and start it with its hub (lockhub's lox CLI)

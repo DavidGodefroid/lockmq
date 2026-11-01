@@ -13,13 +13,32 @@ the image's; `lockmq update [vX.Y.Z]` replaces the launcher with a release's
 ## Profiles
 
 ```sh
-lockmq setup [--project DIR]
+lockmq profile add [--non-interactive] [--json] [--project DIR] [--profile NAME] [--production]
+                   [--credentials ask|vault [--vault-path P]] [--url URL] [--user USER] [--vhost V]...
+                   [--amqp-url URL] [--stream-url URL] [--tier read|peek]
 ```
 
-Asks for one profile and appends it to the project's `.lockmq/config.toml`:
-the management API URL, the optional AMQP and stream URLs, the vhosts, the
-user, the credentials mode (`ask` or `vault`; a container has no keychain),
-production or not, and:
+Adds one profile to the project's `.lockmq/config.toml`. No form of it
+takes, asks for or writes a secret: the console asks for the password at
+its start (`ask`, the default) or reads it from Vault (`vault`, at
+`--vault-path`).
+
+| Flag | Config key | Meaning |
+|---|---|---|
+| `--profile NAME` | the table name | default `dev` |
+| `--url URL` | `url` | management API, `http(s)://host:port` |
+| `--user USER` | `user` | broker user (empty: asked when the console starts) |
+| `--vhost V` | `vhosts` | repeatable (none: every vhost the account sees) |
+| `--amqp-url URL` | `amqp_url` | AMQP URL for stream reads |
+| `--stream-url URL` | `stream_url` | stream protocol URL |
+| `--credentials ask\|vault` | `credentials` | where the console gets the password |
+| `--vault-path P` | `vault_path` | with `--credentials vault` only |
+| `--production` | `production` | a production profile |
+| `--tier read\|peek` | `tier` | default `read` |
+
+Without `--non-interactive`, in a terminal, it asks for what the flags did
+not give (it may offer the keychain outside a container), and the peek
+question:
 
 ```
 Allow reading messages of classic and quorum queues? Not strictly read-only:
@@ -27,10 +46,35 @@ messages are requeued and marked redelivered, and may count toward a quorum
 queue's delivery limit. [y/N]
 ```
 
-The default is no: `tier = "read"`. The profile is validated before it is
-written (a URL with a password is refused). In a container the management
-URL defaults to `http://host.docker.internal:15672`, and `localhost`,
-`127.0.0.1` and `::1`, the container itself, are refused.
+The default is no: `tier = "read"`. Without a terminal it refuses rather
+than wait for an answer. `--non-interactive` never reads stdin: `--url` is
+then required, and `--credentials` takes `ask` or `vault` only.
+
+The profile is validated before it is written: a flag named like a secret
+(`--password`, ...), a value that embeds a password (a URL with
+`user:password@`), a positional argument and a name already in the config
+are refused, and the file is left as it was. An error names the flag,
+never its value. In a container the management URL defaults to
+`http://host.docker.internal:15672`, and `localhost`, `127.0.0.1` and
+`::1`, the container itself, are refused.
+
+`--json` prints exactly one line of JSON on stdout, lockkit's
+`verbs.Profile` on success:
+
+```json
+{"lock":"lockmq","profile":"dev","config":"/work/app/.lockmq/config.toml","production":false,"credentials":"ask"}
+```
+
+and `verbs.Error` on failure, whose `code` is `usage`, `secret`, `exists`
+(the profile is already there; nothing written) or `failed`:
+
+```json
+{"lock":"lockmq","code":"exists","error":"a profile of that name is already in the project's config; nothing written"}
+```
+
+Questions and messages then go to stderr. `lox init` runs
+`lockmq profile add --non-interactive --json --profile NAME ... --url URL --user USER --vhost V`,
+then `lockmq init claude` and `lockmq doctor --fix --yes --json`.
 
 Every key is described in the README's Configuration section. Changing the
 file later: tightenings (a lower limit, `peek` → `read`, a removed vhost, a
@@ -44,7 +88,7 @@ lockmq init [claude|codex|cursor|gemini ...]
 ```
 
 Writes the project's agent files (default: the agents found on the
-machine): the MCP server entry (`lockmq mcp`), the Claude Code skill, the
+machine); it never asks, and running it again changes nothing: the MCP server entry (`lockmq mcp`), the Claude Code skill, the
 `AGENTS.md` / `GEMINI.md` section, the Cursor rule, and an example
 `.lockmq/config.toml` when there is none. Claude Code may call the catalogue
 tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
@@ -221,7 +265,7 @@ sends progress notifications so the client does not time out.
 ## Doctor
 
 ```sh
-lockmq doctor [--profile P] [--fix [--yes]]
+lockmq doctor [--profile P] [--fix [--yes]] [--json]
 ```
 
 Checks the config, the separated setup, the project's `.lockmq` (owned by
@@ -233,8 +277,15 @@ start command), and the agent wiring.
 `--fix` repairs `.lockmq` as root: the launcher runs `lockmq doctor --fix`
 as root in the image. The repair enters the directory and never follows a symbolic link;
 a `.lockmq` that is itself a link, a directory or file owned by root and a
-file with more than one link are reported, not repaired. `--yes` skips
-the question.
+file with more than one link are reported, not repaired. `--fix` asks
+before the repair; `--yes` skips the question. Without a terminal `--fix`
+needs `--yes`, and `--yes` without `--fix` is a usage error.
+
+The exit status is 0 exactly when no check fails: a console that does not
+run yet and unwired agents are warnings. `--json` prints one line, lockkit's
+`verbs.Doctor`: `ok`, the repairs made (`fixed`) and every check (`check`,
+`status` `ok|warn|fail`, `detail`, `fix`); a doctor that could not check (a
+usage error) prints a `verbs.Error` instead.
 
 ## Audit log
 

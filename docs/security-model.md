@@ -130,7 +130,8 @@ federation) lose their userinfo before they reach a client.
 
 `peek` is the one operation that changes delivery state. It is off unless
 the profile's tier is `peek` (setting it is a loosening the human confirms;
-`lockmq setup` asks with the warning, default no). When on:
+`lockmq profile add` asks with the warning, default no, unless `--tier`
+gives it). When on:
 
 - the screen says NOT READ-ONLY, shows the queue's type, ready and unacked
   counts, consumers and delivery limit;
