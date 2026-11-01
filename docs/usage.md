@@ -100,14 +100,14 @@ session the operation uses (type, arguments, policy and operator policy, broker 
 message counts), so a queue changed after the approval is refused `E_STALE` before anything is
 read; the hub is told it was consumed. A denial is `denied`; an expired ticket is asked again (below). Decisions are
 audited (`approval: hub`, `ticket`, `approver`, `facade`, `hub_sig`). The dry run's verdict
-is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lock up` to pin
+is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lox up` to pin
 (made once in the console account's home, `0600`).
-`lock up` also passes `--hub-plain-http` for its `http://lockhub:8443` on the hub's own network:
+`lox up` also passes `--hub-plain-http` for its `http://lockhub:8443` on the hub's own network:
 without it an `http://` hub URL other than loopback is refused, and with it the URL must still
 be a service name without a dot or a private address.
 
 **Supported lockhub versions.** Which [lockhub](https://github.com/DavidGodefroid/lockhub) releases
-(its `lock` CLI and its hub image) each lockmq release works with under `lock up`:
+(its `lox` CLI, named `lock` before lockhub v0.3.0, and its hub image) each lockmq release works with under `lox up`:
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
@@ -118,8 +118,8 @@ be a service name without a dot or a private address.
 | v0.3.0 | v0.3.1 | v0.2.0 or later: hub mode only; leave `devices` and `reveal` off |
 | v0.2.0 and older | older than v0.3.1 | none (no hub mode) |
 
-`lock up` runs these consoles from the `lock` CLI of lockhub v0.2.0 on (the console account, a
-terminal, the reviewed profile copy); the `lock up` of lockhub v0.1.x cannot run them. A console
+`lox up` runs these consoles from lockhub v0.2.0 on (the console account, a
+terminal, the reviewed profile copy; the CLI was named `lock` before v0.3.0); lockhub v0.1.x cannot run them. A console
 older than a feature `lockfamily.yaml` asks of it refuses the flag and does not start: leave
 `devices`/`reveal`/`allowed_uids` off for it. A lock on lockkit older than v0.5.0 ignores the hub's reveal and
 renewal requests, which then time out. lockhub's CI does not run a lockmq image: the table
@@ -139,7 +139,7 @@ approved policy (a changed policy is not renewed: `timeout`, plan again) without
 broker: the request's params are compared, the queue is shown `unchecked` (names only, never
 values), so a renewal is never a one-click "unchanged" one. The run of the new ticket reads the
 queue again and refuses one that moved `E_STALE`, as any hub run. Renewals are audited
-(`event: renew`, with the stored request). `lock up` also passes `--facade-keys-file FILE`,
+(`event: renew`, with the stored request). `lox up` also passes `--facade-keys-file FILE`,
 the local facades whose Ctrl-O may reveal a ticket's clear screen, sealed to them (audited
 `event: reveal`). A console started again without the hub flags withdraws the plans its hub
 mode left pending and refuses a run that names a `ticket` with `withdrawn` (plan again; the
