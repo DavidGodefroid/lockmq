@@ -72,7 +72,7 @@ and `verbs.Error` on failure, whose `code` is `usage`, `secret`, `exists`
 {"lock":"lockmq","code":"exists","error":"a profile of that name is already in the project's config; nothing written"}
 ```
 
-Questions and messages then go to stderr. `lox init` runs
+Questions and messages then go to stderr. `lox add lockmq` runs
 `lockmq profile add --non-interactive --json --profile NAME ... --url URL --user USER --vhost V`,
 then `lockmq init claude` and `lockmq doctor --fix --yes --json`.
 
@@ -197,7 +197,12 @@ human approves on this terminal): `ticket` is a hub-mode param only.
 ## Client commands
 
 Every client command takes `--profile P` (optional when one profile is
-configured) and `--json`. Exit codes: 0 ok, 1 refused, denied or failed, 2 no
+configured), `--instance NAME` and `--json`. `--instance NAME` reaches one
+lock among several of this type that lea mounts (a name is lowercase letters,
+digits and `-`); without it the client takes `$LOCKMQ_INSTANCE`, else the one
+lock in `$LEA_LOCKMQ_INSTANCES`. It is not the hub instance name that
+`lockmq console` and `lockmq hub-key` take with the same flag, which is the
+name `lox up` gives the lock. Exit codes: 0 ok, 1 refused, denied or failed, 2 no
 console (the start command is printed), 3 usage or configuration error.
 
 | Command | Does |
@@ -241,7 +246,7 @@ and kept in the audit log.
 
 ## MCP tools
 
-`lockmq mcp [--profile P]` serves the same operations to the agent on stdio:
+`lockmq mcp [--profile P] [--instance NAME]` serves the same operations to the agent on stdio:
 `lockmq_status`, `lockmq_overview`, `lockmq_queues`, `lockmq_queue`,
 `lockmq_exchanges`, `lockmq_bindings`, `lockmq_policies`,
 `lockmq_consumers`, `lockmq_connections`, `lockmq_channels`,
@@ -269,7 +274,7 @@ sends progress notifications so the client does not time out.
 ## Doctor
 
 ```sh
-lockmq doctor [--profile P] [--fix [--yes]] [--json]
+lockmq doctor [--profile P] [--instance NAME] [--fix [--yes]] [--json]
 ```
 
 Checks the config, the separated setup, the project's `.lockmq` as `lox up`
