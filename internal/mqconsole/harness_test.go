@@ -222,6 +222,11 @@ type rigOpts struct {
 	// again on the same project and state).
 	broker      *fakeBroker
 	root, state string
+	// auto is appended to the profile's TOML (its auto rules).
+	auto string
+	// manualConnect leaves the connect tickets of a hub rig to the test
+	// (hubRig approves them otherwise, as `lox run` would once).
+	manualConnect bool
 }
 
 func writeProject(t *testing.T, root, url string, o rigOpts) {
@@ -239,6 +244,7 @@ func writeProject(t *testing.T, root, url string, o rigOpts) {
 	if o.production {
 		cfg += "production = true\n"
 	}
+	cfg += o.auto
 	dir := filepath.Join(root, ".lockmq")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)

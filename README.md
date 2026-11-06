@@ -372,6 +372,21 @@ idle_timeout      = "20m"
 max_session       = "4h"
 ```
 
+`[profiles.NAME.auto]` shapes `lox run`'s auto mode for the profile, one
+rule per action, `auto`, `ask` or `deny` (`auto = "full-auto"` sets them all
+to `auto`, for a local broker left to the agent):
+
+```toml
+[profiles.prod.auto]
+connect = "ask"    # default: asked once per lox run session
+list    = "auto"   # queues, exchanges, bindings, counts
+read    = "auto"   # stream reads
+peek    = "auto"   # requeued queue reads
+purge   = "deny"   # get, publish, purge, delete: ask by default (no such operation yet)
+```
+
+See [docs/usage.md](docs/usage.md#auto-rules).
+
 An `[profiles.NAME.ssh]` table reaches a broker behind a bastion: the console
 opens the tunnel itself and checks the bastion's host key; streams are then
 read over AMQP.
@@ -402,6 +417,7 @@ read over AMQP.
 | `limits.max_output_bytes` | 65 536 | messages dropped from the end and counted |
 | `limits.list_page_size` | 100 | |
 | `limits.idle_timeout`, `limits.max_session` | 20m, 4h | session ends after this long idle / in all |
+| `auto` | `connect` ask, `list`/`read`/`peek` auto, `get`/`publish`/`purge`/`delete` ask | `"full-auto"` or a table of `auto`/`ask`/`deny`; a looser rule is a loosening |
 | `ssh.host`, `ssh.port`, `ssh.user`, `ssh.auth`, `ssh.key`, `ssh.credentials` | port 22 | as in locksql: `auth` is `key`, `agent` or `password` |
 
 </details>

@@ -37,6 +37,7 @@ func NewPolicy(p Profile, mask, allow []string, modes map[string]string) Policy 
 func Canonical(p Policy) Policy {
 	p.Profile.Detectors = kconfig.SortedSet(p.Profile.Detectors)
 	p.Profile.VHosts = kconfig.SortedSet(p.Profile.VHosts)
+	p.Profile.Auto = p.Profile.Auto.canonical()
 	p.Mask = kconfig.SortedSet(p.Mask)
 	p.Allow = kconfig.SortedSet(p.Allow)
 	var modes map[string]string
@@ -68,6 +69,7 @@ func (p Policy) modeOf(rule string) string {
 // longer request_timeout, a new vhost (or every vhost), any change of url,
 // amqp_url or stream_url, body_mode redact-unknown → detect, a removed
 // detector or mask rule, an added allow rule, a mask mode away from redact,
+// an auto rule made looser (deny < ask < auto),
 // and the shared rules of the profile base (kconfig.DiffBase).
 func (p Policy) Diff(approved kconfig.Policy) []kconfig.Change {
 	a, ok := approved.(Policy)
@@ -105,6 +107,7 @@ func (p Policy) Diff(approved kconfig.Policy) []kconfig.Change {
 		out = append(out, kconfig.Change{Field: "body_mode", Old: ap.BodyMode, New: cp.BodyMode, Loosens: cp.BodyMode != BodyRedactUnknown})
 	}
 	out = append(out, kconfig.SetDiff("detectors", ap.Detectors, cp.Detectors, true)...)
+	out = append(out, diffAuto(ap.Auto, cp.Auto)...)
 
 	al, cl := ap.Limits, cp.Limits
 	for _, f := range []struct {
@@ -170,6 +173,7 @@ func (p Policy) Describe() []string {
 			pr.Limits.ReadMax, pr.Limits.PeekMax, pr.Limits.DeliveryHeadroom, pr.Limits.MaxBodyBytes, pr.Limits.MaxOutputBytes, pr.Limits.ListPageSize, pr.Limits.RequestTimeout),
 		fmt.Sprintf("session: idle %s · max %s", pr.IdleTimeout, pr.MaxSession),
 		"body_mode: "+pr.BodyMode+" · detectors: "+strings.Join(pr.Detectors, ", "),
+		"auto rules (lox run): "+pr.Auto.String(),
 	)
 	if pr.SSH != nil {
 		lines = append(lines, "ssh: "+kconfig.SSHString(pr.SSH))

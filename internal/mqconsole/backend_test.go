@@ -66,7 +66,7 @@ func TestReadPromptedAndMasked(t *testing.T) {
 
 // A peek is prompted every time (never auto-approved), framed in red, and
 // marks the delivery count it saw.
-func TestPeekNeverAuto(t *testing.T) {
+func TestPeekAskedEveryTime(t *testing.T) {
 	r := newRig(t, rigOpts{tier: "peek", answers: []string{"y", "y"}})
 	out := mustOK(t, r.call(MethodRun, peekParams("payments")))
 	if r.io.promptCount() != 1 || r.broker.peekCount() != 1 {
@@ -211,7 +211,7 @@ func TestPlanIsDryRun(t *testing.T) {
 	if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodPlan, peekParams("payments")))), &pl); err != nil {
 		t.Fatal(err)
 	}
-	if pl.Verdict != "prompt-every-time" || len(pl.Warnings) == 0 || r.io.promptCount() != 0 || r.broker.peekCount() != 0 {
+	if pl.Verdict != "prompt" || len(pl.Warnings) == 0 || r.io.promptCount() != 0 || r.broker.peekCount() != 0 {
 		t.Fatalf("plan %+v prompts %d peeks %d", pl, r.io.promptCount(), r.broker.peekCount())
 	}
 	if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodPlan, peekParams("tight")))), &pl); err != nil {
@@ -354,7 +354,7 @@ func TestPrivilegeAudit(t *testing.T) {
 	broker.tags = "administrator"
 	root, state := t.TempDir(), t.TempDir()
 	writeProject(t, root, broker.srv.URL, rigOpts{production: true})
-	io := &fakeIO{answers: []string{"y", "prod"}, secrets: []string{"pw"}}
+	io := &fakeIO{answers: []string{"prod", "prod"}, secrets: []string{"pw"}}
 	be := New(Options{Profile: "prod", Root: root, StateDir: state, IO: io})
 	d := t.TempDir()
 	t.Setenv("LOCKMQ_RUNTIME_DIR", d)

@@ -94,12 +94,15 @@ func verbFail(e env, cmd, usage string, asJSON bool, err error) int {
 	return exit
 }
 
-// runProfile is `lockmq profile <subcommand>`; add is the only one.
+// runProfile is `lockmq profile <subcommand>`: add or rules.
 func runProfile(e env, args []string) int {
+	if len(args) > 0 && args[0] == "rules" {
+		return runProfileRules(e, args[1:])
+	}
 	if len(args) == 0 || args[0] != "add" {
 		// The subcommand is not quoted: it may be a token pasted in the
 		// wrong place.
-		return verbFail(e, "profile", profileAddUsage, verbs.WantsJSON(args), errors.New("unknown subcommand; the only one is add"))
+		return verbFail(e, "profile", profileAddUsage+"\n       "+profileRulesUsage, verbs.WantsJSON(args), errors.New("unknown subcommand; want add or rules"))
 	}
 	return runProfileAdd(e, args[1:])
 }
