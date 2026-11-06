@@ -4,6 +4,25 @@ All notable changes to lockmq. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) (no stability promise before 1.0).
 
+## [0.8.0] - 2026-11-06
+
+Builds on lockkit v0.13.0; needs `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later.
+
+### Added
+
+- Auto mode per profile: `[profiles.NAME.auto]` rules (`connect`, `list`, `read`, `peek`,
+  `get`, `publish`, `purge`, `delete`: `auto`, `ask` or `deny`; `auto = "full-auto"`).
+  Defaults: `connect`/`peek` ask, `list`/`read` auto. The lock enforces `deny`
+  (`E_AUTO_DENIED`) and `ask` (`never_auto` tickets). A looser rule is a policy loosening
+  (typed name on production). The audit records `auto_rule` and `decided_by`.
+- `lockmq profile rules [--json]`, for `lox run`.
+
+### Changed
+
+- Tickets are version 2 (kinds `action` and `connect`); an older hub refuses them. In hub
+  mode a broker session serves the agent only after its connect ticket is approved.
+- CI: macOS tests run on main, nightly and on demand, not on pull requests.
+
 ## [0.7.0] - 2026-11-01
 
 ### Added
