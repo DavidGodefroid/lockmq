@@ -35,7 +35,9 @@
 
 ---
 
-lockmq puts a **human-held console** between your AI agent and RabbitMQ. The
+A Lock of the [Lock Family](https://github.com/DavidGodefroid/lockfamily),
+harness security for AI agents: lockmq puts a **human-held console** between
+your AI agent and RabbitMQ. The
 agent asks; the console, running in a terminal you keep in view under its own
 account, holds the broker credentials and the only broker connections, serves
 an allowlist of read-only operations, masks personal data in messages and
