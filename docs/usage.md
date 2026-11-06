@@ -99,7 +99,7 @@ production = true
 connect = "ask"             # default: a human approves the first connection
 list    = "auto"            # queues, exchanges, bindings, counts
 read    = "auto"            # stream reads (no offset stored, nothing removed)
-peek    = "auto"            # queue reads, requeued
+peek    = "ask"             # default: queue reads, requeued (a human approves each)
 get     = "ask"             # consuming (ack) a message
 publish = "ask"
 purge   = "ask"             # or deny
@@ -112,8 +112,9 @@ delete  = "deny"
 | `ask` | asked: the ticket is `never_auto` (the lock refuses an auto rule's approval); `connect`: the first connect ticket of each console run and of each approved policy is `never_auto`, the reconnections after a human's approval may be approved by a rule | asked |
 | `deny` | refused by the lock before any ticket (`E_AUTO_DENIED`); `connect = "deny"`: the console never logs in | refused |
 
-Defaults, when a profile sets no rule: `connect` ask, `list`, `read` and
-`peek` auto, `get`, `publish`, `purge` and `delete` ask. lockmq is
+Defaults, when a profile sets no rule: `connect` and `peek` ask (a peek
+requeues messages and raises their delivery count), `list` and `read` auto,
+`get`, `publish`, `purge` and `delete` ask. lockmq is
 read-only: `get`, `publish`, `purge` and `delete` name no operation of this
 release; their rules are validated and kept, so that a profile is locked
 down before any such operation exists. Unknown actions and values are

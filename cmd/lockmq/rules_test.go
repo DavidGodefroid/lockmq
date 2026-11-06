@@ -31,7 +31,7 @@ func TestProfileRulesJSON(t *testing.T) {
 	for _, p := range got.Profiles {
 		by[p.Profile] = p
 	}
-	if d := by["dev"]; d.FullAuto || d.Rules["connect"] != "ask" || d.Rules["peek"] != "auto" || d.Rules["publish"] != "ask" {
+	if d := by["dev"]; d.FullAuto || d.Rules["connect"] != "ask" || d.Rules["peek"] != "ask" || d.Rules["publish"] != "ask" {
 		t.Errorf("dev: %+v", d)
 	}
 	if l := by["local"]; !l.FullAuto || l.Rules["connect"] != "auto" || l.Rules["delete"] != "auto" {

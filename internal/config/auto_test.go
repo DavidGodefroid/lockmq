@@ -14,7 +14,7 @@ func TestAutoDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]AutoValue{
-		ActConnect: AutoAsk, ActList: AutoAuto, ActRead: AutoAuto, ActPeek: AutoAuto,
+		ActConnect: AutoAsk, ActList: AutoAuto, ActRead: AutoAuto, ActPeek: AutoAsk,
 		ActGet: AutoAsk, ActPublish: AutoAsk, ActPurge: AutoAsk, ActDelete: AutoAsk,
 	}
 	for act, v := range want {

@@ -64,9 +64,10 @@ func TestReadPromptedAndMasked(t *testing.T) {
 	}
 }
 
-// A peek is prompted every time (never auto-approved), framed in red, and
-// marks the delivery count it saw.
-func TestPeekAskedEveryTime(t *testing.T) {
+// A peek is prompted every time (by default never auto-approved: see
+// TestPeekNeverAutoByDefault for hub mode), framed in red, and marks the
+// delivery count it saw.
+func TestPeekNeverAuto(t *testing.T) {
 	r := newRig(t, rigOpts{tier: "peek", answers: []string{"y", "y"}})
 	out := mustOK(t, r.call(MethodRun, peekParams("payments")))
 	if r.io.promptCount() != 1 || r.broker.peekCount() != 1 {
@@ -211,7 +212,7 @@ func TestPlanIsDryRun(t *testing.T) {
 	if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodPlan, peekParams("payments")))), &pl); err != nil {
 		t.Fatal(err)
 	}
-	if pl.Verdict != "prompt" || len(pl.Warnings) == 0 || r.io.promptCount() != 0 || r.broker.peekCount() != 0 {
+	if pl.Verdict != "prompt-every-time" || len(pl.Warnings) == 0 || r.io.promptCount() != 0 || r.broker.peekCount() != 0 {
 		t.Fatalf("plan %+v prompts %d peeks %d", pl, r.io.promptCount(), r.broker.peekCount())
 	}
 	if err := json.Unmarshal([]byte(mustOK(t, r.call(MethodPlan, peekParams("tight")))), &pl); err != nil {

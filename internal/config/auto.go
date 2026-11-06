@@ -84,7 +84,7 @@ var autoDefaults = map[string]AutoValue{
 	ActConnect: AutoAsk,
 	ActList:    AutoAuto,
 	ActRead:    AutoAuto,
-	ActPeek:    AutoAuto,
+	ActPeek:    AutoAsk,
 	ActGet:     AutoAsk,
 	ActPublish: AutoAsk,
 	ActPurge:   AutoAsk,

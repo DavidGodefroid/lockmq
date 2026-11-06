@@ -325,3 +325,54 @@ func TestAutoModeFileOnlyConnectLooseningRefused(t *testing.T) {
 		okData(t, <-got)
 	})
 }
+
+// A profile that sets no auto rule keeps lockmq's guarantee on peeks:
+// the peek ticket is signed never_auto, so `lox run` asks the human, and a
+// decider that approves it by an auto rule anyway runs nothing (no
+// message requeued, the ticket still waits); only the human's approval
+// peeks, on a real broker.
+func TestAutoModeDefaultPeekNeverAuto(t *testing.T) {
+	each(t, func(t *testing.T, b *broker) {
+		base := fmt.Sprintf("url = %q\namqp_url = %q\nuser = %q\nvhosts = [\"/\"]\ntier = \"peek\"\n",
+			b.MgmtURL(), fmt.Sprintf("amqp://127.0.0.1:%d", b.AMQP), roUser)
+		r := newHubRig(t, b, "[profiles.uat]\n"+base, "uat")
+		if r.dec.rules[config.ActPeek] != config.AutoAsk {
+			t.Fatalf("default peek rule %q", r.dec.rules[config.ActPeek])
+		}
+		got := make(chan ipc.Response, 1)
+		go func() { got <- r.call(mqconsole.Params{Op: "queues"}) }()
+		conn := r.dec.question()
+		if conn.Kind != ticket.KindConnect {
+			t.Fatalf("connect ticket %+v", conn)
+		}
+		r.dec.hub.Decide(conn.ID, ticket.Approved, "")
+		okData(t, <-got)
+
+		peek := mqconsole.Params{Op: "peek"}
+		peek.Target, peek.Count = dlqName, 1
+		tk := pendingTicket(r.call(peek))
+		q := r.dec.question()
+		if tk == "" || q.ID != tk || q.Kind != ticket.KindAction || q.Subject.Verb != "peek" || !q.Flags.NeverAuto {
+			t.Fatalf("default peek ticket %q %+v", tk, q)
+		}
+		r.dec.hub.DecideWith(tk, ticket.Approved, "", nil, func(dc *ticket.Decision) {
+			dc.Rule = &ticket.Rule{By: ticket.RuleAuto, ID: "lox.auto.action"}
+		})
+		resp := r.runDecided(peek, tk)
+		if resp.Error == nil || resp.Error.Code != ipc.CodeDenied || !strings.Contains(resp.Error.Message, "auto approval cannot run it") {
+			t.Fatalf("an auto rule's approval of a default peek: %+v %s", resp.Error, resp.Result)
+		}
+		// The same request still waits for a human; the human approves it.
+		if again := pendingTicket(r.call(peek)); again != tk {
+			t.Fatalf("after the refused auto approval: %q, want the pending %q", again, tk)
+		}
+		r.dec.hub.Decide(tk, ticket.Approved, "")
+		data := okData(t, r.runDecided(peek, tk))
+		if msgs, _ := data["messages"].([]any); len(msgs) != 1 {
+			t.Fatalf("peek: %v", data)
+		}
+		if a := r.auditLog(); !strings.Contains(a, `"auto_rule":"auto.peek=ask"`) || !strings.Contains(a, `"decided_by":"human"`) {
+			t.Errorf("audit:\n%s", a)
+		}
+	})
+}

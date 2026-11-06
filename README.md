@@ -63,7 +63,7 @@ decision **out of the agent**.
 | Every message read approved by a human | ❌ | ✅ |
 | Message bodies, headers and properties masked | ❌ | ✅ |
 | Stream reads never store an offset | ❌ | ✅ |
-| Queue peek off by default, never auto-approved, refused near the delivery limit | ❌ | ✅ |
+| Queue peek off by default, asked every time unless the profile sets `auto.peek = "auto"`, refused near the delivery limit | ❌ | ✅ |
 | Policy loosening needs a human confirmation | ❌ | ✅ |
 | Append-only audit log (never message content) | ❌ | ✅ |
 
@@ -102,8 +102,8 @@ production you type the profile name.
 
 **🧪 Peek, only if you allow it**<br>
 Reading a classic or quorum queue requeues messages. It exists only on a
-profile you set to tier `peek`, is approved every time, never auto-approved,
-and refused near the quorum queue's delivery limit.
+profile you set to tier `peek`, is approved by the human every time unless
+you set its auto rule to `auto` (a loosening you confirm), and refused near the quorum queue's delivery limit.
 
 </td>
 </tr>
@@ -381,7 +381,7 @@ to `auto`, for a local broker left to the agent):
 connect = "ask"    # default: a human approves the first connection
 list    = "auto"   # queues, exchanges, bindings, counts
 read    = "auto"   # stream reads
-peek    = "auto"   # requeued queue reads
+peek    = "ask"    # default: requeued queue reads, a human approves each
 purge   = "deny"   # get, publish, purge, delete: ask by default (no such operation yet)
 ```
 
@@ -417,7 +417,7 @@ read over AMQP.
 | `limits.max_output_bytes` | 65 536 | messages dropped from the end and counted |
 | `limits.list_page_size` | 100 | |
 | `limits.idle_timeout`, `limits.max_session` | 20m, 4h | session ends after this long idle / in all |
-| `auto` | `connect` ask, `list`/`read`/`peek` auto, `get`/`publish`/`purge`/`delete` ask | `"full-auto"` or a table of `auto`/`ask`/`deny`; a looser rule is a loosening |
+| `auto` | `connect`/`peek` ask, `list`/`read` auto, `get`/`publish`/`purge`/`delete` ask | `"full-auto"` or a table of `auto`/`ask`/`deny`; a looser rule is a loosening |
 | `ssh.host`, `ssh.port`, `ssh.user`, `ssh.auth`, `ssh.key`, `ssh.credentials` | port 22 | as in locksql: `auth` is `key`, `agent` or `password` |
 
 </details>

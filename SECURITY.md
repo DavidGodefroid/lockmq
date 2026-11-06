@@ -27,7 +27,8 @@ The threat model is in [docs/security-model.md](docs/security-model.md).
 Issues of interest include, among others:
 
 - a way for a client (CLI or MCP) to read message content without the
-  human's approval, to get a queue peek auto-approved, or to loosen the
+  human's approval, to get a queue peek auto-approved on a profile whose rule is not
+  `auto.peek = "auto"`, or to loosen the
   policy without confirmation;
 - a broker call outside the operation allowlist, or any call that changes
   broker state beyond the documented requeue of a peek;

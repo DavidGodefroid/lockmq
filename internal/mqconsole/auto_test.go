@@ -357,3 +357,38 @@ func TestConnectDeniedByRule(t *testing.T) {
 		t.Fatalf("connect: %v", err)
 	}
 }
+
+// A profile that sets no auto rule keeps the guarantee lockmq always gave:
+// every peek is a human's decision. Its ticket is signed never_auto and an
+// auto rule's approval runs nothing (no requeue, no delivery count grown);
+// only the human's approval runs it.
+func TestPeekNeverAutoByDefault(t *testing.T) {
+	r, hub, pub := hubRig(t, rigOpts{tier: "peek"})
+	p := peekParams("payments")
+	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+	pd := pendingOf(t, r.call(MethodRun, p))
+	tk, err := ticket.VerifyTicket(pub, hub.Ticket(pd.Ticket))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tk.Kind != ticket.KindAction || tk.Subject == nil || tk.Subject.Verb != "peek" || !tk.Flags.NeverAuto ||
+		!strings.Contains(strings.Join(tk.Screen.Body, "\n"), "auto.peek=ask") {
+		t.Fatalf("default peek ticket %+v", tk)
+	}
+	run := p
+	run.Ticket = pd.Ticket
+	hub.DecideWith(pd.Ticket, ticket.Approved, "", nil, byAutoRule("lox.auto.peek"))
+	if out := r.runDecided(run); out.Error == nil || out.Error.Code != ipc.CodeDenied || r.broker.peekCount() != 0 {
+		t.Fatalf("an auto rule's approval ran a default peek: %+v peeks %d", out, r.broker.peekCount())
+	}
+	if a := r.auditLog(); !strings.Contains(a, `"auto_rule":"auto.peek=ask"`) {
+		t.Errorf("audit:\n%s", a)
+	}
+	pd = pendingOf(t, r.call(MethodRun, p))
+	hub.Decide(pd.Ticket, ticket.Approved, "")
+	run.Ticket = pd.Ticket
+	mustOK(t, r.runDecided(run))
+	if r.broker.peekCount() != 1 {
+		t.Fatalf("peeks %d", r.broker.peekCount())
+	}
+}

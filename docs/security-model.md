@@ -93,8 +93,9 @@ federation) lose their userinfo before they reach a client.
 - **Approval.** Every `read` and `peek` shows a screen: the queue or stream,
   the starting point and count, what moves (nothing, for a stream read), the
   masking in force, the agent's intent. It is decided on lockhub: the
-  console is hub-attached only and has no auto mode; a `peek` is never
-  approved by the hub's auto mode.
+  console is hub-attached only and has no auto mode of its own; a `peek`
+  is approved by `lox run`'s auto mode only on a profile whose rule is
+  `auto.peek = "auto"` (the default is `ask`: a `never_auto` ticket).
 - **Masking.** JSON bodies are parsed and masked per leaf: `redact-unknown`
   (the production default) redacts every string no allow rule names;
   `detect` uses mask rules, field-name heuristics and value detectors.
@@ -136,7 +137,9 @@ gives it). When on:
 
 - the screen says NOT READ-ONLY, shows the queue's type, ready and unacked
   counts, consumers and delivery limit;
-- every peek is approved by the human, never by the hub's auto mode;
+- every peek is approved by the human (a `never_auto` ticket) unless the
+  profile sets `auto.peek = "auto"`, a loosening confirmed at `:review`
+  (typed name on production);
 - on a quorum queue the console computes the effective delivery limit (the
   lowest of the `x-delivery-limit` argument, the policy and the operator
   policy; RabbitMQ 4.x's default 20 when none is set, none on 3.x) and keeps

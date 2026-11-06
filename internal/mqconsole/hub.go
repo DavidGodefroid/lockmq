@@ -271,6 +271,10 @@ func hubRefusal(id int64, tk, instance string, err error) ipc.Response {
 		resp := console.ErrResp(id, ipc.CodeRefused, r.Reason)
 		resp.Error.Data = &info
 		return resp
+	case errors.Is(err, ticket.ErrAuto):
+		// The profile's rule asks (the ticket is signed never_auto): an
+		// auto rule's approval runs nothing; the ticket waits for a human.
+		return console.ErrResp(id, ipc.CodeDenied, "the profile's auto rule asks a human for this request; an auto approval cannot run it")
 	case errors.Is(err, plans.ErrWrongRequester):
 		return console.ErrResp(id, ipc.CodeWrongRequester, "the ticket was asked by another agent")
 	}
