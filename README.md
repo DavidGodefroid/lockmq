@@ -1,73 +1,109 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="site/assets/banner-dark.svg">
-    <img alt="lockmq — Your AI reads the queue. You hold the key." src="site/assets/banner-light.svg" width="600">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+    <img alt="lockmq: your agent reads the queue, you hold the key." src="docs/assets/banner-light.svg" width="600">
   </picture>
 </p>
 
 <p align="center">
   <a href="https://github.com/DavidGodefroid/lockmq/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/DavidGodefroid/lockmq/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/DavidGodefroid/lockmq/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DavidGodefroid/lockmq?color=EA580C"></a>
-  <img alt="Go 1.26+" src="https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go&logoColor=white">
-  <img alt="Linux | macOS" src="https://img.shields.io/badge/platform-linux%20%7C%20macOS-475569">
-  <img alt="CGO_ENABLED=0" src="https://img.shields.io/badge/cgo-off-8B5CF6">
-  <a href="LICENSE"><img alt="Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-14B8A6"></a>
+  <a href="https://github.com/DavidGodefroid/lockmq/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/DavidGodefroid/lockmq?include_prereleases&sort=semver&label=release&color=1f4a9c"></a>
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-575146"></a>
+  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/DavidGodefroid/lockmq?color=575146&logo=go&logoColor=white"></a>
 </p>
 
-<p align="center">
-  <b>Let Claude Code, Codex, Cursor or Gemini CLI inspect your RabbitMQ brokers<br>
-  without ever handing them a password.</b>
-</p>
+<p align="center"><b>Let any AI agent inspect your RabbitMQ brokers: message contents come back masked,<br>
+connections and queue reads wait for you, and the agent never holds a password.</b></p>
 
 <p align="center">
-  <img src="site/assets/demo.svg" alt="Claude Code lists the queues of a RabbitMQ vhost through lockmq, then asks to read the last 3 messages of a stream. The lockmq console, in its own account, shows the approval screen; the human types y, and Claude Code gets the messages back with the customer's email replaced by a reference." width="900">
+  <img src="site/assets/demo.svg" alt="Demo: an agent (here Claude Code) lists the queues of a RabbitMQ vhost through lockmq, then asks to read the last 3 messages of a stream. The lockmq console, in its own account, shows the approval screen; the human types y, and the agent gets the messages back with the customer's email replaced by a reference." width="900">
 </p>
+<p align="center"><sub>An agent (here Claude Code, left) and the lockmq console (right). Recorded before decisions moved to lockhub: today you answer in <code>lox run</code>, and stream reads pass on the default rules.</sub></p>
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
-  <a href="#safety-model">Safety model</a> ·
-  <a href="#configuration">Configuration</a> ·
-  <a href="#install">Install</a> ·
-  <a href="docs/usage.md">Docs</a> ·
+  <a href="#documentation">Docs</a> ·
+  <a href="#the-lock-family">Lock Family</a> ·
   <a href="https://davidgodefroid.github.io/lockmq/">Website</a>
 </p>
 
 ---
 
-A Lock of the [Lock Family](https://github.com/DavidGodefroid/lockfamily),
-harness security for AI agents: lockmq puts a **human-held console** between
-your AI agent and RabbitMQ. The
-agent asks; the console, running in a terminal you keep in view under its own
-account, holds the broker credentials and the only broker connections, serves
-an allowlist of read-only operations, masks personal data in messages and
-waits for **your** approval before any message content leaves it. The agent
-never sees a credential and never opens a connection.
+lockmq is a Lock of the [Lock Family](https://github.com/DavidGodefroid/lockfamily),
+harness security for AI agents. A **console** sits between your agent and
+RabbitMQ: it holds the broker credentials and the only broker connections,
+serves an allowlist of read operations and masks personal data in messages.
+The agent only asks.
 
 > [!NOTE]
-> **Pre-release** (`v0.6.x`). The CLI, the MCP tools and the config files may
-> still change before v1. See [Install](#install).
+> **Pre-release** (`v0.8.x`): a release may still change the config files,
+> the MCP tools or the CLI.
 
-## Why lockmq?
+## Why lockmq
 
-"Why does `orders.failed` fill up?" is a good question for an agent, and
-answering it means looking at queues, bindings, policies, consumers and, in
-the end, a few messages. Handing the agent `rabbitmqctl`, the management API
-or an admin password gives it every write too (purge, delete, publish,
-shovels), and every message body in clear. lockmq moves the key and the
-decision **out of the agent**.
+- **The agent never holds a password.** Credentials are typed at console
+  start or read from Vault, in an account and a container the agent cannot reach.
+- **Approval outside the agent.** Each message read becomes a ticket on
+  [lockhub](https://github.com/DavidGodefroid/lockhub), decided in `lox run`.
+  Lists and stream reads pass on your rules; connections and queue peeks wait for you.
+- **Personal data stays masked.** Bodies, headers and properties are masked
+  per field; on production every string no allow rule names is redacted.
+- **Nothing moves.** Stream reads store no offset; there are no writes, and
+  a queue peek (which requeues) exists only on a profile you allow.
 
-| | Agent with broker credentials | lockmq |
-|---|:---:|:---:|
-| Agent never sees the broker password | ❌ | ✅ |
-| Agent has no broker connection | ❌ | ✅ |
-| Only an allowlist of read operations exists | ❌ | ✅ |
-| Every message read approved by a human | ❌ | ✅ |
-| Message bodies, headers and properties masked | ❌ | ✅ |
-| Stream reads never store an offset | ❌ | ✅ |
-| Queue peek off by default, asked every time unless the profile sets `auto.peek = "auto"`, refused near the delivery limit | ❌ | ✅ |
-| Policy loosening needs a human confirmation | ❌ | ✅ |
-| Append-only audit log (never message content) | ❌ | ✅ |
+Handing the agent `rabbitmqctl` or an admin password gives it every write
+too, and every message body in clear. lockmq moves the key and the decision
+**out of the agent**.
+
+## Install
+
+```sh
+brew trust davidgodefroid/tap
+brew install davidgodefroid/tap/lox davidgodefroid/tap/lockmq
+```
+
+lockmq runs in Docker: Homebrew installs the `lockmq` launcher, which runs
+every command in the release's signed image. `lox` is lockhub's CLI. The
+whole family instead: `brew install davidgodefroid/tap/lockfamily`.
+
+Without Homebrew, the signed install script of a release:
+
+```sh
+V=vX.Y.Z
+curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
+less install.sh
+LOCKMQ_VERSION=$V sh install.sh
+```
+
+Linux and macOS, on amd64 and arm64 (`CGO_ENABLED=0`); on Windows, WSL 2
+with Docker Desktop. Launcher, image, Vault image, lea and building from
+source: [docs/install.md](docs/install.md).
+
+## Quick start
+
+1. In your project, add the broker. `lox add` asks where it is (never the
+   password), writes the profile, wires your agent and starts the console:
+
+   ```sh
+   lox add lockmq
+   ```
+
+2. In a terminal of its own, outside any agent, keep `lox run` open. Every
+   ticket shows up there:
+
+   ```sh
+   lox run
+   ```
+
+3. Start your agent in the project (`claude`, `codex`, `gemini`, …) and ask:
+   *"which queues have no consumer?"*
+
+`lox add` wires Claude Code; for Codex, Cursor or Gemini CLI, also run
+`lockmq init codex` (or `cursor`, `gemini`). With
+[lea](https://github.com/DavidGodefroid/lea), run `lox add` in lea's projects
+directory, then `lea stop` and `lea`. Step by step, by hand:
+[docs/install.md](docs/install.md#by-hand).
 
 ## Highlights
 
@@ -76,36 +112,15 @@ decision **out of the agent**.
 <td width="50%" valign="top">
 
 **🔑 One key holder**<br>
-Credentials are typed at console start or fetched
-from HashiCorp Vault (the RabbitMQ secrets engine works as is). Never in argv,
-env, files, logs, the socket or error messages; URI passwords are stripped
-from every answer.
+Credentials live in the console only: never in argv, env, files, logs, the
+socket or an error message. URI passwords are stripped from every answer.
 
 </td>
 <td width="50%" valign="top">
 
-**📋 Catalogue first, no prompt**<br>
-Overview and alarms, queues (paged, filtered, sorted), one queue with its
-arguments, DLX, TTL, delivery limit, policy, bindings and consumers;
-exchanges, policies, connections, channels, stream offsets and consumer lag.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**👤 Messages, approved**<br>
-`read` reads a stream from `first`, `last`, an offset or a timestamp with an
-unnamed consumer: nothing stored, nothing moved. You approve each read; on
-production you type the profile name.
-
-</td>
-<td valign="top">
-
-**🧪 Peek, only if you allow it**<br>
-Reading a classic or quorum queue requeues messages. It exists only on a
-profile you set to tier `peek`, is approved by the human every time unless
-you set its auto rule to `auto` (a loosening you confirm), and refused near the quorum queue's delivery limit.
+**👤 Your rules, your decisions**<br>
+Per profile, each action is `auto`, `ask` or `deny`. By default lists and
+stream reads pass; the first connection and every peek are asked.
 
 </td>
 </tr>
@@ -113,431 +128,112 @@ you set its auto rule to `auto` (a loosening you confirm), and refused near the 
 <td valign="top">
 
 **🕶️ Masking for messages**<br>
-JSON bodies masked per leaf (`redact-unknown` on production), headers and
-properties by rule and name, value detectors, `<redacted:rN.K>` references;
-binary and compressed bodies reduced to size and hash.
+JSON bodies masked per leaf, headers and properties by rule and name,
+value detectors; binary bodies reduced to size and hash.
 
 </td>
 <td valign="top">
 
-**🛡️ OS separation**<br>
-The Docker image runs the console under its own account; the kernel checks
-every peer on the socket, and the console refuses to start without it.
-⚠️ An agent that can run `docker` (the default MCP wiring is a `docker run`)
-can attach to the console: see
-[what Docker does and does not separate](docs/docker.md#what-docker-does-and-does-not-separate).
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**⚖️ The AI tightens, the human loosens**<br>
-The agent may add mask rules or tighten a profile; any loosening (a tier, a
-limit, a vhost, a URL) waits for your confirmation in the console.
-
-</td>
-<td valign="top">
-
-**🏷️ Refusals the agent can act on**<br>
-Every refusal carries a stable code, a hint and a retry rule: rewrite, ask
-the user, or stop.
+**🧪 Peek, only if you allow it**<br>
+Reading a classic or quorum queue requeues messages: it exists only on a
+profile set to tier `peek`, and is refused near the delivery limit.
 
 </td>
 </tr>
 </table>
 
-## Quick start
-
-Docker only: one `lockmq` command, the launcher, runs every command in the
-signed release image. The full guide is [docs/docker.md](docs/docker.md).
-
-The shortest path is the Lock Family's: install it with Homebrew, then let
-[`lox add lockmq`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-add.md)
-ask where your broker is, set up its lock and start its console:
-
-```sh
-brew trust davidgodefroid/tap                # Homebrew asks you to trust a third-party tap once
-brew install davidgodefroid/tap/lockfamily   # or only this tool: brew install davidgodefroid/tap/lockmq
-cd ~/projects                                 # with lea: its projects directory; with claude: the project
-lox add lockmq                                # asks about the broker, sets up the lock, runs lox up
-lea                                           # or: claude, then lox approve
-```
-
-If a lea container already runs for the project, `lox add` says `lea gets lock
-NAME at its next start: lea stop, then lea`: lea mounts the locks' sockets
-when its container starts, so `lea stop`, then `lea` brings the new lock in.
-
-By hand, with lockmq's own installer:
-
-```sh
-# 1. Install the launcher (cosign checks the release and its image)
-V=vX.Y.Z
-curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/install.sh"
-less install.sh && LOCKMQ_VERSION=$V sh install.sh
-
-# 2. In your project: the agent files, a broker profile, then a check of the setup
-lockmq init claude
-lockmq profile add          # asks; or --non-interactive --url URL --user USER ...
-lockmq doctor --fix --yes
-
-# 3. Declare the lock and start it with its hub (lockhub's lox CLI)
-lox add lockmq events
-lox up
-lox attach events   # the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
-
-# 4. Approve the agent's message reads
-lox approve
-```
-
-The console runs hub-attached only: `lox up` starts it with its hub flags,
-and `lockmq console` on its own refuses to start.
-
-`lockmq init claude` wires Claude Code to `lockmq mcp`, which the launcher
-runs in a throwaway container.
-
-`init`, `profile add` and `doctor` are the same three verbs in every lock
-of the family, which `lox add` drives (`profile add --non-interactive
---json`, `init claude`, `doctor --fix --yes --json`); no form of `profile
-add` takes or asks for a password.
-
-Inside the containers `localhost` is the container itself: `profile add` offers
-`host.docker.internal` for a broker on your machine, and a broker container
-is reached by its name on a network shared with the console. Then ask your
-agent: "which queues have no consumer?", "why does orders.failed fill up?".
-Catalogue calls answer at once; message reads wait for your approval on
-lockhub (`lox approve`).
+More: [the catalogue and the protocols](docs/architecture.md), [the
+safety model and its limits](docs/safety.md), and [every
+profile key](docs/configuration.md).
 
 ## How it works
 
-Two processes in two accounts. Only the console holds the key.
+Two processes in two containers. Only the console holds the key.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant A as 🤖 AI agent<br/>(lockmq mcp / CLI)
-    participant C as 🔐 lockmq console<br/>(lockmq account)
-    participant L as 🏛️ lockhub
-    actor H as 👤 You
+    participant C as 🔐 lockmq console
+    participant L as 🎫 lockhub (lox run)
     participant B as 🐇 RabbitMQ
     A->>C: lockmq_queues (catalogue)
     C->>B: GET /api/queues/{vhost}
-    B-->>C: queues
     C-->>A: selected fields (untrusted data)
     A->>C: lockmq_read order-events from last
-    C->>B: stream metadata
-    C->>L: signed ticket, masked screen
-    C-->>A: pending (ticket)
-    L->>H: approval screen (lox approve)
-    H-->>L: approve
-    A->>C: lockmq_read --ticket
-    C->>L: verify the decision
+    C->>L: ticket, screen masked
+    C-->>A: pending, ticket T
+    L-->>C: signed decision (your rule, or you)
+    A->>C: lockmq_read --ticket T
     C->>B: unnamed stream consumer, at most read_max
-    B-->>C: messages
     C-->>A: masked, capped messages (untrusted data)
 ```
 
-1. The agent calls an MCP tool (`lockmq_queues`, `lockmq_read`, ...) or the
-   CLI. Both talk to the console of the profile over a Unix socket that only
-   the clients group reaches; the kernel's peer credentials are checked on
-   every connection.
-2. The console checks that the operation exists, the vhost is served, the
-   tier allows it and the arguments are in range, before any broker call.
-3. Catalogue operations run at once (audited). `read` and `peek` show an
-   approval screen first:
+1. The agent calls an MCP tool (`lockmq_queues`, `lockmq_read`, …) or the
+   CLI. The console checks the operation, the vhost, the tier and the
+   arguments before any broker call.
+2. Catalogue calls run at once. A read or a peek becomes a ticket on
+   lockhub, and the agent gets `pending`.
+3. `lox run` decides, on your profile's rules or by asking you. The console
+   checks the signed decision, reads, masks and caps the messages.
 
-   ```
-   ╭─ PROD · rabbitmq.example.com:15671 / orders · user lockmq-ro · tier peek ─────
-   │ requested by uid 1000 (alice) · pid 48211 · process "lockmq" (self-reported name)
-   │ agent: see why order events fail in the dead-letter queue
-   │
-   │ PEEK orders.failed  count 3
-   │
-   │ PII: masked (2 mask rules, 1 allow rules; body redact-unknown; detectors: card, email, iban, phone)
-   │ ▲ NOT READ-ONLY: messages are taken from the head and requeued; they come back redelivered=true and their delivery count grows by 1
-   │ ▲ queue: quorum · ready 1204 · unacked 0 (not visible) · consumers 0
-   │ ▲ delivery-limit 20 · max seen so far 2/20
-   ╰─ Type the profile name "prod" to approve:
-   ```
-
-4. On approval the console reads, masks, caps the output and answers, framed
-   as untrusted data. The audit log records who asked what and the decision,
-   never message content.
-
-<details>
-<summary>Process layout</summary>
-
-```
- agent's container (agent)             console container (lockmq)
-┌──────────────────────┐   socket    ┌─────────────────────────────────────┐
-│ Claude Code / Codex  │ ──────────▶ │ lockmq console                      │
-│  lockmq mcp / CLI    │ ◀────────── │  policy · allowlist · masking       │
-│  (no secret, no      │  JSON-RPC,  │  approval screens · audit log       │
-│   broker connection) │  peer uid   │  credentials (prompt/Vault)         │
-└──────────────────────┘  checked    └───────────────┬─────────────────────┘
-                                                     │ management API (GET)
-                                                     │ stream protocol / AMQP
-                                                     ▼
-                                                 RabbitMQ
-```
-
-</details>
-
-Every client command, `lockmq mcp` and `lockmq doctor` also take `--instance NAME`, to
-reach one lock among several of this type that lea mounts (without it:
-`$LOCKMQ_INSTANCE`, else the one lock in `$LEA_LOCKMQ_INSTANCES`). `lockmq console`
-and `lockmq hub-key` take an `--instance` too, but that one is the name `lox up`
-gives the lock.
-
-## Protocols
-
-| Protocol | Used for | Profile key |
-|---|---|---|
-| Management HTTP API | every catalogue operation; `peek` (`get` with `ack_requeue_true`) | `url` (required) |
-| Stream protocol | stream reads, first/last offsets, a named consumer's stored offset | `stream_url` |
-| AMQP 0-9-1 | stream reads (`x-stream-offset` consumer) when the stream port is not reachable, or through ssh | `amqp_url` |
-
-One broker user for all three. Tested against RabbitMQ 3.13 and 4.1. lockmq
-never calls `/api/definitions`, `/api/users*`, other users'
-`/api/permissions*`, any non-GET endpoint but the `get` of `peek`,
-`basic.get`, `basic.publish`, a declare, a delete, a purge or `store_offset`.
+RabbitMQ 3.13 and 4.1, through the management API, the stream protocol and
+AMQP 0-9-1. The approval screen, the process layout and the protocols:
+[docs/architecture.md](docs/architecture.md).
 
 ## Safety model
 
-The console is the enforcement point; skills, rules and tool descriptions
-only guide the agent. The full model, its threats and its limits are in
-[docs/security-model.md](docs/security-model.md). In short:
+- **The console is the enforcement point.** Skills, rules and MCP tool
+  descriptions only guide the agent; the console's checks are the guarantee.
+- **OS separation.** The console runs as its own account in its own
+  container; the kernel checks every peer on the socket.
+- **Allowlist, read-only broker user.** What is not in the catalogue does
+  not exist. Use a `monitoring` user with empty `configure` and `write`.
+- **The AI tightens, the human loosens.** The agent may add mask rules; any
+  loosening of the policy waits for your confirmation in the console.
+- **Audit.** Every decision, refusal and run goes to an append-only JSONL
+  log, never with a message body, header or property value.
+- **Known limits.** Masking is best effort, RabbitMQ lets the `read`
+  permission purge a queue, and whoever can run `docker` commands can reach
+  the console's container.
 
-- **Separate account.** The image holds the console account, the clients
-  group, the root-owned `/etc/lockmq/system.toml` and the socket directory
-  shared through a volume; the console refuses to start without them.
-- **Allowlist.** What is not in the catalogue does not exist.
-- **Read-only by default.** Tier `read` reads metadata and streams, and moves
-  nothing. Tier `peek` is not strictly read-only and is labelled as such
-  everywhere.
-- **Human approval.** Every `read` and `peek` is shown and approved on
-  lockhub (`lox approve`, the lea deck or a paired phone); no socket method can approve. On a production profile you
-  type the profile name. No answer within 5 minutes means denied.
-- **Credentials.** Asked at console start (no echo), or read from Vault at
-  every connection (a container has no keychain). Errors that
-  leave the console are scrubbed of known secrets, URI userinfo and
-  `Authorization` headers.
-- **Broker user.** Use a user tagged `monitoring` with `configure "^$"` and
-  `write "^$"`. RabbitMQ lets the `read` permission **purge** a queue: grant
-  `read` on the streams only, and on queues only for profiles with tier
-  `peek`. At start the console refuses an `administrator` or `policymaker`
-  user on production, and asks for a typed `continue` elsewhere.
-- **Audit.** One JSON line per login, policy change, catalogue call,
-  refusal, decision, run and logout, with the agent's intent and the client's
-  uid. Never a message body, header or property value.
-
-### Peek (tier `peek`)
-
-The management `get` takes up to `count` ready messages from the head and
-requeues them in the same call. Consequences, all on the approval screen:
-redelivered messages, a delivery count that grows on quorum queues (over the
-limit, the message is dead-lettered or dropped), a possible change of order
-for active consumers, and only ready messages at the head are visible. The
-console reads the effective delivery limit (argument, policy, operator
-policy; the lowest; RabbitMQ 4.x's default 20) and refuses a peek within
-`delivery_headroom` of it, from the highest count it saw this session.
-
-## Configuration
-
-Profiles live in `.lockmq/config.toml` at the project root. No file holds a
-secret: a URL with a password is refused.
-
-```toml
-[profiles.prod]
-url          = "https://rabbitmq.example.com:15671"   # management API
-amqp_url     = "amqps://rabbitmq.example.com:5671"    # optional
-stream_url   = "rabbitmq-stream+tls://rabbitmq.example.com:5551"  # optional
-vhosts       = ["orders"]                              # empty: every vhost the account sees
-user         = ""                                      # empty: asked at console start
-credentials  = "vault"                                 # ask | keychain | vault
-vault_path   = "rabbitmq/creds/lockmq-ro"
-tls          = "verify-full"
-tier         = "read"                                  # read | peek
-production   = true
-detectors    = ["email", "phone", "iban", "card"]
-body_mode    = "redact-unknown"                        # redact-unknown | detect
-
-[profiles.prod.limits]
-request_timeout   = "10s"
-read_max          = 20      # messages per stream read (ceiling 200)
-peek_max          = 5       # messages per peek (ceiling 20)
-delivery_headroom = 3
-max_body_bytes    = 16384
-max_output_bytes  = 65536
-list_page_size    = 100
-idle_timeout      = "20m"
-max_session       = "4h"
-```
-
-`[profiles.NAME.auto]` shapes `lox run`'s auto mode for the profile, one
-rule per action, `auto`, `ask` or `deny` (`auto = "full-auto"` sets them all
-to `auto`, for a local broker left to the agent):
-
-```toml
-[profiles.prod.auto]
-connect = "ask"    # default: a human approves the first connection
-list    = "auto"   # queues, exchanges, bindings, counts
-read    = "auto"   # stream reads
-peek    = "ask"    # default: requeued queue reads, a human approves each
-purge   = "deny"   # get, publish, purge, delete: ask by default (no such operation yet)
-```
-
-See [docs/usage.md](docs/usage.md#auto-rules).
-
-An `[profiles.NAME.ssh]` table reaches a broker behind a bastion: the console
-opens the tunnel itself and checks the bastion's host key; streams are then
-read over AMQP.
-
-<details>
-<summary>All profile keys</summary>
-
-| Key | Default | Notes |
-|---|---|---|
-| `url` | required | management API, `http://` or `https://`; no userinfo |
-| `amqp_url`, `stream_url` | none | optional; an operation that needs a missing one says which key to set |
-| `vhosts` | every vhost the account sees | the only vhosts served |
-| `user` | asked at start | with `credentials = "vault"`: the secret's username |
-| `credentials` | `ask` | `ask`, `keychain` or `vault` |
-| `vault_path` | required with `vault` | e.g. `rabbitmq/creds/<role>` |
-| `credentials_ttl` | none | at least `1m`: the secret is asked again once it is that old |
-| `tls` | `verify-full` | `disable`, `prefer`, `require`, `verify-ca`, `verify-full` |
-| `tls_ca`, `tls_cert`, `tls_key` | none | a private CA; a client certificate (both or neither) |
-| `tier` | `read` | `read` or `peek` |
-| `production` | `false` | typed approval, `redact-unknown` body mode |
-| `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`, `ip`, `secret`, `person_name`; `[]` disables them |
-| `body_mode` | `redact-unknown` on production, `detect` otherwise | |
-| `limits.request_timeout` | 10s | |
-| `limits.read_max` | 20 | ceiling 200 |
-| `limits.peek_max` | 5 | ceiling 20 |
-| `limits.delivery_headroom` | 3 | lowering it is a loosening |
-| `limits.max_body_bytes` | 16 384 | per message after masking |
-| `limits.max_output_bytes` | 65 536 | messages dropped from the end and counted |
-| `limits.list_page_size` | 100 | |
-| `limits.idle_timeout`, `limits.max_session` | 20m, 4h | session ends after this long idle / in all |
-| `auto` | `connect`/`peek` ask, `list`/`read` auto, `get`/`publish`/`purge`/`delete` ask | `"full-auto"` or a table of `auto`/`ask`/`deny`; a looser rule is a loosening |
-| `ssh.host`, `ssh.port`, `ssh.user`, `ssh.auth`, `ssh.key`, `ssh.credentials` | port 22 | as in locksql: `auth` is `key`, `agent` or `password` |
-
-</details>
-
-Changing the file later: tightenings (a lower limit, `peek` → `read`, a
-removed vhost, a new mask rule) apply at once; loosenings wait for you in the
-console (`:review`).
-
-### PII rules
-
-`.lockmq/pii.toml`:
-
-```toml
-[[mask]]
-queue = ["orders/order-events"]     # vhost/name globs; "//name" for the vhost /
-body  = "$.customer.email"          # JSON path: $.a.b, $.a[*].b, $.a[3]
-mode  = "email"                     # redact (default) | partial | email
-
-[[mask]]
-queue  = ["*/*"]
-header = "x-customer-*"
-
-[[allow]]
-queue = ["orders/order-events", "orders/order-events.dlq"]
-body  = "$.items[*].sku"
-```
-
-Mask rules of the queue read, of the origin queue in a message's first
-`x-death` and of its exchange apply; allow rules only from the queue read, so
-a forged `x-death` can only add masking. The agent may add a mask rule
-(`lockmq pii add`); an allow rule is a loosening the human confirms.
-
-## Console keys
-
-| Key / command | Does |
-|---|---|
-| `:review` | show the pending loosening and the change requests of clients, apply or refuse |
-| `:status` | the policy in force, the session |
-| Ctrl-O, `:results` | print each read and peek result in clear here (the agent still gets it masked) |
-| `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved on lockhub, never auto-approved |
-| `:quit`, Ctrl-C | end the session |
-
-The switches are console-only: no client, config file or environment
-variable can set them, and each change is audited.
-
-## Limitations
-
-- No writes of any kind (purge, move, requeue, publish, shovel), as of v0.6.x.
-- RabbitMQ only; JSON and UTF-8 text bodies only, other bodies are shown as
-  size and hash.
-- Masking is best effort: a value in a free-text field that no detector,
-  rule or name heuristic catches comes back in clear.
-- A `monitoring` user cannot read runtime parameters (shovels, federation)
-  nor its own permissions: `policies` says so; permissions are not audited.
-- Through an ssh tunnel the stream protocol is unavailable (its client dials
-  the broker's advertised address): streams are read over AMQP, and stream
-  offsets and consumer lag are not available.
-- The first peek of a queue cannot know the delivery counts (the count is
-  only seen after a `get`); the screen says so.
-- One console per profile and project, one request at a time.
-
-## Roadmap
-
-Not in v0.6.x, and not promised for a given release:
-
-- body formats beyond JSON and UTF-8 text.
-
-## The lock family
-
-lockmq is one of a family of human-gated tools for AI agents, built on the
-same console, separation and approval model:
-
-| Project | Gates access to |
-|---|---|
-| [locksql](https://github.com/DavidGodefroid/locksql) | databases: MariaDB, MySQL, PostgreSQL, SQLite |
-| **lockmq** | message queues: RabbitMQ |
-| [lockfile](https://github.com/DavidGodefroid/lockfile) | files: yes/no answers about a file the agent never reads |
-| [lockhttp](https://github.com/DavidGodefroid/lockhttp) | outbound HTTP(S): reads of trusted hosts pass, the rest waits for approval (pre-release) |
-| [lockkit](https://github.com/DavidGodefroid/lockkit) | the shared Go framework: console, separation, approval, masking, audit, MCP |
+Every rule and limit: [docs/safety.md](docs/safety.md). Threat model:
+[docs/security-model.md](docs/security-model.md).
 
 ## Documentation
 
-| | |
+| Doc | What it covers |
 |---|---|
-| 📘 [docs/usage.md](docs/usage.md) | every command, the console, the MCP tools, refusal codes |
-| 🛡️ [docs/security-model.md](docs/security-model.md) | principles, boundaries, threats and limits |
-| 🐳 [docs/docker.md](docs/docker.md) | the setup guide: image, project, console, agent wiring, broker in a container |
-| 📝 [CHANGELOG.md](CHANGELOG.md) | release notes |
-| 🚨 [SECURITY.md](SECURITY.md) | reporting a vulnerability |
-| 🧑‍💻 [CONTRIBUTING.md](CONTRIBUTING.md) | building and testing |
+| [docs/install.md](docs/install.md) | install paths, by hand, the launcher and its image, building |
+| [docs/docker.md](docs/docker.md) | the setup guide: image, project, console, agent wiring, broker in a container |
+| [docs/usage.md](docs/usage.md) | every command, auto rules, the console, the MCP tools, refusal codes |
+| [docs/configuration.md](docs/configuration.md) | every profile key, auto rules, SSH, PII rules |
+| [docs/architecture.md](docs/architecture.md) | the life of a request, the approval screen, process layout, protocols |
+| [docs/safety.md](docs/safety.md) | the safety model, peek, console keys, limitations, roadmap, the comparison and highlights in full |
+| [docs/security-model.md](docs/security-model.md) | principles, boundaries, threats and limits |
+| [CHANGELOG.md](CHANGELOG.md) | what changed, release by release |
 
-## Install
+The site, [davidgodefroid.github.io/lockmq](https://davidgodefroid.github.io/lockmq/),
+is built from [`site/`](site/).
 
-lockmq runs in Docker. `brew trust davidgodefroid/tap` then
-`brew install davidgodefroid/tap/lockmq` (or `davidgodefroid/tap/lockfamily`
-for the whole family; Homebrew asks you to trust a third-party tap once) or
-`scripts/install.sh` installs the `lockmq` launcher,
-which runs every command in `ghcr.io/davidgodefroid/lockmq:X.Y.Z`; the
-release's `-vault` image adds the pinned Vault CLI for
-`credentials = "vault"` (`LOCKMQ_VAULT=1`). `lockmq version` prints the
-launcher's and the image's versions; `lockmq update` updates both. See
-[docs/docker.md](docs/docker.md), including your own build and migrating
-from a host install.
+## The Lock Family
 
-## Build
+| Repo | What it does |
+|---|---|
+| [lockfamily](https://github.com/DavidGodefroid/lockfamily) | The family site ([lockfamily.dev](https://lockfamily.dev)) and the one-line installer. |
+| [locksql](https://github.com/DavidGodefroid/locksql) | SQL databases: the agent queries, PII comes back masked; connections and writes wait for you. |
+| [lockmq](https://github.com/DavidGodefroid/lockmq) | RabbitMQ: masked queue inspection; reading messages and acting on queues wait for you. |
+| [lockfile](https://github.com/DavidGodefroid/lockfile) | Files (S3, SFTP, disk): the agent asks yes/no questions about files it never reads. |
+| [lockhttp](https://github.com/DavidGodefroid/lockhttp) | Outbound HTTP(S): reads of trusted hosts pass; anything that sends data or reaches an unknown host waits for you. |
+| [locklog](https://github.com/DavidGodefroid/locklog) | Logs: masked, bounded log search; the agent reads the logs, not the people in them. |
+| [lockssh](https://github.com/DavidGodefroid/lockssh) | Commands over SSH: allow-listed commands run at once, the rest waits for you; the key never leaves the console. |
+| [lockhub](https://github.com/DavidGodefroid/lockhub) | The approval hub and its `lox` CLI: `lox run` approves outside the agent's harness and never sees values in clear. |
+| [lockkit](https://github.com/DavidGodefroid/lockkit) | The shared Go core of every Lock: console, policies, masking, signed tickets, audit, MCP. |
+| [lea](https://github.com/DavidGodefroid/lea) | Runs many agents in containers, wired to the Locks. |
 
-```sh
-CGO_ENABLED=0 go build ./cmd/lockmq
-go test ./...
-go test -tags integration ./test/integration/   # RabbitMQ 3.13 and 4.1 in Docker
-```
+## Contributing · Security · License
 
-Requires Go 1.26 or later.
-
-The logo, the demo and the social images are in [`site/assets`](site/assets), generated by
-[`scripts/brand`](scripts/brand): `python3 scripts/brand/demo.py > site/assets/demo.svg`; the
-PNGs with [`render.mjs`](scripts/brand/render.mjs).
-
-## Licence
-
-Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md). Build with
+  `CGO_ENABLED=0 go build ./cmd/lockmq` (Go 1.26+).
+- **Security:** report a vulnerability privately, see [SECURITY.md](SECURITY.md).
+- **License:** Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).
