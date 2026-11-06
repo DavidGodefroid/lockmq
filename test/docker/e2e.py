@@ -4,8 +4,9 @@
 A RabbitMQ container and the console container share a network; the
 console runs in a pseudo-terminal this script answers (policy, password),
 attached to a hub as `lox up` starts it (the hub flags are required; the
-hub named here is not running, so a read stays pending: the decision on a
-real hub is lockhub's own end-to-end test); the agent's commands run in
+hub named here is not running, so the first catalogue call waits for its
+connect ticket, as does a read: the decision on a real hub is
+lockhub's own end-to-end test); the agent's commands run in
 throwaway containers that share only the socket volume and the project.
 It also checks the image's accounts and modes, that the console refuses to
 start without its hub, and that it refuses a peer that is neither lockmq
@@ -240,11 +241,19 @@ def main():
             print(con.text()[-4000:])
             raise SystemExit("the console did not come up")
 
-        r = agent(project, "queues", "--json")
-        check(r.returncode == 0 and "orders" in r.stdout, f"catalogue call (queues)\n{r.stdout}{r.stderr}")
+        # The broker session serves the agent only once its connect ticket
+        # is approved on the hub, which is not running: the first request
+        # waits for the decision (fail closed) and returns nothing.
+        r = agent(project, "8", "lockmq", "queues", "--json", extra=["--entrypoint", "timeout"])
+        # Ended by timeout's SIGTERM while waiting ("context canceled"),
+        # not refused for another cause.
+        check(r.returncode != 0 and "context canceled" in r.stderr and "orders" not in r.stdout, f"catalogue call waits for its connect ticket, nothing listed\n{r.stdout}{r.stderr}")
+        check("waits for its connect ticket" in con.text() and "auto.connect=ask" in con.text(), "the console names the connect ticket and its rule")
 
-        r = agent(project, "read", "orders", "--from", "first", "--max", "1", "--json")
-        check('"pending"' in r.stdout and "e2e-1" not in r.stdout, f"stream read pending on the hub, nothing read\n{r.stdout}{r.stderr}")
+        # A stream read reads the queue's properties first: it waits for the
+        # connect ticket too, and nothing is read.
+        r = agent(project, "8", "lockmq", "read", "orders", "--from", "first", "--max", "1", "--json", extra=["--entrypoint", "timeout"])
+        check(r.returncode != 0 and "context canceled" in r.stderr and "e2e-1" not in r.stdout, f"stream read waits for its connect ticket, nothing read\n{r.stdout}{r.stderr}")
         check("Approve? [y/N]" not in con.text(), "the read is never asked in the console")
         check(f"Requests are decided on lockhub at {HUB_URL} as {INSTANCE}" in con.text(), "the console names its hub")
 

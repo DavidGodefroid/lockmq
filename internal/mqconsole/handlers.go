@@ -98,6 +98,11 @@ type Record struct {
 	Count  int    `json:"count,omitempty"`
 	// Unmasked marks a read or peek whose content left in clear.
 	Unmasked bool `json:"unmasked,omitempty"`
+	// AutoRule is the profile's auto rule that applied to the request
+	// ("auto.peek=ask"), DecidedBy who decided its ticket on the hub
+	// ("auto:<rule id>" for one of the decider's auto rules, "human").
+	AutoRule  string `json:"auto_rule,omitempty"`
+	DecidedBy string `json:"decided_by,omitempty"`
 }
 
 // prep is a request checked against the policy in force: a catalogue
@@ -148,9 +153,18 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 		return nil, refusal.Newf(ops.CodeTier, `%s needs tier = "%s" on profile %s; its tier is %s, and only the user can change it`, op.Name, op.Tier, pr.Name, pr.Tier)
 	}
 	pp := &prep{op: op, pol: pol, vhost: p.VHost, target: p.Target, unmask: p.Unmask}
+	rule := pr.Auto.Rule(actionOf(op.Name))
+	if rule == config.AutoDeny {
+		return pp, autoRefusal(pr, actionOf(op.Name))
+	}
 	if !op.Prompt {
 		if p.Unmask {
 			return nil, refusal.New(ops.CodeBadArgs, "unmask applies to read and peek only")
+		}
+		if rule == config.AutoAsk {
+			// A metadata read the profile asks for goes through an
+			// approval like a message read.
+			pp.screen = listScreen(pol, p)
 		}
 		return pp, nil
 	}
@@ -185,6 +199,9 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 	if s == nil {
 		return nil, errConnLost{errors.New("no broker session")}
 	}
+	if err := b.ensureConnect(ctx, env, s, p.Requester); err != nil {
+		return pp, err
+	}
 	if op.Name == "read" {
 		err = b.prepareRead(ctx, s, pp, p)
 	} else {
@@ -194,6 +211,10 @@ func (b *Backend) prepare(ctx context.Context, env console.Env, p Params) (*prep
 		return pp, err
 	}
 	pp.screen.Body = append(pp.screen.Body, piiLines(pp, env)...)
+	pp.screen.Body = append(pp.screen.Body, "auto rule: "+pr.Auto.RuleID(actionOf(op.Name)))
+	// Only an auto rule lets `lox run` approve without a question; an
+	// unmasked read is a human's decision whatever the rule.
+	pp.screen.NeverAuto = rule == config.AutoAsk
 	if pp.unmask {
 		pp.screen.NeverAuto, pp.screen.Red = true, true
 	}
@@ -314,12 +335,11 @@ func (b *Backend) preparePeek(ctx context.Context, s *session, pp *prep, p Param
 	}
 	count := max(p.Count, 1)
 	pp.screen = &console.Screen{
-		Header:    b.header(pp.pol, s, pp.vhost),
-		Note:      p.Intent,
-		Body:      []string{fmt.Sprintf("PEEK %s  count %d", pp.target, count), ""},
-		Warnings:  warnings,
-		NeverAuto: true,
-		Red:       true,
+		Header:   b.header(pp.pol, s, pp.vhost),
+		Note:     p.Intent,
+		Body:     []string{fmt.Sprintf("PEEK %s  count %d", pp.target, count), ""},
+		Warnings: warnings,
+		Red:      true,
 	}
 	pp.fetch = func(ctx context.Context) (fetched, error) {
 		msgs, err := s.mgmt.PeekRequeue(ctx, pp.vhost, pp.target, count, 4*pr.Limits.MaxBodyBytes)
@@ -502,7 +522,7 @@ func (b *Backend) record(ctx context.Context, env console.Env, base audit.Base, 
 	base.Profile = env.Policy().Profile().Name
 	base.Intent = p.Intent
 	console.StampPeer(ctx, &base)
-	rec := Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Count: count}
+	rec := Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Count: count, AutoRule: ruleIDOf(env, p.Op)}
 	rec.Unmasked = pp != nil && pp.unmask && base.Event == audit.EventRun && base.Decision == "ok"
 	if pp != nil {
 		rec.VHost, rec.Target = pp.vhost, pp.target
@@ -517,6 +537,9 @@ func (b *Backend) errResp(ctx context.Context, env console.Env, id int64, p Para
 	if errors.As(err, &lost) {
 		return console.ErrResp(id, ipc.CodeConnLost, env.Sanitizer().Error(lost.err))
 	}
+	if resp, ok := connectResp(id, err); ok {
+		return resp
+	}
 	var r *refusal.Error
 	if errors.As(err, &r) {
 		b.record(ctx, env, audit.Base{Event: audit.EventRefused, Decision: "refused", Code: string(r.Code), Error: env.Sanitizer().Error(r)}, pp, p, 0)
@@ -529,6 +552,20 @@ func (b *Backend) errResp(ctx context.Context, env console.Env, id int64, p Para
 		return console.ErrResp(id, ipc.CodeConnLost, msg)
 	}
 	return console.ErrResp(id, ipc.CodeInternal, msg)
+}
+
+// connectResp answers a request whose connect ticket was denied or not
+// decided in time (audited by askConnect).
+func connectResp(id int64, err error) (ipc.Response, bool) {
+	switch {
+	case errors.Is(err, errConnectDenied):
+		return console.ErrResp(id, ipc.CodeDenied, errConnectDenied.Error()), true
+	case errors.Is(err, errConnTimeout):
+		return console.ErrResp(id, ipc.CodeTimeout, errConnTimeout.Error()), true
+	case errors.Is(err, errHumanConnect):
+		return console.ErrResp(id, ipc.CodeDenied, errHumanConnect.Error()), true
+	}
+	return ipc.Response{}, false
 }
 
 // isConnErr reports a broker error after which the session is not
@@ -562,7 +599,7 @@ func (b *Backend) run(ctx context.Context, req ipc.Request, env console.Env) ipc
 	}
 	sc := *pp.screen
 	sc.Record = func(base audit.Base) audit.Record {
-		return Record{Base: base, Op: p.Op, VHost: pp.vhost, Target: pp.target, Unmasked: pp.unmask}
+		return Record{Base: base, Op: p.Op, VHost: pp.vhost, Target: pp.target, Unmasked: pp.unmask, AutoRule: ruleIDOf(env, p.Op)}
 	}
 	if a := env.Approve(ctx, req.ID, sc); !a.Approved {
 		return a.Refusal
@@ -570,8 +607,12 @@ func (b *Backend) run(ctx context.Context, req ipc.Request, env console.Env) ipc
 	return b.execute(ctx, env, req.ID, p, pp)
 }
 
-// execute runs an approved read or peek.
+// execute runs an approved read or peek, or a metadata read its profile
+// asks for.
 func (b *Backend) execute(ctx context.Context, env console.Env, id int64, p Params, pp *prep) ipc.Response {
+	if pp.fetch == nil {
+		return b.runCatalog(ctx, env, id, p, pp)
+	}
 	// Unmasked output may have been turned off while the screen waited.
 	if pp.unmask && !env.UnmaskAllowed() {
 		return b.errResp(ctx, env, id, p, pp, refusal.New(ops.CodeUnmaskOff, "unmasked output was turned off in this console: read masked"))
@@ -592,6 +633,9 @@ func (b *Backend) runCatalog(ctx context.Context, env console.Env, id int64, p P
 	s := b.session()
 	if s == nil {
 		return console.ErrResp(id, ipc.CodeConnLost, "no broker session")
+	}
+	if err := b.ensureConnect(ctx, env, s, p.Requester); err != nil {
+		return b.errResp(ctx, env, id, p, pp, err)
 	}
 	d := ops.Deps{Mgmt: s.mgmt, Profile: pp.pol.Policy.Profile}
 	if si := s.streamInfo(); si != nil {
@@ -615,6 +659,9 @@ func (b *Backend) plan(ctx context.Context, req ipc.Request, env console.Env) ip
 		var lost errConnLost
 		if errors.As(err, &lost) {
 			return console.ErrResp(req.ID, ipc.CodeConnLost, env.Sanitizer().Error(lost.err))
+		}
+		if resp, ok := connectResp(req.ID, err); ok {
+			return resp
 		}
 		var r *refusal.Error
 		if !errors.As(err, &r) {

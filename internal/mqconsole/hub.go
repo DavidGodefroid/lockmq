@@ -68,7 +68,8 @@ var screenDetectors = func() []pii.Detector {
 	return ds
 }()
 
-// hubPlan turns a read or peek into a plan decided on the hub: stored,
+// hubPlan turns a read or peek (or a metadata read its profile asks for)
+// into a plan decided on the hub: stored,
 // bound to the peer, the agent's token and the policy, its masked screen
 // pushed in a signed ticket. The agent hears pending.
 func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env, h *console.Hub, p Params, pp *prep) ipc.Response {
@@ -94,13 +95,17 @@ func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env,
 	}
 	sc := *pp.screen
 	sc.Record = func(base audit.Base) audit.Record {
-		return Record{Base: base, Op: p.Op, VHost: pp.vhost, Target: pp.target, Unmasked: pp.unmask}
+		return Record{Base: base, Op: p.Op, VHost: pp.vhost, Target: pp.target, Unmasked: pp.unmask,
+			AutoRule: pp.pol.Policy.Profile.Auto.RuleID(actionOf(p.Op))}
 	}
 	lines := make([]render.Line, 0, len(sc.Body))
 	for _, l := range sc.Body {
 		lines = append(lines, render.Structure(l))
 	}
-	sc.Hub = &console.HubTicket{PlanID: stored.ID, Caller: caller, Risk: ticket.RiskReadPII,
+	// A version-2 ticket of kind action, its verb the auto action, for
+	// `lox run`'s rules; NeverAuto (the screen's) when the rule asks.
+	sc.Hub = &console.HubTicket{PlanID: stored.ID, Caller: caller, Risk: riskOf(pp.op),
+		Kind: ticket.KindAction, Subject: subjectOf(pp.pol, p, pp),
 		Requester: ticket.Requester{Agent: p.Requester.Agent},
 		Masked: render.MaskScreen(render.ScreenSource{Header: sc.Header, Note: sc.Note, Body: lines, Warnings: sc.Warnings, Red: sc.Red},
 			render.Masking{Detectors: screenDetectors})}
@@ -120,6 +125,16 @@ func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env,
 // hash unchanged.
 func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, h *console.Hub, in Params) ipc.Response {
 	caller := plans.Caller{UID: peerUID(ctx), Token: in.Requester.Token}
+	// The broker session's connect ticket is asked before the run begins,
+	// never while the recheck holds the plan.
+	if _, err := env.Session(ctx); err == nil {
+		if s := b.session(); s != nil {
+			if err := b.ensureConnect(ctx, env, s, in.Requester); err != nil {
+				return b.errResp(ctx, env, req.ID, in, nil, err)
+			}
+		}
+	}
+	rctx := context.WithValue(ctx, noWaitKey{}, true)
 	var body hubBody
 	var pp *prep
 	var prepErr error
@@ -127,7 +142,7 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 		if err := json.Unmarshal(sp.Body, &body); err != nil {
 			return "", "", err
 		}
-		pp, prepErr = b.prepare(ctx, env, body.Params)
+		pp, prepErr = b.prepare(rctx, env, body.Params)
 		if prepErr != nil {
 			return "", "", fmt.Errorf("%w: %v", plans.ErrStale, prepErr)
 		}
@@ -142,8 +157,21 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 			// pending with the new ticket (decision H1).
 			return b.renew(ctx, env, h, req.ID, in, caller)
 		}
-		if d != nil && errors.Is(err, hubclient.ErrDenied) {
-			b.auditDecision(ctx, env, in.Ticket, body.Params, d, audit.EventDenied)
+		if d != nil && (errors.Is(err, hubclient.ErrDenied) || errors.Is(err, ticket.ErrAuto)) {
+			// Refused before the recheck read the plan: the audit names
+			// the stored request, not the params sent beside the ticket.
+			p := body.Params
+			if p.Op == "" {
+				p = storedParams(h, in.Ticket, caller)
+			}
+			if errors.Is(err, ticket.ErrAuto) {
+				// An auto rule's approval of a never_auto ticket: audited
+				// like a connect ticket's, with who decided and the
+				// never-auto error; nothing runs.
+				b.auditRefusedAuto(ctx, env, in.Ticket, p, d, err)
+			} else {
+				b.auditDecision(ctx, env, in.Ticket, p, d, audit.EventDenied)
+			}
 		}
 		if prepErr != nil {
 			return b.errResp(ctx, env, req.ID, body.Params, pp, prepErr)
@@ -197,7 +225,7 @@ func (b *Backend) renew(ctx context.Context, env console.Env, h *console.Hub, id
 		base.Reason = "renewed by ticket " + pd.Ticket
 	}
 	console.StampPeer(ctx, &base)
-	env.Audit(Record{Base: base, Op: stored.Op, VHost: stored.VHost, Target: stored.Target, Unmasked: stored.Unmask})
+	env.Audit(Record{Base: base, Op: stored.Op, VHost: stored.VHost, Target: stored.Target, Unmasked: stored.Unmask, AutoRule: ruleIDOf(env, stored.Op)})
 	return resp
 }
 
@@ -237,7 +265,34 @@ func (b *Backend) auditDecision(ctx context.Context, env console.Env, id string,
 	base := audit.Base{Event: event, Decision: string(d.Decision), Approval: "hub", Reason: d.Reason, Ticket: id,
 		Approver: &d.Approver, Facade: d.Facade, HubSig: d.Sig, Profile: env.Policy().Profile().Name, Intent: p.Intent}
 	console.StampPeer(ctx, &base)
-	env.Audit(Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Unmasked: p.Unmask})
+	env.Audit(Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Unmasked: p.Unmask,
+		AutoRule: ruleIDOf(env, p.Op), DecidedBy: decidedBy(d)})
+}
+
+// auditRefusedAuto records an auto rule's approval the lock refused on a
+// never_auto ticket (ticket.ErrAuto): decided_by names the decider's rule,
+// the error says why nothing ran.
+func (b *Backend) auditRefusedAuto(ctx context.Context, env console.Env, id string, p Params, d *ticket.Decision, err error) {
+	base := audit.Base{Event: audit.EventRun, Decision: "failed", Approval: "hub", Reason: d.Reason, Ticket: id,
+		Approver: &d.Approver, Facade: d.Facade, HubSig: d.Sig, Profile: env.Policy().Profile().Name, Intent: p.Intent,
+		Error: env.Sanitizer().Error(err)}
+	console.StampPeer(ctx, &base)
+	env.Audit(Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Unmasked: p.Unmask,
+		AutoRule: ruleIDOf(env, p.Op), DecidedBy: decidedBy(d)})
+}
+
+// storedParams is the request of the stored plan behind ticket tk (zero
+// when it cannot be read).
+func storedParams(h *console.Hub, tk string, caller plans.Caller) Params {
+	sp, err := h.Store.ByTicket(tk, caller)
+	if err != nil {
+		return Params{}
+	}
+	var body hubBody
+	if json.Unmarshal(sp.Body, &body) != nil {
+		return Params{}
+	}
+	return body.Params
 }
 
 // hubRefusal answers a run whose ticket cannot run.
@@ -255,6 +310,10 @@ func hubRefusal(id int64, tk, instance string, err error) ipc.Response {
 		resp := console.ErrResp(id, ipc.CodeRefused, r.Reason)
 		resp.Error.Data = &info
 		return resp
+	case errors.Is(err, ticket.ErrAuto):
+		// The profile's rule asks (the ticket is signed never_auto): an
+		// auto rule's approval runs nothing; the ticket waits for a human.
+		return console.ErrResp(id, ipc.CodeDenied, "the profile's auto rule asks a human for this request; an auto approval cannot run it")
 	case errors.Is(err, plans.ErrWrongRequester):
 		return console.ErrResp(id, ipc.CodeWrongRequester, "the ticket was asked by another agent")
 	}

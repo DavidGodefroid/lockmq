@@ -28,7 +28,40 @@ func hubRig(t *testing.T, o rigOpts) (*rig, *hubtest.Hub, ed25519.PublicKey) {
 	var hub *hubtest.Hub
 	var pub ed25519.PublicKey
 	o.hub, hub, pub = hubOptions(t)
+	if !o.manualConnect {
+		approveConnects(t, hub)
+	}
 	return newRig(t, o), hub, pub
+}
+
+// approveConnects approves, as a human on the hub, every connect ticket
+// the lock pushes, until the test ends.
+func approveConnects(t *testing.T, hub *hubtest.Hub) {
+	t.Helper()
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	t.Cleanup(func() { close(done); <-stopped })
+	go func() {
+		defer close(stopped)
+		seen := map[string]bool{}
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+			for _, id := range hub.Tickets() {
+				if seen[id] {
+					continue
+				}
+				seen[id] = true
+				var tk ticket.Ticket
+				if json.Unmarshal(hub.Ticket(id), &tk) == nil && tk.Kind == ticket.KindConnect {
+					hub.Decide(id, ticket.Approved, "")
+				}
+			}
+		}
+	}()
 }
 
 // hubOptions is a test hub and the console's options for it.

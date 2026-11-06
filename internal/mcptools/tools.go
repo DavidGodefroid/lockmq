@@ -91,7 +91,7 @@ var OpTools = []OpTool{
 	{"stream", "stream", "One stream: its queue data and, with the stream protocol, first and last offsets."},
 	{"stream-offset", "stream-offset", "Stored offset of a named stream consumer and its lag behind the stream's end (stream protocol)."},
 	{"read", "read", "Read messages of a stream from first, last, an offset or an RFC 3339 timestamp, masked. Moves nothing (no offset stored). The human approves every read."},
-	{"peek", "peek", "NOT READ-ONLY: take up to count ready messages from the head of a classic or quorum queue and requeue them (redelivered=true; a quorum queue's delivery count grows). Only on a profile with tier peek; the human approves every peek, never auto-approved."},
+	{"peek", "peek", "NOT READ-ONLY: take up to count ready messages from the head of a classic or quorum queue and requeue them (redelivered=true; a quorum queue's delivery count grows). Only on a profile with tier peek; the human approves every peek unless the profile sets auto.peek = \"auto\"."},
 }
 
 // Names lists every tool name.

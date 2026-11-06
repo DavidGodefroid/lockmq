@@ -104,6 +104,9 @@ type Profile struct {
 	Detectors []string `json:"detectors"`
 	BodyMode  string   `json:"body_mode"`
 	Limits    Limits   `json:"limits"`
+	// Auto are the profile's auto rules (`lox run`'s auto mode); empty
+	// fields are the defaults (AutoDefault).
+	Auto AutoRules `json:"auto,omitzero"`
 }
 
 type rawLimits struct {
@@ -137,6 +140,8 @@ type rawProfile struct {
 	Detectors      []string        `toml:"detectors"`
 	BodyMode       string          `toml:"body_mode"`
 	Limits         rawLimits       `toml:"limits"`
+	// Auto is "full-auto" or a table of action = auto|ask|deny.
+	Auto rawAuto `toml:"auto"`
 }
 
 type rawFile struct {
@@ -428,6 +433,12 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 			return Profile{}, errf("limits.%s (%d) is above its ceiling %d", f.key, f.val, f.max)
 		}
 	}
+
+	auto, err := parseAuto(r.Auto.v)
+	if err != nil {
+		return Profile{}, errf("%v", err)
+	}
+	p.Auto = auto.canonical()
 
 	if r.SSH != nil {
 		s, err := kconfig.ParseSSH(product.P, *r.SSH, p.Credentials, errf)

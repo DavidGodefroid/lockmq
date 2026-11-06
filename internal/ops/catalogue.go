@@ -33,6 +33,9 @@ const (
 	// CodeStale: in hub mode, the queue's properties (or the request)
 	// changed between the approval and the run; nothing was read.
 	CodeStale refusal.Code = "E_STALE"
+	// CodeAutoDenied: the profile's auto rules deny the action (deny),
+	// in auto and manual mode alike.
+	CodeAutoDenied refusal.Code = "E_AUTO_DENIED"
 )
 
 func init() {
@@ -50,6 +53,8 @@ func init() {
 		`a vhost or name that is, or holds, a "." or ".." path segment`, "lockmq cannot address it; do not retry")
 	refusal.Register(CodeStale, refusal.RetryRewrite,
 		"the queue changed since the request was approved", "ask again: the new state needs a new approval")
+	refusal.Register(CodeAutoDenied, refusal.RetryAskUser,
+		"the profile's auto rules deny this action", "only the user can change the profile's auto rules")
 	refusal.Register(CodeUnmaskOff, refusal.RetryAskUser,
 		"unmasked output is off in this console", "read masked, or ask the user to allow it in the console (:unmask)")
 }

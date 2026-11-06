@@ -81,6 +81,91 @@ file later: tightenings (a lower limit, `peek` → `read`, a removed vhost, a
 new mask rule) apply at once; loosenings wait for you in the console
 (`:review`).
 
+## Auto rules
+
+`lox run` (lockhub) decides the lock's tickets in auto mode by default and
+asks the human only for what matters; each profile tunes it with an `auto`
+key, one rule per action:
+
+```toml
+[profiles.local]
+url  = "http://127.0.0.1:15672"
+auto = "full-auto"          # every action auto: the local broker is left to the agent
+
+[profiles.prod]
+url        = "https://mq.example.com:15671"
+production = true
+[profiles.prod.auto]
+connect = "ask"             # default: a human approves the first connection
+list    = "auto"            # queues, exchanges, bindings, counts
+read    = "auto"            # stream reads (no offset stored, nothing removed)
+peek    = "ask"             # default: queue reads, requeued (a human approves each)
+get     = "ask"             # consuming (ack) a message
+publish = "ask"
+purge   = "ask"             # or deny
+delete  = "deny"
+```
+
+| Value | Auto mode | Manual mode |
+|---|---|---|
+| `auto` | `lox run` approves by its rule, no question | asked |
+| `ask` | asked: the ticket is `never_auto` (the lock refuses an auto rule's approval); `connect`: the first connect ticket of each console run and of each approved policy is `never_auto`, the reconnections after a human's approval may be approved by a rule | asked |
+| `deny` | refused by the lock before any ticket (`E_AUTO_DENIED`); `connect = "deny"`: the console never logs in | refused |
+
+Defaults, when a profile sets no rule: `connect` and `peek` ask (a peek
+requeues messages and raises their delivery count), `list` and `read` auto,
+`get`, `publish`, `purge` and `delete` ask. lockmq is
+read-only: `get`, `publish`, `purge` and `delete` name no operation of this
+release; their rules are validated and kept, so that a profile is locked
+down before any such operation exists. Unknown actions and values are
+refused. An unmasked read (`unmask`) is asked whatever the rule.
+
+The lock enforces `deny` and `ask` itself; `auto` only lets the decider
+approve without a question. Each ticket is a version-2 ticket of kind
+`action` whose verb is the action (`list`, `read`, `peek`) and subject the
+profile and the masked target; a `list` under `auto` runs at once, without
+a ticket, as catalogue reads always did. In hub mode, the broker session
+serves the agent only once its **connect ticket** is approved: the first
+request of each session (the console's login, a reconnection) sends one
+(kind `connect`: the profile, the management endpoint `host:port`, the
+credential source, never a secret) and waits for its decision; the requests
+after it share it. Under `connect = "ask"` the lock takes only a human's
+decision on the first connect ticket of each console run and of each
+approved policy fingerprint (the ticket is signed `never_auto`); a
+reconnection after that may be approved by `lox run`'s rule. A change of the
+approved policy asks the connection again. While a connect ticket waits,
+the agent's other requests, `plan` included, wait behind it (up to the ticket's
+10 minutes). The console still logs in at its start, where the password
+is typed. The audit records the profile's rule (`auto_rule`, such as
+`auto.peek=ask`) and who decided (`decided_by`: `auto:<rule id>` of the
+decider, or `human`), connect tickets included (`op: connect`).
+
+The rules are part of the profile's policy: a looser rule (`deny` < `ask` <
+`auto`) is a loosening the console asks for at its start (`:review`), with
+the typed profile name on a production profile; a tighter one applies at
+once. Only the human edits `.lockmq/config.toml` on the host.
+
+```sh
+lockmq profile rules [--json] [--project DIR] [--profile NAME]
+```
+
+prints the effective rules of each profile, and with `--json` one line for
+`lox run`:
+
+```json
+{"lock":"lockmq","actions":["connect","list","read","peek","get","publish","purge","delete"],"profiles":[{"profile":"prod","production":true,"full_auto":false,"rules":{"connect":"ask","delete":"deny",...},"ids":{"connect":"auto.connect=ask",...},"source":"approved","pending_review":true,"file_rules":{"connect":"auto",...}}]}
+```
+
+The rules are those of the policy the console approved (`source:
+"approved"`) when this account can read it, never an edit of the config
+files the human has not approved: those files are in the project, which the
+agent can write. Files whose rules differ are flagged `pending_review`, with
+`file_rules` beside. A profile with no approved policy readable here (none
+yet, or a console run by a separated service account) reports the files'
+rules (`source: "files"`). Either way the lock does not rely on this output:
+a ticket its approved rules leave to the human is signed `never_auto`, and
+the lock refuses an auto rule's approval of it.
+
 ## Agents
 
 ```sh
@@ -131,7 +216,8 @@ Keys and commands while it runs (lockkit's console):
 | `:quit`, Ctrl-C | end the session |
 
 **Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (the three are required;
-`lox up` writes them), reads and peeks are decided on lockhub, never on this
+`lox up` writes them), the broker session waits for its connect ticket and reads and peeks
+(and metadata reads a profile asks for: [auto rules](#auto-rules)) are decided on lockhub, never on this
 terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq read`,
 `lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
 the request as a plan bound to the client's uid, the agent's lea token and the policy, pushes
@@ -155,6 +241,7 @@ be a service name without a dot or a private address.
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| next | v0.13.0 | `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later: tickets are version 2 (kinds `connect` and `action`, `lockkit` ticket kinds), which an older hub refuses |
 | v0.6.1 | v0.10.0 | as v0.6.0 |
 | v0.6.0 | v0.10.0 | as v0.5.0 |
 | v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only, and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
@@ -267,6 +354,7 @@ sends progress notifications so the client does not time out.
 | `E_TIER` | ask the user | `peek` on a profile with tier `read` |
 | `E_DELIVERY_LIMIT` | ask the user | a peek could dead-letter or drop messages of this quorum queue |
 | `E_UNMASK_OFF` | ask the user | `--unmask` while unmasked output is off in the console |
+| `E_AUTO_DENIED` | ask the user | the profile's auto rules deny the action (`deny`, see [Auto rules](#auto-rules)) |
 | `E_STALE` | rewrite | hub mode: the queue changed between the approval and the run; nothing was read: ask again |
 | `E_UNSAFE_NAME` | stop | a vhost or name that is, or holds, a `.` or `..` path segment |
 | `E_POLICY` | stop | anything else the policy refuses |

@@ -64,8 +64,9 @@ func TestReadPromptedAndMasked(t *testing.T) {
 	}
 }
 
-// A peek is prompted every time (never auto-approved), framed in red, and
-// marks the delivery count it saw.
+// A peek is prompted every time (by default never auto-approved: see
+// TestPeekNeverAutoByDefault for hub mode), framed in red, and marks the
+// delivery count it saw.
 func TestPeekNeverAuto(t *testing.T) {
 	r := newRig(t, rigOpts{tier: "peek", answers: []string{"y", "y"}})
 	out := mustOK(t, r.call(MethodRun, peekParams("payments")))
@@ -354,7 +355,7 @@ func TestPrivilegeAudit(t *testing.T) {
 	broker.tags = "administrator"
 	root, state := t.TempDir(), t.TempDir()
 	writeProject(t, root, broker.srv.URL, rigOpts{production: true})
-	io := &fakeIO{answers: []string{"y", "prod"}, secrets: []string{"pw"}}
+	io := &fakeIO{answers: []string{"prod", "prod"}, secrets: []string{"pw"}}
 	be := New(Options{Profile: "prod", Root: root, StateDir: state, IO: io})
 	d := t.TempDir()
 	t.Setenv("LOCKMQ_RUNTIME_DIR", d)

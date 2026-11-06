@@ -85,6 +85,10 @@ func (b *Backend) Connect(ctx context.Context, c console.Credentials) (console.S
 		return nil, err
 	}
 	pr := pol.Policy.Profile
+	// A profile whose rules deny the connection never logs in.
+	if pr.Auto.Rule(config.ActConnect) == config.AutoDeny {
+		return nil, fmt.Errorf("connect: %s", autoRefusal(pr, config.ActConnect).Reason)
+	}
 	s := &session{user: c.User}
 	var dial func(ctx context.Context, network, addr string) (net.Conn, error)
 	if pr.SSH != nil {

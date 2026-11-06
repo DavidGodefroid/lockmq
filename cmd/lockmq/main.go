@@ -43,6 +43,9 @@ type env struct {
 	userConfig string
 	// home holds the hub instance key; "" is the account's home.
 	home string
+	// stateDir is the state base the consoles keep their approved
+	// policies in; "" is kit.StateBase().
+	stateDir string
 	// agentEnv is the account the agents are wired for; nil is the real
 	// one.
 	agentEnv func() (agentwire.Env, error)
@@ -71,6 +74,10 @@ Human commands
              [--amqp-url URL] [--stream-url URL] [--tier read|peek]
                                         add a broker profile to the project (asks for what
                                         the flags do not give; never for a secret)
+  profile rules [--json] [--project DIR] [--profile NAME]
+                                        the profiles' auto rules (connect, list, read, peek,
+                                        get, publish, purge, delete: auto, ask or deny), as
+                                        lox run applies them
   console   --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME (hub instance name)
              [--profile P] [--project DIR] [--allow-unmask] [--show-results]
              [--allowed-uids UID,...]

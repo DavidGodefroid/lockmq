@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/console"
@@ -57,6 +58,18 @@ type Backend struct {
 	// back wrapped (a Vault lease), so handlers use cur, the session the
 	// console vouches for once Env.Session returned without error.
 	cur *session
+	// granted is the session whose connect ticket was approved, in hub
+	// mode (ensureConnect), under the policy of fingerprint grantedFP;
+	// humanFP is the fingerprint of the policy under which a human last
+	// approved a connect ticket in this console run (auto.connect = "ask"
+	// takes a human's approval first: ensureConnect). connMu serialises
+	// the asking, so that the requests of one session share one ticket.
+	connMu    sync.Mutex
+	granted   *session
+	grantedFP string
+	humanFP   string
+	// clock is the time of the connect tickets (nil: time.Now).
+	clock func() time.Time
 
 	// seen keeps the delivery counts of peeks for the console session;
 	// refs the values behind redacted references. Both survive a
