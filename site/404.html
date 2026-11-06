@@ -3,24 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Page not found — lockmq</title>
+  <title>Page not found · lockmq</title>
   <meta name="description" content="This page does not exist on the lockmq site.">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16140f" media="(prefers-color-scheme: dark)">
   <meta name="robots" content="noindex">
-  <!-- Served for any missing path at any depth: every URL is absolute
-       under the site's base path (/lockmq/ on GitHub Pages). -->
+  <link rel="canonical" href="https://davidgodefroid.github.io/lockmq/404.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="lockmq">
+  <meta property="og:title" content="Page not found · lockmq">
+  <meta property="og:description" content="This page does not exist on the lockmq site.">
+  <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/404.html">
+  <meta property="og:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="lockmq: your agent reads the queue, you hold the key.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Page not found · lockmq">
+  <meta name="twitter:description" content="This page does not exist on the lockmq site.">
+  <meta name="twitter:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
+  <meta name="twitter:image:alt" content="lockmq: your agent reads the queue, you hold the key.">
   <link rel="icon" href="/lockmq/assets/logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/lockmq/assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="/lockmq/assets/style.css">
+  <link rel="preload" href="/lockmq/assets/fonts/zilla-slab-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/lockmq/assets/fonts/source-serif-4-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/lockmq/assets/tokens.css">
+  <link rel="stylesheet" href="/lockmq/assets/lock-site.css">
   <script src="/lockmq/assets/anchors.js" defer></script>
+  <script src="/lockmq/assets/copy.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/lockmq/"><img src="/lockmq/assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lock<span>mq</span></span></a>
+      <a class="brand" href="/lockmq/"><img src="/lockmq/assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lockmq</span></a>
       <nav class="site-nav" aria-label="Main">
         <ul>
           <li><a href="/lockmq/">Home</a></li>
@@ -36,10 +55,13 @@
   <main id="main" tabindex="-1">
     <div class="wrap">
 
+<!-- Served for any missing path at any depth: every URL is absolute
+     under the site's base path (/lockmq/ on GitHub Pages). -->
+<p class="eyebrow">Error 404</p>
 <h1>Page not found</h1>
 <div class="prose">
   <p class="lead">The page you asked for does not exist.</p>
-  <ul>
+  <ul class="more">
     <li><a href="/lockmq/">Home</a></li>
     <li><a href="/lockmq/install/">Install</a></li>
     <li><a href="/lockmq/faq/">FAQ</a></li>
@@ -50,16 +72,41 @@
     </div>
   </main>
   <footer class="site-footer">
-    <div class="wrap">
-      <ul>
-        <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
-      </ul>
-      <p>Pre-release (<code>v0.6.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
-      <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockhttp">lockhttp</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
+    <div class="wrap footer-grid">
+      <div class="footer-about">
+        <a class="brand" href="/lockmq/"><img src="/lockmq/assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lockmq</span></a>
+        <p>RabbitMQ for AI agents: masked queue inspection; connections and queue reads wait for you, and the agent never holds a password.</p>
+        <p class="family-link">Part of the <a href="https://lockfamily.dev">Lock Family</a>, harness security for AI agents.</p>
+      </div>
+      <nav aria-labelledby="footer-lock">
+        <h2 id="footer-lock">lockmq</h2>
+        <ul>
+          <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
+        </ul>
+      </nav>
+      <nav class="family-strip" aria-labelledby="footer-family">
+        <h2 id="footer-family">The Lock Family</h2>
+        <ul>
+          <li data-lock="locksql"><a href="https://github.com/DavidGodefroid/locksql">locksql</a><span>SQL databases, PII masked</span></li>
+          <li data-lock="lockmq" aria-current="true"><a href="https://github.com/DavidGodefroid/lockmq">lockmq</a><span>RabbitMQ queues</span></li>
+          <li data-lock="lockfile"><a href="https://github.com/DavidGodefroid/lockfile">lockfile</a><span>Files: S3, SFTP, disk</span></li>
+          <li data-lock="lockhttp"><a href="https://github.com/DavidGodefroid/lockhttp">lockhttp</a><span>Outbound HTTP(S)</span></li>
+          <li data-lock="locklog"><a href="https://github.com/DavidGodefroid/locklog">locklog</a><span>Logs, masked search</span></li>
+          <li data-lock="lockssh"><a href="https://github.com/DavidGodefroid/lockssh">lockssh</a><span>Commands over SSH</span></li>
+          <li data-lock="lockhub"><a href="https://github.com/DavidGodefroid/lockhub">lockhub</a><span>The approval hub and <code>lox</code></span></li>
+          <li data-lock="lockkit"><a href="https://github.com/DavidGodefroid/lockkit">lockkit</a><span>The shared Go core</span></li>
+          <li data-lock="lea"><a href="https://github.com/DavidGodefroid/lea">lea</a><span>Agents in containers</span></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wrap footer-bottom">
+      <p>Pre-release (v0.8.x). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p><a href="https://lockfamily.dev">lockfamily.dev</a> · <a href="https://github.com/DavidGodefroid/lockfamily">the family on GitHub</a></p>
     </div>
   </footer>
 </body>

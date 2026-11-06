@@ -14,7 +14,7 @@ PII line); keep them in step when those change.
 """
 
 LOOP = 14.0
-C = dict(bg="#0b1120", pane="#020617", bar="#0f172a", border="#253047", text="#e2e8f0",
+C = dict(bg="#1a1814", pane="#0e0d0a", bar="#24211b", border="#3a352c", text="#e2e8f0",
          dim="#64748b", sub="#94a3b8", orange="#fb923c", teal="#5eead4", violet="#a78bfa",
          red="#f87171", green="#4ade80", yellow="#facc15")
 FONT = "'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace"
@@ -208,12 +208,12 @@ for t0, t1, s in caps:
     body.append(text(W / 2, 600, s, cls=show(t0 + 0.05, t1 - 0.2), size=26, weight=650,
                      family=SANS, anchor="middle"))
 
-label = ("lockmq: Claude Code lists RabbitMQ queues through lockmq, then asks to read a stream; "
+label = ("lockmq: an agent (here Claude Code) lists RabbitMQ queues through lockmq, then asks to read a stream; "
          "the lockmq console, in its own account, asks the human to approve, and the agent gets "
          "the messages back with the customer's email masked.")
 print(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
       f'role="img" aria-label="{label}">')
-print("<title>lockmq: your AI reads the queue, you hold the key</title>")
+print("<title>lockmq: your agent reads the queue, you hold the key</title>")
 print("<style>" + "\n".join(css) +
       "\n@media (prefers-reduced-motion: reduce){*{animation-delay:-8.8s!important;"
       "animation-play-state:paused!important}}</style>")
