@@ -245,15 +245,15 @@ def main():
         # is approved on the hub, which is not running: the first request
         # waits for the decision (fail closed) and returns nothing.
         r = agent(project, "8", "lockmq", "queues", "--json", extra=["--entrypoint", "timeout"])
-        # timeout's exit (124, or 143 for a busybox killed by SIGTERM):
-        # the call was waiting, not refused for another cause.
-        check(r.returncode in (124, 143) and "orders" not in r.stdout, f"catalogue call waits for its connect ticket, nothing listed\n{r.stdout}{r.stderr}")
+        # Ended by timeout's SIGTERM while waiting ("context canceled"),
+        # not refused for another cause.
+        check(r.returncode != 0 and "context canceled" in r.stderr and "orders" not in r.stdout, f"catalogue call waits for its connect ticket, nothing listed\n{r.stdout}{r.stderr}")
         check("waits for its connect ticket" in con.text() and "auto.connect=ask" in con.text(), "the console names the connect ticket and its rule")
 
         # A stream read reads the queue's properties first: it waits for the
         # connect ticket too, and nothing is read.
         r = agent(project, "8", "lockmq", "read", "orders", "--from", "first", "--max", "1", "--json", extra=["--entrypoint", "timeout"])
-        check(r.returncode in (124, 143) and "e2e-1" not in r.stdout, f"stream read waits for its connect ticket, nothing read\n{r.stdout}{r.stderr}")
+        check(r.returncode != 0 and "context canceled" in r.stderr and "e2e-1" not in r.stdout, f"stream read waits for its connect ticket, nothing read\n{r.stdout}{r.stderr}")
         check("Approve? [y/N]" not in con.text(), "the read is never asked in the console")
         check(f"Requests are decided on lockhub at {HUB_URL} as {INSTANCE}" in con.text(), "the console names its hub")
 
