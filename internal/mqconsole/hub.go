@@ -157,8 +157,21 @@ func (b *Backend) hubRun(ctx context.Context, req ipc.Request, env console.Env, 
 			// pending with the new ticket (decision H1).
 			return b.renew(ctx, env, h, req.ID, in, caller)
 		}
-		if d != nil && errors.Is(err, hubclient.ErrDenied) {
-			b.auditDecision(ctx, env, in.Ticket, body.Params, d, audit.EventDenied)
+		if d != nil && (errors.Is(err, hubclient.ErrDenied) || errors.Is(err, ticket.ErrAuto)) {
+			// Refused before the recheck read the plan: the audit names
+			// the stored request, not the params sent beside the ticket.
+			p := body.Params
+			if p.Op == "" {
+				p = storedParams(h, in.Ticket, caller)
+			}
+			if errors.Is(err, ticket.ErrAuto) {
+				// An auto rule's approval of a never_auto ticket: audited
+				// like a connect ticket's, with who decided and the
+				// never-auto error; nothing runs.
+				b.auditRefusedAuto(ctx, env, in.Ticket, p, d, err)
+			} else {
+				b.auditDecision(ctx, env, in.Ticket, p, d, audit.EventDenied)
+			}
 		}
 		if prepErr != nil {
 			return b.errResp(ctx, env, req.ID, body.Params, pp, prepErr)
@@ -254,6 +267,32 @@ func (b *Backend) auditDecision(ctx context.Context, env console.Env, id string,
 	console.StampPeer(ctx, &base)
 	env.Audit(Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Unmasked: p.Unmask,
 		AutoRule: ruleIDOf(env, p.Op), DecidedBy: decidedBy(d)})
+}
+
+// auditRefusedAuto records an auto rule's approval the lock refused on a
+// never_auto ticket (ticket.ErrAuto): decided_by names the decider's rule,
+// the error says why nothing ran.
+func (b *Backend) auditRefusedAuto(ctx context.Context, env console.Env, id string, p Params, d *ticket.Decision, err error) {
+	base := audit.Base{Event: audit.EventRun, Decision: "failed", Approval: "hub", Reason: d.Reason, Ticket: id,
+		Approver: &d.Approver, Facade: d.Facade, HubSig: d.Sig, Profile: env.Policy().Profile().Name, Intent: p.Intent,
+		Error: env.Sanitizer().Error(err)}
+	console.StampPeer(ctx, &base)
+	env.Audit(Record{Base: base, Op: p.Op, VHost: p.VHost, Target: p.Target, Unmasked: p.Unmask,
+		AutoRule: ruleIDOf(env, p.Op), DecidedBy: decidedBy(d)})
+}
+
+// storedParams is the request of the stored plan behind ticket tk (zero
+// when it cannot be read).
+func storedParams(h *console.Hub, tk string, caller plans.Caller) Params {
+	sp, err := h.Store.ByTicket(tk, caller)
+	if err != nil {
+		return Params{}
+	}
+	var body hubBody
+	if json.Unmarshal(sp.Body, &body) != nil {
+		return Params{}
+	}
+	return body.Params
 }
 
 // hubRefusal answers a run whose ticket cannot run.

@@ -224,6 +224,11 @@ func TestConnectAskRefusesAutoApproval(t *testing.T) {
 	got := make(chan ipc.Response, 1)
 	go func() { got <- r.call(MethodRun, Params{Op: "queues"}) }()
 	tk := waitConnect(t, hub, pub, 0)
+	// The rule is in the signed ticket (never_auto, and the screen names
+	// it): the lock enforces it, whatever rule the decider applies.
+	if !tk.Flags.NeverAuto || !slices.Contains(tk.Screen.Body, "rule: auto.connect=ask") {
+		t.Fatalf("ask connect ticket %+v %q", tk.Flags, tk.Screen.Body)
+	}
 	hub.DecideWith(tk.ID, ticket.Approved, "", nil, byAutoRule("lox.session.prod"))
 	resp := <-got
 	if resp.Error == nil || resp.Error.Code != ipc.CodeDenied || !strings.Contains(resp.Error.Message, "auto.connect=ask") {
@@ -359,36 +364,58 @@ func TestConnectDeniedByRule(t *testing.T) {
 }
 
 // A profile that sets no auto rule keeps the guarantee lockmq always gave:
-// every peek is a human's decision. Its ticket is signed never_auto and an
-// auto rule's approval runs nothing (no requeue, no delivery count grown);
-// only the human's approval runs it.
+// every peek is a human's decision, on a production profile too. Its
+// ticket is signed never_auto and an auto rule's approval runs nothing (no
+// requeue, no delivery count grown), audited with who decided and the
+// never-auto error; only the human's approval runs it.
 func TestPeekNeverAutoByDefault(t *testing.T) {
-	r, hub, pub := hubRig(t, rigOpts{tier: "peek"})
-	p := peekParams("payments")
-	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
-	pd := pendingOf(t, r.call(MethodRun, p))
-	tk, err := ticket.VerifyTicket(pub, hub.Ticket(pd.Ticket))
-	if err != nil {
-		t.Fatal(err)
+	for _, prod := range []bool{false, true} {
+		t.Run(map[bool]string{false: "uat", true: "production"}[prod], func(t *testing.T) {
+			r, hub, pub := hubRig(t, rigOpts{tier: "peek", production: prod})
+			p := peekParams("payments")
+			p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+			pd := pendingOf(t, r.call(MethodRun, p))
+			tk, err := ticket.VerifyTicket(pub, hub.Ticket(pd.Ticket))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tk.Kind != ticket.KindAction || tk.Subject == nil || tk.Subject.Verb != "peek" || !tk.Flags.NeverAuto ||
+				tk.Flags.Production != prod || !strings.Contains(strings.Join(tk.Screen.Body, "\n"), "auto.peek=ask") {
+				t.Fatalf("default peek ticket %+v", tk)
+			}
+			run := p
+			run.Ticket = pd.Ticket
+			run.Target = "decoy" // the audit names the stored request, not this
+			hub.DecideWith(pd.Ticket, ticket.Approved, "", nil, byAutoRule("lox.auto.peek"))
+			if out := r.runDecided(run); out.Error == nil || out.Error.Code != ipc.CodeDenied || r.broker.peekCount() != 0 {
+				t.Fatalf("an auto rule's approval ran a default peek: %+v peeks %d", out, r.broker.peekCount())
+			}
+			refused := auditLineOf(t, r.auditLog(), pd.Ticket, "auto:lox.auto.peek")
+			for _, want := range []string{`"auto_rule":"auto.peek=ask"`, `"op":"peek"`, `"target":"payments"`, `"decision":"failed"`, "never-auto"} {
+				if !strings.Contains(refused, want) {
+					t.Errorf("refused auto approval audited without %s:\n%s", want, refused)
+				}
+			}
+			pd = pendingOf(t, r.call(MethodRun, p))
+			hub.Decide(pd.Ticket, ticket.Approved, "")
+			run = p
+			run.Ticket = pd.Ticket
+			mustOK(t, r.runDecided(run))
+			if r.broker.peekCount() != 1 {
+				t.Fatalf("peeks %d", r.broker.peekCount())
+			}
+		})
 	}
-	if tk.Kind != ticket.KindAction || tk.Subject == nil || tk.Subject.Verb != "peek" || !tk.Flags.NeverAuto ||
-		!strings.Contains(strings.Join(tk.Screen.Body, "\n"), "auto.peek=ask") {
-		t.Fatalf("default peek ticket %+v", tk)
+}
+
+// auditLineOf is the audit line of ticket tk decided by who.
+func auditLineOf(t *testing.T, log, tk, who string) string {
+	t.Helper()
+	for _, l := range strings.Split(log, "\n") {
+		if strings.Contains(l, `"ticket":"`+tk+`"`) && strings.Contains(l, `"decided_by":"`+who+`"`) {
+			return l
+		}
 	}
-	run := p
-	run.Ticket = pd.Ticket
-	hub.DecideWith(pd.Ticket, ticket.Approved, "", nil, byAutoRule("lox.auto.peek"))
-	if out := r.runDecided(run); out.Error == nil || out.Error.Code != ipc.CodeDenied || r.broker.peekCount() != 0 {
-		t.Fatalf("an auto rule's approval ran a default peek: %+v peeks %d", out, r.broker.peekCount())
-	}
-	if a := r.auditLog(); !strings.Contains(a, `"auto_rule":"auto.peek=ask"`) {
-		t.Errorf("audit:\n%s", a)
-	}
-	pd = pendingOf(t, r.call(MethodRun, p))
-	hub.Decide(pd.Ticket, ticket.Approved, "")
-	run.Ticket = pd.Ticket
-	mustOK(t, r.runDecided(run))
-	if r.broker.peekCount() != 1 {
-		t.Fatalf("peeks %d", r.broker.peekCount())
-	}
+	t.Fatalf("no audit line of ticket %s decided by %s:\n%s", tk, who, log)
+	return ""
 }
