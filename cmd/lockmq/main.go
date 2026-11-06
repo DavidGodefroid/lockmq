@@ -43,6 +43,9 @@ type env struct {
 	userConfig string
 	// home holds the hub instance key; "" is the account's home.
 	home string
+	// stateDir is the state base the consoles keep their approved
+	// policies in; "" is kit.StateBase().
+	stateDir string
 	// agentEnv is the account the agents are wired for; nil is the real
 	// one.
 	agentEnv func() (agentwire.Env, error)

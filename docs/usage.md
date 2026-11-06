@@ -96,7 +96,7 @@ auto = "full-auto"          # every action auto: the local broker is left to the
 url        = "https://mq.example.com:15671"
 production = true
 [profiles.prod.auto]
-connect = "ask"             # default: once per lox run session
+connect = "ask"             # default: a human approves the first connection
 list    = "auto"            # queues, exchanges, bindings, counts
 read    = "auto"            # stream reads (no offset stored, nothing removed)
 peek    = "auto"            # queue reads, requeued
@@ -109,7 +109,7 @@ delete  = "deny"
 | Value | Auto mode | Manual mode |
 |---|---|---|
 | `auto` | `lox run` approves by its rule, no question | asked |
-| `ask` | asked: the ticket is `never_auto` (the lock refuses an auto rule's approval); `connect` is asked once per `lox run` session | asked |
+| `ask` | asked: the ticket is `never_auto` (the lock refuses an auto rule's approval); `connect`: the first connect ticket of each console run and of each approved policy is `never_auto`, the reconnections after a human's approval may be approved by a rule | asked |
 | `deny` | refused by the lock before any ticket (`E_AUTO_DENIED`); `connect = "deny"`: the console never logs in | refused |
 
 Defaults, when a profile sets no rule: `connect` ask, `list`, `read` and
@@ -128,7 +128,13 @@ serves the agent only once its **connect ticket** is approved: the first
 request of each session (the console's login, a reconnection) sends one
 (kind `connect`: the profile, the management endpoint `host:port`, the
 credential source, never a secret) and waits for its decision; the requests
-after it share it. The console still logs in at its start, where the password
+after it share it. Under `connect = "ask"` the lock takes only a human's
+decision on the first connect ticket of each console run and of each
+approved policy fingerprint (the ticket is signed `never_auto`); a
+reconnection after that may be approved by `lox run`'s rule. A change of the
+approved policy asks the connection again. While a connect ticket waits,
+the agent's other requests, `plan` included, wait behind it (up to the ticket's
+10 minutes). The console still logs in at its start, where the password
 is typed. The audit records the profile's rule (`auto_rule`, such as
 `auto.peek=ask`) and who decided (`decided_by`: `auto:<rule id>` of the
 decider, or `human`), connect tickets included (`op: connect`).
@@ -146,11 +152,18 @@ prints the effective rules of each profile, and with `--json` one line for
 `lox run`:
 
 ```json
-{"lock":"lockmq","actions":["connect","list","read","peek","get","publish","purge","delete"],"profiles":[{"profile":"prod","production":true,"full_auto":false,"rules":{"connect":"ask","delete":"deny",...},"ids":{"connect":"auto.connect=ask",...}}]}
+{"lock":"lockmq","actions":["connect","list","read","peek","get","publish","purge","delete"],"profiles":[{"profile":"prod","production":true,"full_auto":false,"rules":{"connect":"ask","delete":"deny",...},"ids":{"connect":"auto.connect=ask",...},"source":"approved","pending_review":true,"file_rules":{"connect":"auto",...}}]}
 ```
 
-It reads the config files: what the lock enforces is the policy its console
-approved.
+The rules are those of the policy the console approved (`source:
+"approved"`) when this account can read it, never an edit of the config
+files the human has not approved: those files are in the project, which the
+agent can write. Files whose rules differ are flagged `pending_review`, with
+`file_rules` beside. A profile with no approved policy readable here (none
+yet, or a console run by a separated service account) reports the files'
+rules (`source: "files"`). Either way the lock does not rely on this output:
+a ticket its approved rules leave to the human is signed `never_auto`, and
+the lock refuses an auto rule's approval of it.
 
 ## Agents
 

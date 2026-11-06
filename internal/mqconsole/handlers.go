@@ -562,6 +562,8 @@ func connectResp(id int64, err error) (ipc.Response, bool) {
 		return console.ErrResp(id, ipc.CodeDenied, errConnectDenied.Error()), true
 	case errors.Is(err, errConnTimeout):
 		return console.ErrResp(id, ipc.CodeTimeout, errConnTimeout.Error()), true
+	case errors.Is(err, errHumanConnect):
+		return console.ErrResp(id, ipc.CodeDenied, errHumanConnect.Error()), true
 	}
 	return ipc.Response{}, false
 }

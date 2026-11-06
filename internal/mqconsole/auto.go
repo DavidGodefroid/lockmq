@@ -27,14 +27,22 @@ import (
 //   - deny: the request is refused before any ticket (E_AUTO_DENIED), in
 //     auto and manual mode alike; a connection is not opened;
 //   - ask: the ticket carries Flags.NeverAuto (an auto rule's approval is
-//     refused, ticket.ErrAuto), except a connect ticket, which `lox run`
-//     asks once per session and may then approve itself;
+//     refused, ticket.ErrAuto). A connect ticket under ask is NeverAuto
+//     until a human approved one under the approved policy in force (the
+//     first connection of each console run and each policy fingerprint);
+//     only the reconnections after it may be approved by an auto rule;
 //   - auto: the ticket goes to the hub as a version-2 ticket of kind
 //     action, its verb the action, for `lox run`'s auto mode to approve;
 //     a metadata read (list) under auto runs at once, as it always did.
 //
-// `lox run` reads the rules with `lockmq profile rules --json`; the
-// decision names its rule (ticket.Rule), audited with the lock's own.
+// The rules are those of the approved policy, never the config files the
+// agent can edit: a file-only loosening changes nothing here until the
+// human approves it. `lox run` reads them with `lockmq profile rules
+// --json` (the approved policy's, the file rules that differ flagged as
+// pending review), but the ticket's signed Flags.NeverAuto is what binds:
+// the lock refuses an auto rule's approval of it whatever the decider
+// read. The decision names its rule (ticket.Rule), audited with the
+// lock's own.
 
 // actionOf is the auto action of a catalogue operation.
 func actionOf(op string) string {
@@ -141,12 +149,16 @@ var errConnectDenied = errors.New("the broker connection was denied on the appro
 type noWaitKey struct{}
 
 // ensureConnect lets a request use the broker session s in hub mode only
-// once a connect ticket for s was approved: the first request of each
-// broker session (the console's login, a reconnection) asks one and
-// waits for its decision — `lox run` asks "ask" once per session and
-// approves "auto" by itself — the requests after it share the approval.
-// An auto.connect = "deny" rule refuses every request. Outside hub mode it
-// does nothing.
+// once a connect ticket for s was approved under the policy in force: the
+// first request of each broker session (the console's login, a
+// reconnection) and the first after the approved policy changed asks one
+// and waits for its decision; the requests after it share the approval.
+// Under auto.connect = "ask" the ticket is NeverAuto, so only a human may
+// approve it, until a human approved one under this policy fingerprint in
+// this console run: the reconnections after that may be approved by an
+// auto rule ("asked once per session", held by the lock). Under "auto" an
+// auto rule may approve any of them. An auto.connect = "deny" rule
+// refuses every request. Outside hub mode it does nothing.
 func (b *Backend) ensureConnect(ctx context.Context, env console.Env, s *session, who ipc.Requester) error {
 	h := console.HubOf(env)
 	if h == nil {
@@ -160,24 +172,36 @@ func (b *Backend) ensureConnect(ctx context.Context, env console.Env, s *session
 	if pr.Auto.Rule(config.ActConnect) == config.AutoDeny {
 		return autoRefusal(pr, config.ActConnect)
 	}
+	fp := policyFP(pol)
 	b.connMu.Lock()
 	defer b.connMu.Unlock()
-	if b.granted == s {
+	if b.granted == s && b.grantedFP == fp {
 		return nil
 	}
 	if ctx.Value(noWaitKey{}) != nil {
-		return errConnLost{errors.New("the broker session changed since the request was approved: ask again")}
+		return errConnLost{errors.New("the broker session or its approved policy changed since the request was approved: ask again")}
 	}
-	if err := b.askConnect(ctx, env, h, pol, who); err != nil {
+	human := pr.Auto.Rule(config.ActConnect) == config.AutoAsk && b.humanFP != fp
+	d, err := b.askConnect(ctx, env, h, pol, who, human)
+	if err != nil {
 		return err
 	}
-	b.granted = s
+	b.granted, b.grantedFP = s, fp
+	if d.Rule != nil && d.Rule.By == ticket.RuleHuman {
+		b.humanFP = fp
+	}
 	return nil
 }
 
+// errHumanConnect: an auto rule approved a connect ticket that only a
+// human may approve (the first of auto.connect = "ask").
+var errHumanConnect = errors.New("the profile's auto rules ask a human for this broker connection (auto.connect=ask), but an auto rule approved it: not connected; ask again and wait for the human's decision")
+
 // askConnect asks the connect ticket of the session's profile and waits
 // for its decision, audited with the profile's rule and the decider's.
-func (b *Backend) askConnect(ctx context.Context, env console.Env, h *console.Hub, pol Policy, who ipc.Requester) error {
+// human marks the ticket NeverAuto and takes nothing but a human's
+// approval (Rule.By human) on it.
+func (b *Backend) askConnect(ctx context.Context, env console.Env, h *console.Hub, pol Policy, who ipc.Requester, human bool) (*ticket.Decision, error) {
 	pr := pol.Policy.Profile
 	rule := pr.Auto.RuleID(config.ActConnect)
 	base := audit.Base{Event: audit.EventPending, Decision: "pending", Approval: "hub", Profile: pr.Name}
@@ -188,9 +212,10 @@ func (b *Backend) askConnect(ctx context.Context, env console.Env, h *console.Hu
 	subj := ticket.Subject{Profile: pr.Name, Endpoint: hostPort("url", pr.URL), Credential: credentialOf(pr)}
 	t, err := ticket.NewConnectTicket(ticket.Source{Lock: product.P.Name}, ticket.RiskReadPII, subj, policyFP(pol), b.now(), lazyconn.DefaultAskTimeout)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	t.Flags.Production = pr.Production
+	t.Flags.NeverAuto = human
 	t.Requester = ticket.Requester{Agent: who.Agent}
 	src := render.ScreenSource{
 		Header: pr.Name + " · connect",
@@ -200,6 +225,9 @@ func (b *Backend) askConnect(ctx context.Context, env console.Env, h *console.Hu
 			render.Structure("rule: " + rule),
 		},
 		Warnings: []string{},
+	}
+	if human {
+		src.Body = append(src.Body, render.Structure("asked of a human: the first connection under this approved policy (never_auto)"))
 	}
 	if pr.Production {
 		src.Warnings = append(src.Warnings, "production")
@@ -214,15 +242,15 @@ func (b *Backend) askConnect(ctx context.Context, env console.Env, h *console.Hu
 		base.Event, base.Decision, base.Error = audit.EventRun, "failed", env.Sanitizer().Error(err)
 		env.Audit(rec(base, nil))
 		if actx.Err() != nil && ctx.Err() == nil {
-			return errConnTimeout
+			return nil, errConnTimeout
 		}
-		return fmt.Errorf("connect ticket: %w", err)
+		return nil, fmt.Errorf("connect ticket: %w", err)
 	}
 	base.Approver, base.Facade, base.HubSig, base.Reason = &d.Approver, d.Facade, d.Sig, d.Reason
 	if err := d.Match(t); err != nil {
 		base.Event, base.Decision, base.Error = audit.EventRun, "failed", err.Error()
 		env.Audit(rec(base, d))
-		return fmt.Errorf("connect ticket: %w", err)
+		return nil, fmt.Errorf("connect ticket: %w", err)
 	}
 	if err := d.Usable(t, b.now(), lazyconn.DefaultMaxAge); err != nil {
 		base.Event, base.Decision = audit.EventDenied, string(d.Decision)
@@ -233,15 +261,25 @@ func (b *Backend) askConnect(ctx context.Context, env console.Env, h *console.Hu
 		}
 		env.Audit(rec(base, d))
 		if errors.Is(err, ticket.ErrDenied) {
-			return errConnectDenied
+			return nil, errConnectDenied
 		}
-		return fmt.Errorf("connect ticket: %w", err)
+		if errors.Is(err, ticket.ErrAuto) {
+			return nil, errHumanConnect
+		}
+		return nil, fmt.Errorf("connect ticket: %w", err)
+	}
+	if human && (d.Rule == nil || d.Rule.By != ticket.RuleHuman) {
+		// Usable refuses an auto rule's approval of a NeverAuto ticket;
+		// this also refuses a decision that does not say who decided.
+		base.Event, base.Decision, base.Error = audit.EventRun, "failed", ticket.ErrAuto.Error()
+		env.Audit(rec(base, d))
+		return nil, errHumanConnect
 	}
 	base.Event, base.Decision = audit.EventApproved, string(d.Decision)
 	env.Audit(rec(base, d))
 	// The hub's bookkeeping only: the session is usable either way.
 	_ = h.Client.Consumed(ctx, t.ID)
-	return nil
+	return d, nil
 }
 
 // errConnTimeout: no decision came on the connect ticket in time.

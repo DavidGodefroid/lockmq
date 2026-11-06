@@ -52,6 +52,15 @@ func project(t *testing.T, profiles string) string {
 	return root
 }
 
+// testStateDir is the consoles' state base of a test project: beside it,
+// never the account's.
+func testStateDir(t *testing.T, root string) string {
+	if root == "" {
+		return t.TempDir()
+	}
+	return filepath.Join(filepath.Dir(root), filepath.Base(root)+".state")
+}
+
 const oneProfile = "[profiles.dev]\nurl = \"http://127.0.0.1:15672\"\n"
 
 func runWith(t *testing.T, root string, conn *fakeConn, dialErr error, stdin string, args ...string) (int, string, string) {
@@ -70,6 +79,7 @@ func runEnv(t *testing.T, root string, conn *fakeConn, dialErr error, stdin stri
 	var out, errb bytes.Buffer
 	e := env{stdin: strings.NewReader(stdin), stdout: &out, stderr: &errb, cwd: root, tty: tty,
 		userConfig: filepath.Join(t.TempDir(), "none.toml"),
+		stateDir:   testStateDir(t, root),
 		container:  func() bool { return false },
 		svc:        func(string) (svcAccount, bool) { return svcAccount{}, false },
 		sys: func() (*sysconf.Config, error) {

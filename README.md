@@ -378,7 +378,7 @@ to `auto`, for a local broker left to the agent):
 
 ```toml
 [profiles.prod.auto]
-connect = "ask"    # default: asked once per lox run session
+connect = "ask"    # default: a human approves the first connection
 list    = "auto"   # queues, exchanges, bindings, counts
 read    = "auto"   # stream reads
 peek    = "auto"   # requeued queue reads

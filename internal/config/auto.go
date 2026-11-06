@@ -51,8 +51,9 @@ func ParseAutoValue(s string) (AutoValue, error) {
 // delete name no operation of this release; their rules are validated and
 // kept, so a profile is locked down before any such operation exists.
 const (
-	// ActConnect: open the broker connection (a connect ticket; `lox run`
-	// asks "ask" once per session).
+	// ActConnect: open the broker connection (a connect ticket; under
+	// "ask" the lock takes a human's approval of the first one of each
+	// console run and approved policy).
 	ActConnect = "connect"
 	// ActList: the catalogue's metadata reads (overview, queues,
 	// exchanges, bindings, counts, consumers…), no message content.

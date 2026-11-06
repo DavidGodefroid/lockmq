@@ -29,16 +29,20 @@ import (
 
 // decider plays `lox run` in auto mode on a test hub: it reads the
 // profile's rules as `lockmq profile rules` gives them and approves by
-// rule what the rules let it (connect "auto", any ticket not NeverAuto);
-// everything else waits for the human (human).
+// rule what the rules and the signed ticket let it (a ticket not
+// NeverAuto; a connect ticket also needs connect "auto"); everything else
+// waits for the human (human). fileRules plays a decider that trusts
+// rules read from config files the agent edited: it approves a connect
+// ticket by its rules alone, NeverAuto or not.
 type decider struct {
 	t     *testing.T
 	hub   *hubtest.Hub
 	rules map[string]config.AutoValue
 
-	mu      sync.Mutex
-	seen    map[string]bool
-	waiting []*ticket.Ticket
+	mu        sync.Mutex
+	seen      map[string]bool
+	waiting   []*ticket.Ticket
+	fileRules map[string]config.AutoValue
 }
 
 func (d *decider) loop(done <-chan struct{}) {
@@ -61,8 +65,14 @@ func (d *decider) loop(done <-chan struct{}) {
 				continue
 			}
 			auto := !tk.Flags.NeverAuto
-			if tk.Kind == ticket.KindConnect {
-				auto = d.rules[config.ActConnect] == config.AutoAuto
+			d.mu.Lock()
+			files := d.fileRules
+			d.mu.Unlock()
+			switch {
+			case tk.Kind == ticket.KindConnect && files != nil:
+				auto = files[config.ActConnect] == config.AutoAuto
+			case tk.Kind == ticket.KindConnect:
+				auto = auto && d.rules[config.ActConnect] == config.AutoAuto
 			}
 			if auto {
 				d.hub.DecideWith(id, ticket.Approved, "", nil, func(dc *ticket.Decision) {
@@ -278,5 +288,40 @@ func TestAutoModeFullAutoLocalAndLockedProd(t *testing.T) {
 			!strings.Contains(a, `"decided_by":"human"`) {
 			t.Errorf("prod audit:\n%s", a)
 		}
+	})
+}
+
+// A production profile approved with connect = "ask", whose config file
+// the agent loosened to "auto" behind the console's back: a decider that
+// trusts the file approves the connect ticket by an auto rule, and the
+// lock refuses it (the ticket is signed never_auto), on a real broker.
+// Nothing is served until a human approves the connection.
+func TestAutoModeFileOnlyConnectLooseningRefused(t *testing.T) {
+	each(t, func(t *testing.T, b *broker) {
+		base := fmt.Sprintf("url = %q\namqp_url = %q\nuser = %q\nvhosts = [\"/\"]\ntier = \"peek\"\n",
+			b.MgmtURL(), fmt.Sprintf("amqp://127.0.0.1:%d", b.AMQP), roUser)
+		prod := newHubRig(t, b, "[profiles.prod]\n"+base+"production = true\n", "prod")
+		prod.dec.mu.Lock()
+		prod.dec.fileRules = map[string]config.AutoValue{config.ActConnect: config.AutoAuto}
+		prod.dec.mu.Unlock()
+		resp := prod.call(mqconsole.Params{Op: "queues"})
+		if resp.Error == nil || resp.Error.Code != ipc.CodeDenied || !strings.Contains(resp.Error.Message, "auto.connect=ask") {
+			t.Fatalf("a file-only loosening of connect was accepted: %+v %s", resp.Error, resp.Result)
+		}
+		if a := prod.auditLog(); !strings.Contains(a, `"decided_by":"auto:lox.auto.connect"`) || !strings.Contains(a, "never-auto") {
+			t.Errorf("audit:\n%s", a)
+		}
+		// The human approves the next one: served.
+		prod.dec.mu.Lock()
+		prod.dec.fileRules = nil
+		prod.dec.mu.Unlock()
+		got := make(chan ipc.Response, 1)
+		go func() { got <- prod.call(mqconsole.Params{Op: "queues"}) }()
+		conn := prod.dec.question()
+		if conn.Kind != ticket.KindConnect || !conn.Flags.NeverAuto {
+			t.Fatalf("connect ticket %+v", conn)
+		}
+		prod.dec.hub.Decide(conn.ID, ticket.Approved, "")
+		okData(t, <-got)
 	})
 }
