@@ -241,7 +241,7 @@ be a service name without a dot or a private address.
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
-| next | v0.13.0 | `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later: tickets are version 2 (kinds `connect` and `action`, `lockkit` ticket kinds), which an older hub refuses |
+| v0.8.0 | v0.13.0 | `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later: tickets are version 2 (kinds `connect` and `action`, `lockkit` ticket kinds), which an older hub refuses |
 | v0.6.1 | v0.10.0 | as v0.6.0 |
 | v0.6.0 | v0.10.0 | as v0.5.0 |
 | v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only, and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
