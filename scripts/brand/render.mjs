@@ -1,8 +1,7 @@
-// Render the brand PNGs, or one frame of the demo, with resvg (no browser needed).
+// Render one frame of the demo with resvg (no browser needed). The social image
+// (site/assets/og.png) and the touch icon come from the Lock Family site kit.
 //
 //   npm install --prefix /tmp/brand @resvg/resvg-js@2.6.2 dejavu-fonts-ttf@2.37.3
-//   NODE_PATH=/tmp/brand/node_modules node scripts/brand/render.mjs scripts/brand/og.svg site/assets/og.png
-//   NODE_PATH=/tmp/brand/node_modules node scripts/brand/render.mjs scripts/brand/apple-touch-icon.svg site/assets/apple-touch-icon.png
 //   NODE_PATH=/tmp/brand/node_modules node scripts/brand/render.mjs site/assets/demo.svg frame.png 9.5
 //
 // With a time t (seconds), every CSS keyframe animation of the SVG is seeked to t first, so a

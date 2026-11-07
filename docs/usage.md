@@ -76,7 +76,7 @@ Questions and messages then go to stderr. `lox add lockmq` runs
 `lockmq profile add --non-interactive --json --profile NAME ... --url URL --user USER --vhost V`,
 then `lockmq init claude` and `lockmq doctor --fix --yes --json`.
 
-Every key is described in the README's Configuration section. Changing the
+Every key is described in [configuration.md](configuration.md). Changing the
 file later: tightenings (a lower limit, `peek` → `read`, a removed vhost, a
 new mask rule) apply at once; loosenings wait for you in the console
 (`:review`).

@@ -3,38 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>How lockmq works — console, catalogue, approval, masking</title>
-  <meta name="description" content="How lockmq works: two processes in two accounts, an allowlist of read-only RabbitMQ operations, approved stream reads, opt-in queue peeks, message masking, policy changes and refusal codes.">
+  <title>How lockmq works: catalogue, tickets, masking</title>
+  <meta name="description" content="How lockmq works: the console holds the key and the only broker connections, serves an allowlist of read operations, masks messages, and sends reads to lockhub as signed tickets.">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16140f" media="(prefers-color-scheme: dark)">
   <link rel="canonical" href="https://davidgodefroid.github.io/lockmq/how-it-works/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="lockmq">
-  <meta property="og:title" content="How lockmq works — console, catalogue, approval, masking">
-  <meta property="og:description" content="Two processes in two accounts, an allowlist of read-only RabbitMQ operations, approved stream reads, opt-in queue peeks and message masking.">
+  <meta property="og:title" content="How lockmq works: catalogue, tickets, masking">
+  <meta property="og:description" content="How lockmq works: the console holds the key and the only broker connections, serves an allowlist of read operations, masks messages, and sends reads to lockhub as signed tickets.">
   <meta property="og:url" content="https://davidgodefroid.github.io/lockmq/how-it-works/">
   <meta property="og:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="lockmq — Your AI reads the queue. You hold the key.">
+  <meta property="og:image:alt" content="lockmq: your agent reads the queue, you hold the key.">
   <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="How lockmq works — console, catalogue, approval, masking">
-  <meta name="twitter:description" content="Two processes in two accounts, an allowlist of read-only RabbitMQ operations, approved stream reads, opt-in queue peeks and message masking.">
+  <meta name="twitter:title" content="How lockmq works: catalogue, tickets, masking">
+  <meta name="twitter:description" content="How lockmq works: the console holds the key and the only broker connections, serves an allowlist of read operations, masks messages, and sends reads to lockhub as signed tickets.">
   <meta name="twitter:image" content="https://davidgodefroid.github.io/lockmq/assets/og.png">
-  <meta name="twitter:image:alt" content="lockmq — Your AI reads the queue. You hold the key.">
+  <meta name="twitter:image:alt" content="lockmq: your agent reads the queue, you hold the key.">
   <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="preload" href="../assets/fonts/zilla-slab-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../assets/fonts/source-serif-4-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../assets/tokens.css">
+  <link rel="stylesheet" href="../assets/lock-site.css">
   <script src="../assets/anchors.js" defer></script>
+  <script src="../assets/copy.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="../"><img src="../assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lock<span>mq</span></span></a>
+      <a class="brand" href="../"><img src="../assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lockmq</span></a>
       <nav class="site-nav" aria-label="Main">
         <ul>
           <li><a href="../">Home</a></li>
@@ -50,20 +54,22 @@
   <main id="main" tabindex="-1">
     <div class="wrap">
 
+<p class="eyebrow">How it works</p>
 <h1>How lockmq works</h1>
 <p class="lead prose">Two processes in two accounts. Only the console holds the key.</p>
 
 <section aria-labelledby="layout">
   <h2 id="layout">Two processes</h2>
   <div class="prose">
-    <p><strong>The console</strong> (<code>lockmq console</code>) runs in a session of the dedicated <code>lockmq</code> account. It holds the broker credentials and the only broker connections, applies the policy, masks messages and asks you to approve every read of message content.</p>
-    <p><strong>The clients</strong> (the <code>lockmq</code> CLI and <code>lockmq mcp</code>, the MCP server on stdio) run on the agent’s side. They hold no secret and open no broker connection: they talk to the console over a Unix socket that only the <code>lockmq-clients</code> group reaches, and the kernel’s peer credentials are checked on every connection.</p>
+    <p><strong>The console</strong> (<code>lockmq console</code>) runs as the dedicated <code>lockmq</code> account. It holds the broker credentials and the only broker connections, applies the policy and masks messages.</p>
+    <p><strong>The clients</strong> (the <code>lockmq</code> CLI and <code>lockmq mcp</code>, the MCP server on stdio) run on the agent’s side. They hold no secret and open no broker connection.</p>
+    <p>The clients talk to the console over a Unix socket that only the <code>lockmq-clients</code> group reaches. The kernel’s peer credentials are checked on every connection.</p>
   </div>
   <pre tabindex="0" class="diagram"><code> agent's container (agent)             console container (lockmq)
 ┌──────────────────────┐   socket    ┌─────────────────────────────────────┐
-│ Claude Code / Codex  │ ──────────▶ │ lockmq console                      │
+│ your AI agent        │ ──────────▶ │ lockmq console                      │
 │  lockmq mcp / CLI    │ ◀────────── │  policy · allowlist · masking       │
-│  (no secret, no      │  JSON-RPC,  │  approval screens · audit log       │
+│  (no secret, no      │  JSON-RPC,  │  tickets to lockhub · audit log     │
 │   broker connection) │  peer uid   │  credentials (prompt/Vault)         │
 └──────────────────────┘  checked    └───────────────┬─────────────────────┘
                                                      │ management API (GET)
@@ -76,11 +82,29 @@
   <h2 id="request">The path of a request</h2>
   <ol class="steps prose">
     <li>The agent calls an MCP tool (<code>lockmq_queues</code>, <code>lockmq_read</code>, …) or the CLI.</li>
-    <li>The console checks that the operation exists, its protocol is configured, the vhost is served by the profile, the tier allows it and the arguments are in range, before any broker call.</li>
-    <li>Catalogue operations run at once and are audited. <code>read</code> and <code>peek</code> build an approval screen and wait for you.</li>
-    <li>The console calls the broker, keeps only the fields lockmq renders, masks, caps the output and audits the call (never message content).</li>
+    <li>The console checks that the operation exists, its protocol is configured, the vhost is served, the tier allows it and the arguments are in range. All of this happens before any broker call.</li>
+    <li>Catalogue operations run at once and are audited. A <code>read</code> or a <code>peek</code> becomes a signed ticket on <a href="https://github.com/DavidGodefroid/lockhub">lockhub</a>, and the agent gets <code>pending</code>.</li>
+    <li><code>lox run</code> decides the ticket on your profile’s rules, or asks you. The console checks the signed decision.</li>
+    <li>The console calls the broker, keeps only the fields lockmq renders, masks and caps the output, and audits the call (never message content).</li>
     <li>The answer goes back framed as untrusted data.</li>
   </ol>
+</section>
+
+<section aria-labelledby="rules">
+  <h2 id="rules">Your rules: auto, ask, deny</h2>
+  <div class="prose">
+    <p>Each profile sets one rule per action. <code>auto</code> lets <code>lox run</code> approve without a question, <code>ask</code> always asks a human, <code>deny</code> is refused by the lock before any ticket.</p>
+  </div>
+  <pre tabindex="0"><code>[profiles.prod.auto]
+connect = "ask"     <span class="cmt"># default: a human approves the first connection</span>
+list    = "auto"    <span class="cmt"># queues, exchanges, bindings, counts</span>
+read    = "auto"    <span class="cmt"># stream reads: no offset stored, nothing removed</span>
+peek    = "ask"     <span class="cmt"># default: requeued queue reads, a human approves each</span>
+purge   = "deny"    <span class="cmt"># no such operation yet: locked down in advance</span></code></pre>
+  <div class="prose">
+    <p>Defaults: <code>connect</code> and <code>peek</code> ask, <code>list</code> and <code>read</code> auto, <code>get</code>, <code>publish</code>, <code>purge</code> and <code>delete</code> ask. <code>auto = "full-auto"</code> sets every action to <code>auto</code>, for a local broker left to the agent.</p>
+    <p>An unmasked read is asked whatever the rule. A looser rule is a policy loosening, which waits for your confirmation. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md#auto-rules">Auto rules in the usage guide</a></p>
+  </div>
 </section>
 
 <section aria-labelledby="catalogue">
@@ -89,22 +113,25 @@
 <div class="table-wrap" role="region" aria-label="Operations" tabindex="0">
 <table>
 <caption>Operations</caption>
-<thead><tr><th scope="col">Command</th><th scope="col">Returns</th><th scope="col">Approval</th></tr></thead>
+<thead><tr><th scope="col">Command</th><th scope="col">Returns</th><th scope="col">Default rule</th></tr></thead>
 <tbody>
-<tr><td><code>lockmq overview</code></td><td>broker version, nodes and their alarms, feature flags, totals</td><td>none</td></tr>
-<tr><td><code>lockmq queues</code></td><td>one page of queues, filtered (<code>--filter GLOB</code>) and sorted by name, messages, ready, unacked or consumers</td><td>none</td></tr>
-<tr><td><code>lockmq queue NAME</code></td><td>one queue with its arguments, effective policy, bindings and consumers</td><td>none</td></tr>
-<tr><td><code>lockmq exchanges</code>, <code>bindings</code></td><td>exchanges; bindings of a vhost, a queue or an exchange</td><td>none</td></tr>
-<tr><td><code>lockmq policies</code></td><td>policies, operator policies, runtime parameters (URI passwords removed)</td><td>none</td></tr>
-<tr><td><code>lockmq consumers</code>, <code>connections</code>, <code>channels</code></td><td>with prefetch and ack mode; on the served vhosts only</td><td>none</td></tr>
-<tr><td><code>lockmq stream NAME</code></td><td>a stream’s queue data and first/last offsets</td><td>none</td></tr>
-<tr><td><code>lockmq stream-offset NAME --consumer REF</code></td><td>a named consumer’s stored offset and its lag</td><td>none</td></tr>
-<tr><td><code>lockmq read STREAM --from first|last|N|TIMESTAMP</code></td><td>stream messages, masked</td><td>you, on lockhub</td></tr>
-<tr><td><code>lockmq peek QUEUE --count N</code></td><td>the head of a classic or quorum queue, masked; tier <code>peek</code> only</td><td>you, every time, never auto</td></tr>
+<tr><td><code>lockmq overview</code></td><td>broker version, nodes and their alarms, feature flags, totals</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq queues</code></td><td>one page of queues, filtered (<code>--filter GLOB</code>) and sorted by name, messages, ready, unacked or consumers</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq queue NAME</code></td><td>one queue with its arguments, effective policy, bindings and consumers</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq exchanges</code>, <code>bindings</code></td><td>exchanges; bindings of a vhost, a queue or an exchange</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq policies</code></td><td>policies, operator policies, runtime parameters (URI passwords removed)</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq consumers</code>, <code>connections</code>, <code>channels</code></td><td>with prefetch and ack mode; on the served vhosts only</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq stream NAME</code></td><td>a stream’s queue data and first/last offsets</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq stream-offset NAME --consumer REF</code></td><td>a named consumer’s stored offset and its lag</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq read STREAM --from first|last|N|TIMESTAMP</code></td><td>stream messages, masked</td><td><span class="status auto">auto</span></td></tr>
+<tr><td><code>lockmq peek QUEUE --count N</code></td><td>the head of a classic or quorum queue, masked; tier <code>peek</code> only</td><td><span class="status asked">asked</span></td></tr>
 </tbody>
 </table>
 </div>
-  <p class="prose"><code>--dry-run</code> on <code>read</code> and <code>peek</code> asks the console for its verdict and the approval screen without asking you anything and without reading a message. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md#client-commands">All client commands</a>.</p>
+  <div class="prose">
+    <p><code>--dry-run</code> on <code>read</code> and <code>peek</code> asks the console for its verdict and the approval screen, without a ticket and without reading a message.</p>
+    <p><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md#client-commands">All client commands</a></p>
+  </div>
 </section>
 
 <section aria-labelledby="protocols">
@@ -126,18 +153,27 @@
 <section aria-labelledby="streams">
   <h2 id="streams">Stream reads stay read-only</h2>
   <div class="prose">
-    <p>Over the stream protocol the consumer is opened <strong>without a name</strong>: no offset is stored and no single-active-consumer group is joined; it reads at most <code>read_max</code> messages, then closes. Over AMQP 0-9-1 it is a consumer with <code>x-stream-offset</code> and manual acks (on a stream an ack only returns credit; nothing is removed). A real consumer’s position never moves: <code>store_offset</code> is never called.</p>
+    <p>Over the stream protocol the consumer is opened <strong>without a name</strong>. No offset is stored and no single-active-consumer group is joined; it reads at most <code>read_max</code> messages, then closes.</p>
+    <p>Over AMQP 0-9-1 it is a consumer with <code>x-stream-offset</code> and manual acks. On a stream an ack only returns credit: nothing is removed.</p>
+    <p>A real consumer’s position never moves: <code>store_offset</code> is never called.</p>
   </div>
 </section>
 
 <section aria-labelledby="peek">
   <h2 id="peek">Queue peek: a per-profile setting</h2>
   <div class="prose">
-    <p>Reading a classic or quorum queue is <strong>not strictly read-only</strong>. The management <code>get</code> takes up to <code>count</code> ready messages from the head and requeues them in the same call: they come back <code>redelivered=true</code>, a quorum queue’s delivery count grows by one (over the limit, the message is dead-lettered or dropped), the order seen by active consumers can change, and only ready messages at the head are visible.</p>
-    <p>So <code>peek</code> exists only on a profile you set to <code>tier = "peek"</code> (<code>lockmq profile add</code> asks, default no). Every peek is approved by you, never by the hub’s auto mode. On a quorum queue the console reads the effective delivery limit (argument, policy, operator policy; the lowest; RabbitMQ 4.x’s default 20) and refuses a peek within <code>delivery_headroom</code> of it, from the highest count it saw this session.</p>
+    <p>Reading a classic or quorum queue is <strong>not strictly read-only</strong>. The management <code>get</code> takes up to <code>count</code> ready messages from the head and requeues them in the same call.</p>
+    <ul>
+      <li>they come back <code>redelivered=true</code>;</li>
+      <li>a quorum queue’s delivery count grows by one (over the limit, the message is dead-lettered or dropped);</li>
+      <li>the order seen by active consumers can change;</li>
+      <li>only ready messages at the head are visible.</li>
+    </ul>
+    <p>So <code>peek</code> exists only on a profile you set to <code>tier = "peek"</code> (<code>lockmq profile add</code> asks, default no). Every peek is asked, unless the profile sets <code>auto.peek = "auto"</code>, a loosening you confirm.</p>
+    <p>On a quorum queue the console reads the effective delivery limit (argument, policy, operator policy; the lowest; RabbitMQ 4.x’s default 20). It refuses a peek within <code>delivery_headroom</code> of it, from the highest count it saw this session.</p>
   </div>
   <figure>
-    <pre tabindex="0" class="term"><code>╭─ PROD · rabbitmq.example.com:15671 / orders · user lockmq-ro · tier peek ─────
+    <pre tabindex="0" class="term" aria-label="The approval screen of a peek"><code>╭─ PROD · rabbitmq.example.com:15671 / orders · user lockmq-ro · tier peek ─────
 │ requested by uid 1000 (alice) · pid 48211 · process "lockmq" (self-reported name)
 │ agent: see why order events fail in the dead-letter queue
 │
@@ -147,7 +183,7 @@
 │ ▲ NOT READ-ONLY: messages are taken from the head and requeued; they come back redelivered=true and their delivery count grows by 1
 │ ▲ queue: quorum · ready 1204 · unacked 0 (not visible) · consumers 0
 │ ▲ delivery-limit 20 · max seen so far 2/20
-╰─ Type the profile name "prod" to approve:</code></pre>
+╰─ pending: ticket 01J…</code></pre>
     <figcaption>A peek’s side effects are on the screen before you approve it.</figcaption>
   </figure>
 </section>
@@ -157,17 +193,17 @@
   <div class="prose">
     <p>Masking covers message properties, application properties, headers and bodies. Queue, exchange and stream names are kept.</p>
     <ul>
-      <li><strong>JSON bodies</strong> are parsed and masked per leaf. <code>body_mode = "redact-unknown"</code> (the production default) redacts every string no allow rule names; <code>detect</code> uses mask rules, key-name heuristics and value detectors (email, phone, IBAN, card; national ids opt-in).</li>
-      <li><strong>Other bodies</strong>: UTF-8 text goes through the detectors; binary, compressed or invalid bodies become <code>&lt;bytes:N sha256:H type:T&gt;</code>.</li>
-      <li><strong>References</strong>: a redacted value becomes <code>&lt;redacted:rN.K&gt;</code>, the same reference for the same value within a result; the clear value stays in the console’s memory.</li>
-      <li><strong>Dead-letter queues</strong>: mask rules of the queue read, of the origin queue in a message’s first <code>x-death</code> and of its exchange apply; allow rules only from the queue read, so a forged header can only add masking.</li>
+      <li><strong>JSON bodies</strong> are parsed and masked per leaf. <code>body_mode = "redact-unknown"</code> (the production default) redacts every string no allow rule names. <code>detect</code> uses mask rules, key-name heuristics and value detectors.</li>
+      <li><strong>Other bodies</strong>: UTF-8 text goes through the detectors. Binary, compressed or invalid bodies become <code>&lt;bytes:N sha256:H type:T&gt;</code>.</li>
+      <li><strong>References</strong>: a redacted value becomes <code>&lt;redacted:rN.K&gt;</code>, the same reference for the same value within a result. The clear value stays in the console’s memory.</li>
+      <li><strong>Dead-letter queues</strong>: mask rules of the queue read, of the origin queue in a message’s first <code>x-death</code> and of its exchange apply. Allow rules come only from the queue read, so a forged header can only add masking.</li>
     </ul>
   </div>
-  <pre tabindex="0"><code># .lockmq/pii.toml
+  <pre tabindex="0"><code><span class="cmt"># .lockmq/pii.toml</span>
 [[mask]]
-queue = ["orders/order-events"]     # vhost/name globs; "//name" for the vhost /
-body  = "$.customer.email"          # JSON path: $.a.b, $.a[*].b, $.a[3]
-mode  = "email"                     # redact (default) | partial | email
+queue = ["orders/order-events"]     <span class="cmt"># vhost/name globs; "//name" for the vhost /</span>
+body  = "$.customer.email"          <span class="cmt"># JSON path: $.a.b, $.a[*].b, $.a[3]</span>
+mode  = "email"                     <span class="cmt"># redact (default) | partial | email</span>
 
 [[mask]]
 queue  = ["*/*"]
@@ -181,7 +217,9 @@ body  = "$.items[*].sku"</code></pre>
 <section aria-labelledby="policy">
   <h2 id="policy">The AI tightens, the human loosens</h2>
   <div class="prose">
-    <p>The console reads the config files every 2 seconds. A tightening (a lower limit, <code>peek</code> → <code>read</code>, a removed vhost, a new mask rule) applies at once, whoever wrote it. A loosening (<code>read</code> → <code>peek</code>, a larger limit, a lower headroom, a new vhost or URL, <code>redact-unknown</code> → <code>detect</code>, a new allow rule) waits for you: <code>:review</code> in the console shows it, and you apply or refuse it. No socket method loosens the policy. The agent may add mask rules (<code>lockmq pii add</code>) and queue change requests (<code>lockmq request</code>).</p>
+    <p>The console reads the config files every 2 seconds. A tightening (a lower limit, <code>peek</code> → <code>read</code>, a removed vhost, a new mask rule, a stricter rule) applies at once, whoever wrote it.</p>
+    <p>A loosening waits for you: <code>read</code> → <code>peek</code>, a larger limit, a lower headroom, a new vhost or URL, <code>redact-unknown</code> → <code>detect</code>, a new allow rule, a looser auto rule. <code>:review</code> in the console shows it, and you apply or refuse it.</p>
+    <p>No socket method loosens the policy. The agent may add mask rules (<code>lockmq pii add</code>) and queue change requests (<code>lockmq request</code>).</p>
   </div>
 </section>
 
@@ -194,6 +232,8 @@ body  = "$.items[*].sku"</code></pre>
 <tbody>
 <tr><td><code>:review</code></td><td>show the pending loosening and the change requests of clients, apply or refuse</td></tr>
 <tr><td><code>:status</code></td><td>the policy in force, the session</td></tr>
+<tr><td>Ctrl-O, <code>:results</code></td><td>print each read and peek result in clear in the console (the agent still gets it masked)</td></tr>
+<tr><td><code>:unmask</code></td><td>let clients ask for unmasked output (<code>--unmask</code>), each such request approved on lockhub, never auto-approved</td></tr>
 <tr><td><code>:quit</code>, Ctrl-C</td><td>end the session</td></tr>
 </tbody>
 </table>
@@ -214,26 +254,58 @@ body  = "$.items[*].sku"</code></pre>
 <tr><td><code>E_PROTOCOL_NOT_CONFIGURED</code></td><td>ask the user</td><td>set <code>stream_url</code> or <code>amqp_url</code></td></tr>
 <tr><td><code>E_TIER</code></td><td>ask the user</td><td><code>peek</code> on a profile with tier <code>read</code></td></tr>
 <tr><td><code>E_DELIVERY_LIMIT</code></td><td>ask the user</td><td>a peek could dead-letter or drop messages of this quorum queue</td></tr>
+<tr><td><code>E_UNMASK_OFF</code></td><td>ask the user</td><td><code>--unmask</code> while unmasked output is off in the console</td></tr>
+<tr><td><code>E_AUTO_DENIED</code></td><td>ask the user</td><td>the profile’s rule for this action is <code>deny</code></td></tr>
+<tr><td><code>E_STALE</code></td><td>rewrite</td><td>the queue changed between the approval and the run; nothing was read: ask again</td></tr>
+<tr><td><code>E_UNSAFE_NAME</code></td><td>stop</td><td>a vhost or name that is, or holds, a <code>.</code> or <code>..</code> path segment</td></tr>
 <tr><td><code>E_POLICY</code></td><td>stop</td><td>anything else the policy refuses</td></tr>
 </tbody>
 </table>
 </div>
-  <p class="prose">MCP clients get them as tool errors with a structured <code>refusal</code> (<code>code</code>, <code>retry</code>, <code>hint</code>); CLI exit codes are 0 ok, 1 refused, denied or failed, 2 no console, 3 usage or configuration error.</p>
+  <div class="prose">
+    <p>MCP clients get them as tool errors with a structured <code>refusal</code> (<code>code</code>, <code>retry</code>, <code>hint</code>).</p>
+    <p>CLI exit codes: 0 ok, 1 refused, denied or failed, 2 no console, 3 usage or configuration error.</p>
+  </div>
 </section>
 
     </div>
   </main>
   <footer class="site-footer">
-    <div class="wrap">
-      <ul>
-        <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model (full)</a></li>
-        <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
-      </ul>
-      <p>Pre-release (<code>v0.6.x</code>). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
-      <p class="family-line">Part of the lock family: <a href="https://github.com/DavidGodefroid/locksql">locksql</a> · <a href="https://github.com/DavidGodefroid/lockmq">lockmq</a> · <a href="https://github.com/DavidGodefroid/lockfile">lockfile</a> · <a href="https://github.com/DavidGodefroid/lockhttp">lockhttp</a> · <a href="https://github.com/DavidGodefroid/lockkit">lockkit</a></p>
+    <div class="wrap footer-grid">
+      <div class="footer-about">
+        <a class="brand" href="../"><img src="../assets/logo.svg" alt="" width="32" height="32"><span class="wordmark">lockmq</span></a>
+        <p>RabbitMQ for AI agents: masked queue inspection; connections and queue reads wait for you, and the agent never holds a password.</p>
+        <p class="family-link">Part of the <a href="https://lockfamily.dev">Lock Family</a>, harness security for AI agents.</p>
+      </div>
+      <nav aria-labelledby="footer-lock">
+        <h2 id="footer-lock">lockmq</h2>
+        <ul>
+          <li><a href="https://github.com/DavidGodefroid/lockmq">Source on GitHub</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/README.md">README</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">Usage guide</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/security-model.md">Security model</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/DavidGodefroid/lockmq/blob/main/SECURITY.md">Report a vulnerability</a></li>
+        </ul>
+      </nav>
+      <nav class="family-strip" aria-labelledby="footer-family">
+        <h2 id="footer-family">The Lock Family</h2>
+        <ul>
+          <li data-lock="locksql"><a href="https://github.com/DavidGodefroid/locksql">locksql</a><span>SQL databases, PII masked</span></li>
+          <li data-lock="lockmq" aria-current="true"><a href="https://github.com/DavidGodefroid/lockmq">lockmq</a><span>RabbitMQ queues</span></li>
+          <li data-lock="lockfile"><a href="https://github.com/DavidGodefroid/lockfile">lockfile</a><span>Files: S3, SFTP, disk</span></li>
+          <li data-lock="lockhttp"><a href="https://github.com/DavidGodefroid/lockhttp">lockhttp</a><span>Outbound HTTP(S)</span></li>
+          <li data-lock="locklog"><a href="https://github.com/DavidGodefroid/locklog">locklog</a><span>Logs, masked search</span></li>
+          <li data-lock="lockssh"><a href="https://github.com/DavidGodefroid/lockssh">lockssh</a><span>Commands over SSH</span></li>
+          <li data-lock="lockhub"><a href="https://github.com/DavidGodefroid/lockhub">lockhub</a><span>The approval hub and <code>lox</code></span></li>
+          <li data-lock="lockkit"><a href="https://github.com/DavidGodefroid/lockkit">lockkit</a><span>The shared Go core</span></li>
+          <li data-lock="lea"><a href="https://github.com/DavidGodefroid/lea">lea</a><span>Agents in containers</span></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wrap footer-bottom">
+      <p>Pre-release (v0.8.x). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p><a href="https://lockfamily.dev">lockfamily.dev</a> · <a href="https://github.com/DavidGodefroid/lockfamily">the family on GitHub</a></p>
     </div>
   </footer>
 </body>
