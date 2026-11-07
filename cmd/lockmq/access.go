@@ -17,7 +17,7 @@ import (
 
 // projectCheck is one check of the project's .lockmq directory, and the
 // root script that repairs it ("" when there is none). warn marks what
-// doctor could not check, which lox up still checks.
+// doctor could not check, which lox run still checks.
 type projectCheck struct {
 	ok, warn     bool
 	line, repair string
@@ -48,7 +48,7 @@ func lookupService(name string) (svcAccount, bool) {
 // root), never as you.
 const hostUIDEnv = "LOCKMQ_HOST_UID"
 
-// you is the uid that runs `lox up`, which must own .lockmq: the
+// you is the uid that runs `lox run`, which must own .lockmq: the
 // launcher's LOCKMQ_HOST_UID, else, outside a container, this process's.
 func (e env) you() (int, error) {
 	s := e.getenvOr(hostUIDEnv)
@@ -74,14 +74,14 @@ func (e env) getenvOr(name string) string {
 	return os.Getenv(name)
 }
 
-// projectChecks are what `lox up` needs of the project's .lockmq at root
-// (lockhub's docs/lox-up.md, "Profiles: a reviewed copy"): it reads the
+// projectChecks are what `lox run` needs of the project's .lockmq at root
+// (lockhub's docs/lox-run.md, "Profiles: a reviewed copy"): it reads the
 // directory as you (uid you), following no link, and copies only your own
 // regular files and directories that neither group nor others can write.
 // The console reads that copy, never the project.
 //
 // svc is the console account: an older `lockmq doctor --fix` gave it
-// .lockmq (and a copy of pii.toml), which lox up then refuses; the repair
+// .lockmq (and a copy of pii.toml), which lox run then refuses; the repair
 // gives them back to you, as root. Nothing else is handed over: a link, or
 // a file of another account (root's included), is yours to replace.
 func projectChecks(root string, you int, svc svcAccount) []projectCheck {
@@ -96,7 +96,7 @@ func projectChecks(root string, you int, svc svcAccount) []projectCheck {
 	w := projectWalk{you: you, svc: svc}
 	w.walk(dir, product.P.ProjectDir(), fi, false)
 	if len(w.out) == 0 {
-		return []projectCheck{{ok: true, line: fmt.Sprintf("project %s: yours (uid %d), no one else can write it: lox up can copy it", product.P.ProjectDir(), you)}}
+		return []projectCheck{{ok: true, line: fmt.Sprintf("project %s: yours (uid %d), no one else can write it: lox run can copy it", product.P.ProjectDir(), you)}}
 	}
 	return w.out
 }
@@ -119,10 +119,10 @@ func (w *projectWalk) walk(path, name string, fi fs.FileInfo, inSvc bool) {
 	}
 	switch {
 	case fi.Mode()&fs.ModeSymlink != 0:
-		w.fail(fmt.Sprintf("project %s: a symbolic link: lox up copies no link; replace it with a file or a directory of your own", name), "")
+		w.fail(fmt.Sprintf("project %s: a symbolic link: lox run copies no link; replace it with a file or a directory of your own", name), "")
 		return
 	case !fi.IsDir() && !fi.Mode().IsRegular():
-		w.fail(fmt.Sprintf("project %s: not a regular file or a directory: lox up copies none; remove it", name), "")
+		w.fail(fmt.Sprintf("project %s: not a regular file or a directory: lox run copies none; remove it", name), "")
 		return
 	}
 	owner, ok := fileOwner(fi)
@@ -151,11 +151,11 @@ func (w *projectWalk) walk(path, name string, fi fs.FileInfo, inSvc bool) {
 		if len(why) == 0 {
 			return
 		}
-		w.fail(fmt.Sprintf("project %s: %04o, %s: lox up refuses it; run: chmod %s %s",
+		w.fail(fmt.Sprintf("project %s: %04o, %s: lox run refuses it; run: chmod %s %s",
 			name, perm, strings.Join(why, " and "), mode, shellQuote(path)),
 			modeScript(path, fi.IsDir(), w.you))
 	case svcOwned:
-		line := fmt.Sprintf("project %s: owned by the console account (%s, uid %d), as an older lockmq doctor --fix left it: lox up refuses a %s you (uid %d) do not own; lockmq doctor --fix gives it back to you",
+		line := fmt.Sprintf("project %s: owned by the console account (%s, uid %d), as an older lockmq doctor --fix left it: lox run refuses a %s you (uid %d) do not own; lockmq doctor --fix gives it back to you",
 			name, w.svc.name, owner, kind, w.you)
 		switch links, ok := fileLinks(fi); {
 		case fi.IsDir():
@@ -164,7 +164,7 @@ func (w *projectWalk) walk(path, name string, fi fs.FileInfo, inSvc bool) {
 			// In a directory of yours: replace it with your own copy, which
 			// needs no root (a chown as root there is a race: the file can
 			// be swapped for another between the test and the change).
-			w.fail(fmt.Sprintf("project %s: owned by the console account (%s, uid %d): lox up refuses a file you (uid %d) do not own; replace it with a copy of your own: cp %[5]s %[5]s.new && mv %[5]s.new %[5]s",
+			w.fail(fmt.Sprintf("project %s: owned by the console account (%s, uid %d): lox run refuses a file you (uid %d) do not own; replace it with a copy of your own: cp %[5]s %[5]s.new && mv %[5]s.new %[5]s",
 				name, w.svc.name, owner, w.you, shellQuote(path)), "")
 		case !ok || links != 1:
 			// A second name: it may be another file linked here.
@@ -173,7 +173,7 @@ func (w *projectWalk) walk(path, name string, fi fs.FileInfo, inSvc bool) {
 			w.fail(line, giveBackFileScript(filepath.Dir(path), filepath.Base(path), w.svc.uid, w.you))
 		}
 	default:
-		w.fail(fmt.Sprintf("project %s: owned by uid %d, not by you (uid %d): lox up refuses it; replace it with a %s of your own", name, owner, w.you, kind), "")
+		w.fail(fmt.Sprintf("project %s: owned by uid %d, not by you (uid %d): lox run refuses it; replace it with a %s of your own", name, owner, w.you, kind), "")
 	}
 }
 
@@ -182,7 +182,7 @@ func (w *projectWalk) walk(path, name string, fi fs.FileInfo, inSvc bool) {
 func (w *projectWalk) entries(path, name string, svcOwned bool) {
 	ents, err := os.ReadDir(path)
 	if err != nil {
-		w.out = append(w.out, projectCheck{warn: true, line: fmt.Sprintf("project %s: not checked inside (%v): the account doctor runs as cannot list it; lox up checks it", name, cause(err))})
+		w.out = append(w.out, projectCheck{warn: true, line: fmt.Sprintf("project %s: not checked inside (%v): the account doctor runs as cannot list it; lox run checks it", name, cause(err))})
 		return
 	}
 	for _, ent := range ents {

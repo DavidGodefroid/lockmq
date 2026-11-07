@@ -130,7 +130,7 @@ func (f *doctorFixture) doctor(stdin string, tty bool, args ...string) (int, str
 	return code, out.String(), errb.String()
 }
 
-// doctor --fix makes .lockmq what lox up copies: yours, written by you
+// doctor --fix makes .lockmq what lox run copies: yours, written by you
 // only. The repairs run as root, then doctor becomes the agent account
 // before any check.
 func TestDoctorFix(t *testing.T) {
@@ -146,7 +146,7 @@ func TestDoctorFix(t *testing.T) {
 	}
 	code, out, _ := f.doctor("", false)
 	if code != exitFail || len(f.events) != 1 || f.events[0] != "leave" ||
-		!strings.Contains(out, "✗ project .lockmq: 0775, writable by group or others: lox up refuses it") ||
+		!strings.Contains(out, "✗ project .lockmq: 0775, writable by group or others: lox run refuses it") ||
 		!strings.Contains(out, "✗ project .lockmq/config.toml: 0622, writable by group or others") ||
 		!strings.Contains(out, "repair: lockmq doctor --fix") {
 		t.Errorf("check: exit %d events %q\n%s", code, f.events, out)
@@ -294,7 +294,7 @@ func TestProjectChecksGiveBackTheConsoleAccount(t *testing.T) {
 	}
 }
 
-// Links get no repair, and lox up copies none: neither .lockmq as a link
+// Links get no repair, and lox run copies none: neither .lockmq as a link
 // nor a link in it, nor a hard-linked file of the console account.
 func TestProjectChecksLinks(t *testing.T) {
 	me := os.Getuid()
@@ -336,7 +336,7 @@ func TestProjectChecksLinks(t *testing.T) {
 	}
 }
 
-// A subdirectory doctor cannot list is a warning, not a failure: lox up,
+// A subdirectory doctor cannot list is a warning, not a failure: lox run,
 // as you, still checks it.
 func TestProjectChecksUnlistable(t *testing.T) {
 	if os.Geteuid() == 0 {

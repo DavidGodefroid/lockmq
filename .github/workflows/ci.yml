@@ -115,7 +115,7 @@ jobs:
           code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" profile add --non-interactive --json --url http://host.docker.internal:15672 >out || code=$?
           test "$code" != 0 && grep -q '"code":"exists"' out
           # A fresh setup passes (warnings only: no console runs here), and
-          # .lockmq stays what lox up copies: yours, written by you only.
+          # .lockmq stays what lox run copies: yours, written by you only.
           sh "$GITHUB_WORKSPACE/scripts/lockmq" doctor --fix --yes --json >out
           grep -q '"ok":true' out && grep -q '"check":"project","status":"ok"' out
           test "$(stat -c %u .lockmq)" = "$(id -u)" && test -z "$(find .lockmq \( -perm -0020 -o -perm -0002 -o ! -user "$(id -u)" \) -print)"
@@ -129,7 +129,7 @@ jobs:
           grep -q '"ok":true' out && grep -q '"fixed":\["' out
           test "$(stat -c %u .lockmq)" = "$(id -u)" && test "$(stat -c %u .lockmq/pii.toml)" = "$(id -u)"
           test -z "$(find .lockmq \( -perm -0020 -o -perm -0002 -o ! -user "$(id -u)" \) -print)"
-          # No lox up here: no console's socket to mount (exit 2, as a client
+          # No lox run here: no console's socket to mount (exit 2, as a client
           # that finds no console), never the fixed lockmq-run instead.
           code=0; sh "$GITHUB_WORKSPACE/scripts/lockmq" status --profile dev 2>err || code=$?
           test "$code" = 2 && grep -q 'no .lockfamily/up.json' err

@@ -162,14 +162,14 @@ func TestRefusalIsStructured(t *testing.T) {
 func TestNoConsoleNamesTheStartCommand(t *testing.T) {
 	nc := &client.NoConsoleError{Product: product.P, Profile: "dev", Socket: "/x", Err: syscall.ECONNREFUSED}
 	cs := connect(t, withConn(nil, nc))
-	// The status asks the user to run `lox up` and carries no value: no
+	// The status asks the user to run `lox run` and carries no value: no
 	// profile or project flag, no hand start of the console.
 	res := call(t, cs, "lockmq_status", nil)
-	if txt := text(res); !strings.Contains(txt, client.StartHint) || !strings.Contains(txt, "`lox up`") ||
+	if txt := text(res); !strings.Contains(txt, client.StartHint) || !strings.Contains(txt, "`lox run`") ||
 		strings.Contains(txt, "--profile") || strings.Contains(txt, "--project") || strings.Contains(txt, "lockmq console") {
 		t.Errorf("status: %s", txt)
 	}
-	if raw, _ := json.Marshal(res.StructuredContent); !strings.Contains(string(raw), `"start":"lox up"`) {
+	if raw, _ := json.Marshal(res.StructuredContent); !strings.Contains(string(raw), `"start":"lox run"`) {
 		t.Errorf("status structured: %s", raw)
 	}
 	res = call(t, cs, "lockmq_queues", nil)

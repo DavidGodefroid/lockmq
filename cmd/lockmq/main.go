@@ -82,7 +82,7 @@ Human commands
              [--profile P] [--project DIR] [--allow-unmask] [--show-results]
              [--allowed-uids UID,...]
                                         run the console, attached to lockhub, which decides
-                                        requests (launched by lox up)
+                                        requests (launched by lox run)
   hub-key    --instance NAME (hub instance name)
                                         print the instance key for lockhub to pin
   doctor     [--profile P] [--instance NAME] [--fix [--yes]] [--json]
@@ -191,7 +191,7 @@ func usageFail(e env, cmd, usage, msg string) int {
 }
 
 // runHubKey is `lockmq hub-key --instance NAME`: the instance's public key,
-// made on the first call in the console account's home, for `lox up`.
+// made on the first call in the console account's home, for `lox run`.
 func runHubKey(e env, args []string) int {
 	home := e.home
 	if home == "" {

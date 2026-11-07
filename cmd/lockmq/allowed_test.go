@@ -145,7 +145,7 @@ func TestConsoleAllowedUIDsFlag(t *testing.T) {
 	}
 }
 
-// lockmq console is launched by lox up only: without its hub flags, or
+// lockmq console is launched by lox run only: without its hub flags, or
 // with only some of them, it refuses before anything else (exit 3).
 func TestConsoleRequiresHub(t *testing.T) {
 	for _, args := range [][]string{
@@ -156,7 +156,7 @@ func TestConsoleRequiresHub(t *testing.T) {
 	} {
 		var out, errb bytes.Buffer
 		e := env{stdin: strings.NewReader(""), stdout: &out, stderr: &errb, cwd: t.TempDir(), tty: true}
-		if code := runConsole(e, args); code != exitUsage || !strings.Contains(errb.String(), "launched by `lox up` only") ||
+		if code := runConsole(e, args); code != exitUsage || !strings.Contains(errb.String(), "launched by `lox run` only") ||
 			!strings.Contains(errb.String(), "usage: lockmq console --hub URL") {
 			t.Errorf("%v: exit %d, %s", args, code, errb.String())
 		}

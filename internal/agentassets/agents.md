@@ -1,6 +1,6 @@
 ## RabbitMQ access (lockmq)
 
-Agents inspect RabbitMQ only through lockmq: the human's lockmq console, started by `lox up` in
+Agents inspect RabbitMQ only through lockmq: the human's lockmq console, started by `lox run` in
 its own account, holds the broker credentials and the only broker connections; the human approves
 message reads on lockhub (`lox approve`, the lea deck or a paired phone). Use it for debugging, one targeted
 question at a time, and only on the user's explicit request.
