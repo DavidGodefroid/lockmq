@@ -53,14 +53,13 @@ lockmq doctor --fix --yes
 
 # 3. Declare the lock, then start it with its hub and serve the decisions (lockhub's lox CLI)
 lox add lockmq events
-lox run
-lox attach events   # the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
+lox run             # a terminal of its own, outside the agent: starts the hub and the locks, then serves the decisions
+lox attach events   # another terminal: the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
 ```
 
 The console runs hub-attached only: lockhub starts it with its hub flags,
 and `lockmq console` on its own refuses to start. (lockhub's older `lox up`
-is deprecated: it prints "use lox run". Some pages of these docs still name
-it for the start of the console.)
+is deprecated: it prints "use lox run".)
 
 `lockmq init claude` wires Claude Code to `lockmq mcp`, which the launcher
 runs in a throwaway container.

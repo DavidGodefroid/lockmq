@@ -74,7 +74,7 @@ sequenceDiagram
 Every client command, `lockmq mcp` and `lockmq doctor` also take `--instance NAME`, to
 reach one lock among several of this type that lea mounts (without it:
 `$LOCKMQ_INSTANCE`, else the one lock in `$LEA_LOCKMQ_INSTANCES`). `lockmq console`
-and `lockmq hub-key` take an `--instance` too, but that one is the name `lox up`
+and `lockmq hub-key` take an `--instance` too, but that one is the name `lox run`
 gives the lock.
 
 ## Protocols

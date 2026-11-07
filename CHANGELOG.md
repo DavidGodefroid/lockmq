@@ -4,6 +4,18 @@ All notable changes to lockmq. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) (no stability promise before 1.0).
 
+## [0.8.1] - 2026-11-07
+
+Builds on lockkit v0.14.1.
+
+### Changed
+
+- Docs, agent assets (skill, instructions), the launcher, help, errors and `doctor` name
+  `lox run`, not the deprecated `lox up`: one terminal outside the agent starts the hub
+  and the locks, and serves the decisions. No behavior, flag, label or file name change
+  (`up.json`, `.lockfamily/` stay) (#54).
+- lockkit v0.14.1: its shared texts (`StartHint`, `ErrNoHub`) name `lox run`.
+
 ## [0.8.0] - 2026-11-06
 
 Builds on lockkit v0.13.0; needs `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later.

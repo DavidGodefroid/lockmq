@@ -17,10 +17,10 @@ import (
 )
 
 // runConsole is `lockmq console`: the console of one profile, attached to
-// its hub. It is launched by `lox up` only: the hub flags are required,
+// its hub. It is launched by `lox run` only: the hub flags are required,
 // and requests are decided on lockhub.
 func runConsole(e env, args []string) int {
-	const usage = "lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME [--profile P] [--project DIR] [--allow-unmask] [--show-results] [--allowed-uids UID,...] (launched by lox up)"
+	const usage = "lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME [--profile P] [--project DIR] [--allow-unmask] [--show-results] [--allowed-uids UID,...] (launched by lox run)"
 	fs := flag.NewFlagSet("console", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "profile to serve")

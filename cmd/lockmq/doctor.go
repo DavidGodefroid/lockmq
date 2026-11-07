@@ -84,7 +84,7 @@ func runDoctor(e env, args []string) int {
 	fs.SetOutput(io.Discard)
 	only := fs.String("profile", "", "check one profile")
 	flagInstance := fs.String(client.FlagInstance, "", "reach this lock among several of this type (lea mounts each at /run/lockmq/NAME)")
-	fix := fs.Bool(verbs.FlagFix, false, "make the project's .lockmq what lox up copies (as root: sudo, or directly when run as root)")
+	fix := fs.Bool(verbs.FlagFix, false, "make the project's .lockmq what lox run copies (as root: sudo, or directly when run as root)")
 	yes := fs.Bool(verbs.FlagYes, false, "with --fix: repair without asking")
 	fs.Bool(verbs.FlagJSON, false, "one line of JSON on stdout")
 	pos, err := parseInterleaved(fs, args)
@@ -100,7 +100,7 @@ func runDoctor(e env, args []string) int {
 	if asJSON {
 		d.out = e.stderr
 	}
-	// .lockmq is checked for you, who run lox up; the console account only
+	// .lockmq is checked for you, who run lox run; the console account only
 	// to recognise what an older doctor --fix gave it.
 	you, youErr := e.you()
 	sys, sysErr := e.sysconf()
@@ -203,7 +203,7 @@ func runDoctor(e env, args []string) int {
 	return d.finish(code)
 }
 
-// project checks the project's .lockmq as `lox up` reads it, for you (uid
+// project checks the project's .lockmq as `lox run` reads it, for you (uid
 // you; youErr when doctor cannot tell it).
 func (d *doctorRun) project(root string, you int, youErr error, svc svcAccount, fix bool) {
 	if youErr != nil {
@@ -360,7 +360,7 @@ func profileSummary(p config.Profile) string {
 }
 
 // consoleState tells whether the profile's console runs: a console that
-// does not run is a warning (it runs under lox up, after the setup).
+// does not run is a warning (it runs under lox run, after the setup).
 func consoleState(e env, instance, profile string) (string, string) {
 	c, err := e.dialer(instance)(profile)
 	if err != nil {

@@ -40,3 +40,18 @@ func TestTextsNameRealTools(t *testing.T) {
 		}
 	}
 }
+
+// The wired texts ask the user to start the console with `lox run`, never
+// with the deprecated `lox up` (#54).
+func TestTextsNameLoxRun(t *testing.T) {
+	for name, text := range map[string]string{"skill": string(Skill), "instructions": string(Instructions), "cursor": string(CursorFrontMatter), "note": Wiring.Assets.ClaudeNote} {
+		if strings.Contains(text, "lox up") {
+			t.Errorf("%s names the deprecated lox up", name)
+		}
+	}
+	for name, text := range map[string]string{"skill": string(Skill), "instructions": string(Instructions)} {
+		if !strings.Contains(text, "`lox run`") {
+			t.Errorf("%s does not name `lox run`", name)
+		}
+	}
+}

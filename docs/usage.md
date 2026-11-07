@@ -187,9 +187,9 @@ lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
               [--allowed-uids UID,...]
 ```
 
-The console is launched by `lox up` only (lockhub's CLI), which writes the
+The console is launched by `lox run` only (lockhub's CLI), which writes the
 hub flags: without `--hub`, `--hub-key-file` and `--instance` it refuses to
-start ("launched by `lox up` only"). There is no standalone console and no
+start ("launched by `lox run` only"). There is no standalone console and no
 auto mode. In order: the isolation checks,
 the policy review (first start: describe and approve; later: tightenings
 apply, loosenings are asked), the production banner and the typed profile
@@ -216,7 +216,7 @@ Keys and commands while it runs (lockkit's console):
 | `:quit`, Ctrl-C | end the session |
 
 **Hub mode.** With `--hub URL --hub-key-file FILE --instance NAME` (the three are required;
-`lox up` writes them), the broker session waits for its connect ticket and reads and peeks
+`lox run` writes them), the broker session waits for its connect ticket and reads and peeks
 (and metadata reads a profile asks for: [auto rules](#auto-rules)) are decided on lockhub, never on this
 terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq read`,
 `lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
@@ -230,21 +230,22 @@ session the operation uses (type, arguments, policy and operator policy, broker 
 message counts), so a queue changed after the approval is refused `E_STALE` before anything is
 read; the hub is told it was consumed. A denial is `denied`; an expired ticket is asked again (below). Decisions are
 audited (`approval: hub`, `ticket`, `approver`, `facade`, `hub_sig`). The dry run's verdict
-is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lox up` to pin
+is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lox run` to pin
 (made once in the console account's home, `0600`).
-`lox up` also passes `--hub-plain-http` for its `http://lockhub:8443` on the hub's own network:
+`lox run` also passes `--hub-plain-http` for its `http://lockhub:8443` on the hub's own network:
 without it an `http://` hub URL other than loopback is refused, and with it the URL must still
 be a service name without a dot or a private address.
 
 **Supported lockhub versions.** Which [lockhub](https://github.com/DavidGodefroid/lockhub) releases
-(its `lox` CLI, named `lock` before lockhub v0.3.0, and its hub image) each lockmq release works with under `lox up`:
+(its `lox` CLI, named `lock` before lockhub v0.3.0, and its hub image) each lockmq release works with (under `lox run`; `lox up` before lockhub v0.10.0, deprecated since):
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.8.1 | v0.14.1 | as v0.8.0 |
 | v0.8.0 | v0.13.0 | `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later: tickets are version 2 (kinds `connect` and `action`, `lockkit` ticket kinds), which an older hub refuses |
 | v0.6.1 | v0.10.0 | as v0.6.0 |
 | v0.6.0 | v0.10.0 | as v0.5.0 |
-| v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only, and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
+| v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only (deprecated since lockhub v0.10.0, now `lox run`), and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
 | v0.4.3 | v0.8.1 | as v0.4.2 |
 | v0.4.2 | v0.7.2 | as v0.4.1 |
 | v0.4.1 | v0.6.0 | as v0.4.0; `allowed_uids` (`--allowed-uids`, for lea's agents) from lockhub v0.2.4 |
@@ -252,11 +253,11 @@ be a service name without a dot or a private address.
 | v0.3.0 | v0.3.1 | v0.2.0 or later: hub mode only; leave `devices` and `reveal` off |
 | v0.2.0 and older | older than v0.3.1 | none (no hub mode) |
 
-`lox up` runs these consoles from lockhub v0.2.0 on (the console account, a
+lockhub runs these consoles from v0.2.0 on (the console account, a
 terminal, the reviewed profile copy; the CLI was named `lock` before v0.3.0); lockhub v0.1.x cannot run them. A console
 older than a feature `lockfamily.yaml` asks of it refuses the flag and does not start: leave
 `devices`/`reveal`/`allowed_uids` off for it. A lock on lockkit older than v0.5.0 ignores the hub's reveal and
-renewal requests, which then time out. lockhub's CI runs a lockmq image under `lox up` since
+renewal requests, which then time out. lockhub's CI runs a lockmq image under its CLI since
 lockhub#91 (on lockhub's main, in no lockhub release yet): a host `lockmq mcp`, lockmq v0.5.0's
 launcher and image, reads a stream message once its ticket is approved. Otherwise the table
 follows each release's lockkit and lockhub's
@@ -275,7 +276,7 @@ approved policy (a changed policy is not renewed: `timeout`, plan again) without
 broker: the request's params are compared, the queue is shown `unchecked` (names only, never
 values), so a renewal is never a one-click "unchanged" one. The run of the new ticket reads the
 queue again and refuses one that moved `E_STALE`, as any hub run. Renewals are audited
-(`event: renew`, with the stored request). `lox up` also passes `--facade-keys-file FILE`,
+(`event: renew`, with the stored request). `lox run` also passes `--facade-keys-file FILE`,
 the local facades whose Ctrl-O may reveal a ticket's clear screen, sealed to them (audited
 `event: reveal`). A console started again without the hub flags withdraws the plans its hub
 mode left pending and refuses a run that names a `ticket` with `withdrawn` (plan again; the
@@ -289,7 +290,7 @@ lock among several of this type that lea mounts (a name is lowercase letters,
 digits and `-`); without it the client takes `$LOCKMQ_INSTANCE`, else the one
 lock in `$LEA_LOCKMQ_INSTANCES`. It is not the hub instance name that
 `lockmq console` and `lockmq hub-key` take with the same flag, which is the
-name `lox up` gives the lock. Exit codes: 0 ok, 1 refused, denied or failed, 2 no
+name `lox run` gives the lock. Exit codes: 0 ok, 1 refused, denied or failed, 2 no
 console (the start command is printed), 3 usage or configuration error.
 
 | Command | Does |
@@ -365,14 +366,14 @@ sends progress notifications so the client does not time out.
 lockmq doctor [--profile P] [--instance NAME] [--fix [--yes]] [--json]
 ```
 
-Checks the config, the separated setup, the project's `.lockmq` as `lox up`
+Checks the config, the separated setup, the project's `.lockmq` as `lox run`
 copies it (yours, as are the files and directories in it, none of them
 writable by group or others, no link), each profile (tier first; `peek`
 flagged NOT READ-ONLY), whether its console runs (with its start command),
 and the agent wiring. In the image `doctor` runs as the agent account and
 checks `.lockmq` for your uid, which the launcher passes.
 
-`--fix` makes `.lockmq` what `lox up` copies: it takes group and others'
+`--fix` makes `.lockmq` what `lox run` copies: it takes group and others'
 write away there, and gives back to you what an older `lockmq doctor --fix`
 gave the console account (`.lockmq` itself and a copy of `pii.toml`). The
 launcher runs `lockmq doctor --fix` as root in the image, for those repairs

@@ -15,7 +15,7 @@ holds the separated setup that keeps the console apart from the agent:
   image has no `sudo`;
 - the socket directory `/run/lockmq` (mode 2710, `lockmq:lockmq-clients`)
   is a named volume, shared by the console container and the agent's
-  containers (read-only there): `lox up`'s socket volume of the lock
+  containers (read-only there): `lox run`'s socket volume of the lock
   (`lockfamily-<hash>_<instance>-run`, named in `.lockfamily/up.json`). The
   kernel checks every peer on the socket as on a host.
 
@@ -65,7 +65,7 @@ runs each command with the account it needs:
 | `console` | `lockmq`, in a container of its own per project (`lockmq-console-<n>`; `LOCKMQ_CONSOLE_NAME` names it), with `--add-host=host.docker.internal:host-gateway`, no log driver, no capability, `no-new-privileges`, a read-only root with a 64 MB `/tmp`, at most 256 processes and 1 GB of memory | `lockmq-run`, `lockmq-home` |
 | `init` | you (your uid and gid), with your home mounted: it writes the agents' files | |
 | `profile add` | you, with `HOME=/tmp` | |
-| the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox up` runs, read-only ([below](#the-socket-of-lox-ups-lock)) |
+| the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox run` runs, read-only ([below](#the-socket-of-lox-runs-lock)) |
 | `doctor --fix` | root for its repairs only, then `agent` for every check, as `doctor` | as `doctor` |
 | everything else: `help`... | `agent` | none |
 
@@ -92,23 +92,23 @@ The launcher reads:
 
 The launcher never mounts the Docker socket.
 
-### The socket of lox up's lock
+### The socket of lox run's lock
 
-The consoles run hub-attached only, started by `lox up` (lockhub): each
+The consoles run hub-attached only, started by `lox run` (lockhub): each
 under compose, with its socket in the volume
-`lockfamily-<8 hex of sha256(workspace)>_<instance>-run`, which `lox up`
-names in `<workspace>/.lockfamily/up.json` (lockhub's `docs/lox-up.md`).
+`lockfamily-<8 hex of sha256(workspace)>_<instance>-run`, which `lox run`
+names in `<workspace>/.lockfamily/up.json` (lockhub's `docs/lox-run.md`).
 The agent commands mount that volume on `/run/lockmq`, read-only
 (connecting to a socket needs no write), and no other: without it they stop
-(exit 2) and say why, and what to do (`lox up`), never falling back to the
+(exit 2) and say why, and what to do (`lox run`), never falling back to the
 fixed `lockmq-run`. The launcher takes the volume only after the checks
 lea makes for its own agents:
 
 - `up.json` is found in the nearest directory up from here whose
   `.lockfamily` holds one (that directory is the workspace); the
   `.lockfamily` directory and `up.json` are no link, are yours, and
-  neither group nor others may write them; `up.json` is lox up's state
-  (version 1, as `lox up` writes it: two-space indented JSON, the values
+  neither group nor others may write them; `up.json` is lox run's state
+  (version 1, as `lox run` writes it: two-space indented JSON, the values
   the launcher reads unescaped) of this very workspace (its `workspace`,
   and its `project` `lockfamily-<8 hex of sha256(workspace)>`);
 - the lock is the workspace's only lockmq lock, or the one `--instance
@@ -116,16 +116,16 @@ lea makes for its own agents:
   with several and no `--instance`, the error names them). In
   `.mcp.json`, add it to the arguments: `"args": ["mcp", "--instance",
   "NAME"]`;
-- its socket volume is the one `lox up` names for it, its clients group
+- its socket volume is the one `lox run` names for it, its clients group
   the image's (10010);
-- Docker confirms the volume: lox up's labels (compose's project and
+- Docker confirms the volume: lox run's labels (compose's project and
   volume, `dev.lockfamily.role=socket`, its instance, type and workspace),
   read as JSON and compared whole; and every container that mounts it is
-  lox up's own (compose ran it from lox up's state directory: its
+  lox run's own (compose ran it from lox run's state directory: its
   `project.working_dir` is `$XDG_STATE_HOME/lockfamily/<project>` or
   `~/.local/state/lockfamily/<project>`, its `config_files` `-` or that
   directory's `compose.yaml`) or mounts it read-only (the agents', as the
-  launcher's own). A compose file written in the workspace, with lox up's
+  launcher's own). A compose file written in the workspace, with lox run's
   project name and volume, or any container mounting the volume
   read-write, could serve the socket from an image of its own: the
   launcher then trusts none of that socket.
@@ -138,7 +138,7 @@ workspace's lock, a volume or compose file of the same name) and files
 others than you can write. They are no boundary against an agent that
 runs as you on the host with Docker access (Claude Code started in a
 terminal usually does): it can write `up.json`, make volumes and
-containers with any labels, or `docker exec` into lox up's containers.
+containers with any labels, or `docker exec` into lox run's containers.
 Even then it holds none of the console's credentials and cannot sign a
 decision (the hub signs them, the console checks the hub's key), but it
 could serve an impostor socket to another agent. To contain the agent
@@ -146,7 +146,7 @@ itself, run it in lea, whose containers have no Docker access.
 
 The socket's name derives from the project (`.lockmq/config.toml` up from
 the working directory) and the profile: run the agent from the workspace,
-whose `.lockmq` lox up's console serves.
+whose `.lockmq` lox run's console serves.
 
 ### Paths
 
@@ -241,11 +241,11 @@ Then check the setup:
 lockmq doctor --fix --yes
 ```
 
-`.lockmq/` stays yours: `lox up` reads it as you and copies only your own
+`.lockmq/` stays yours: `lox run` reads it as you and copies only your own
 regular files and directories that neither group nor others can write
-(lockhub's `docs/lox-up.md`, "Profiles: a reviewed copy"); the console reads
-that copy, never the project, and `lox up` shows you every line of its
-TOML files before the copy. `doctor` reports what `lox up` would refuse;
+(lockhub's `docs/lox-run.md`, "Profiles: a reviewed copy"); the console reads
+that copy, never the project, and `lox run` shows you every line of its
+TOML files before the copy. `doctor` reports what `lox run` would refuse;
 `--fix` takes group and others' write away from your files and
 directories there, and gives back to you what an older `lockmq doctor
 --fix` gave the console account (uid 10011: `.lockmq/` itself and a copy of
@@ -254,23 +254,24 @@ as root); every check then runs as `agent`, as a `doctor` without `--fix`
 does. A link, or a file of another account, is never repaired: replace it
 with your own. The repair enters each directory and never follows a
 symbolic link. On a fresh setup `doctor` exits 0: the console's line is a
-warning while `lox up` runs none.
+warning while `lox run` runs none.
 
 ## Run the console
 
-The console runs hub-attached only: lockhub's `lox up` starts it, with its
+The console runs hub-attached only: lockhub's `lox run` starts it, with its
 hub flags (`lockmq console` on its own refuses to start: "launched by `lox
-up` only"). From the workspace:
+run` only"). Run `lox run` from the workspace, in a terminal of its own
+outside the agent: it starts the hub and the locks, then serves the
+decisions (the agent's reads and peeks) in the foreground until you quit.
 
 ```sh
 lox add lockmq events
-lox up
-lox attach events   # the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
-lox approve         # the agent's reads and peeks
+lox run             # starts the hub and the locks, then asks you the agent's reads and peeks
+lox attach events   # another terminal: the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
 ```
 
 The rest of this page describes the launcher's own console container
-(`lockmq console` with the hub flags `lox up` writes): its options,
+(`lockmq console` with the hub flags `lox run` writes): its options,
 `--profile P`, `--show-results` or `--allow-unmask`, and
 `LOCKMQ_DOCKER_ARGS="--network NAME"` for a broker container. The
 `lockmq-home` volume keeps the console account's state from one run to the
@@ -378,8 +379,8 @@ the flag adds them to it for that console only (the console prints them at
 start). Both refuse root (0), the console's own uid (10011) and 65534
 (nobody, the kernel's overflow uid). Only whoever starts the console sets
 them: the human, through the launcher (which passes the flag on) or
-through `lox up` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
-lockfamily.yaml `lox up` reviews with you); no client can. It is the uid the kernel reports
+through `lox run` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
+lockfamily.yaml `lox run` reviews with you); no client can. It is the uid the kernel reports
 for the agent's process, as the console sees it: the agent container's uid
 when neither container remaps user namespaces. Every process of that uid,
 in any container that mounts the socket volume, may then use the console:
