@@ -236,6 +236,25 @@ is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lox run`
 without it an `http://` hub URL other than loopback is refused, and with it the URL must still
 be a service name without a dot or a private address.
 
+<a id="ticket-limits"></a>**Ticket limits.** The console bounds the tickets it opens on lockhub, so
+that an agent cannot flood you with questions. In the profile's `limits` table:
+
+| Key | Default | |
+|---|---|---|
+| `tickets_per_window` | `30` | tickets a human decides, opened per `ticket_window` at most |
+| `ticket_window` | `"5m"` | the window of the two counts |
+| `max_pending` | `30` | tickets pending a decision at once at most |
+
+A ticket an auto rule of `lox run` decides (a stream read under `read = "auto"`, a
+reconnection under `connect`) leaves the `tickets_per_window` count once its decision is
+read; a safety cap of 300 tickets per window still counts every one, against a runaway
+agent. Connect tickets count too. A read or peek over a limit is not submitted: the console
+prints `not submitted: …` with the limit, the count and when the next ticket is accepted, and
+the agent is told to wait for pending requests to be decided before asking again. Lowering a
+limit applies at once; more tickets, a shorter window or more pending tickets is a loosening
+(`:review`, the typed profile name on production). The status screen shows the limits in
+force (`tickets: 30 per 5m0s · 30 pending`).
+
 **Supported lockhub versions.** Which [lockhub](https://github.com/DavidGodefroid/lockhub) releases
 (its `lox` CLI, named `lock` before lockhub v0.3.0, and its hub image) each lockmq release works with (under `lox run`; `lox up` before lockhub v0.10.0, deprecated since):
 

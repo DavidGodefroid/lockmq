@@ -224,6 +224,8 @@ type rigOpts struct {
 	root, state string
 	// auto is appended to the profile's TOML (its auto rules).
 	auto string
+	// limits is the body of the profile's limits table.
+	limits string
 	// manualConnect leaves the connect tickets of a hub rig to the test
 	// (hubRig approves them otherwise, as `lox run` would once).
 	manualConnect bool
@@ -245,6 +247,9 @@ func writeProject(t *testing.T, root, url string, o rigOpts) {
 		cfg += "production = true\n"
 	}
 	cfg += o.auto
+	if o.limits != "" {
+		cfg += "[profiles." + name + ".limits]\n" + o.limits
+	}
 	dir := filepath.Join(root, ".lockmq")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)

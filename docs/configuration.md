@@ -33,6 +33,9 @@ max_output_bytes  = 65536
 list_page_size    = 100
 idle_timeout      = "20m"
 max_session       = "4h"
+tickets_per_window = 30     # tickets a human decides per window
+ticket_window     = "5m"
+max_pending       = 30      # tickets pending at once
 ```
 
 `[profiles.NAME.auto]` shapes `lox run`'s auto mode for the profile, one
@@ -79,13 +82,16 @@ read over AMQP.
 | `limits.max_output_bytes` | 65 536 | messages dropped from the end and counted |
 | `limits.list_page_size` | 100 | |
 | `limits.idle_timeout`, `limits.max_session` | 20m, 4h | session ends after this long idle / in all |
+| `limits.tickets_per_window`, `limits.ticket_window` | 30 per `5m` | hub tickets a human decides, opened per window at most; a ticket an auto rule of `lox run` decides leaves this count, and a safety cap of 300 tickets per window counts every one ([ticket limits](usage.md#ticket-limits)); more tickets or a shorter window is a loosening |
+| `limits.max_pending` | 30 | hub tickets pending a decision at once at most; raising it is a loosening |
 | `auto` | `connect`/`peek` ask, `list`/`read` auto, `get`/`publish`/`purge`/`delete` ask | `"full-auto"` or a table of `auto`/`ask`/`deny`; a looser rule is a loosening |
 | `ssh.host`, `ssh.port`, `ssh.user`, `ssh.auth`, `ssh.key`, `ssh.credentials` | port 22 | as in locksql: `auth` is `key`, `agent` or `password` |
 
 
 Changing the file later: tightenings (a lower limit, `peek` → `read`, a
-removed vhost, a new mask rule) apply at once; loosenings wait for you in the
-console (`:review`).
+removed vhost, a new mask rule) apply at once; loosenings (more tickets, a
+shorter `ticket_window` or more pending tickets among them) wait for you in
+the console (`:review`).
 
 ## PII rules
 

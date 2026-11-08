@@ -230,8 +230,12 @@ func (b *Backend) renew(ctx context.Context, env console.Env, h *console.Hub, id
 }
 
 // OnHub registers the recompute of the hub's renewals on h, before any
-// request is served (console.Options.OnHub).
-func (b *Backend) OnHub(h *console.Hub) { h.Client.SetRecompute(b.recompute) }
+// request is served (console.Options.OnHub), and keeps its client for the
+// ticket limits of the policy in force (ApplyPolicy).
+func (b *Backend) OnHub(h *console.Hub) {
+	h.Client.SetRecompute(b.recompute)
+	b.setHubClient(h.Client)
+}
 
 // recompute gives, for a stored hub plan, its policy fingerprint, plan
 // hash and plan-hash inputs as they can be known now. It may run on the

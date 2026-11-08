@@ -4,6 +4,21 @@ All notable changes to lockmq. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) (no stability promise before 1.0).
 
+## [Unreleased]
+
+Builds on lockkit v0.15.0.
+
+### Changed
+
+- Hub mode: the console opens at most 30 tickets a human decides per 5 minutes (was 10)
+  and 30 pending ones (was 20); a ticket `lox run`'s auto mode decides leaves that count,
+  and a safety cap of 300 tickets per window counts every one (lockkit v0.15.0,
+  lockkit#150).
+- The profile's `limits.tickets_per_window`, `limits.ticket_window` and
+  `limits.max_pending` set those limits; more tickets, a shorter window or more pending
+  tickets is a loosening, reviewed like the others (the typed profile name on production).
+  A lowering applies at once. The status screen shows the limits in force.
+
 ## [0.8.1] - 2026-11-07
 
 Builds on lockkit v0.14.1.
