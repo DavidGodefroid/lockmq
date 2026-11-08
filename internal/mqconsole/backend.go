@@ -18,6 +18,7 @@ import (
 
 	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/console"
+	"github.com/DavidGodefroid/lockkit/hubclient"
 	"github.com/DavidGodefroid/lockkit/kit"
 	"github.com/DavidGodefroid/lockkit/pii"
 	"github.com/DavidGodefroid/lockkit/sanitize"
@@ -70,6 +71,12 @@ type Backend struct {
 	humanFP   string
 	// clock is the time of the connect tickets (nil: time.Now).
 	clock func() time.Time
+
+	// hubClient is the console's hub client (OnHub), limits the ticket
+	// limits of the policy in force (ApplyPolicy; nil before the first).
+	limMu     sync.Mutex
+	hubClient *hubclient.Client
+	limits    *hubclient.Limits
 
 	// seen keeps the delivery counts of peeks for the console session;
 	// refs the values behind redacted references. Both survive a

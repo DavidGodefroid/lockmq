@@ -119,6 +119,9 @@ type rawLimits struct {
 	ListPageSize     int    `toml:"list_page_size"`
 	IdleTimeout      string `toml:"idle_timeout"`
 	MaxSession       string `toml:"max_session"`
+	TicketsPerWindow int    `toml:"tickets_per_window"`
+	TicketWindow     string `toml:"ticket_window"`
+	MaxPending       int    `toml:"max_pending"`
 }
 
 type rawProfile struct {
@@ -322,6 +325,7 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		Base: kconfig.Base{
 			User: r.User, Credentials: r.Credentials, VaultPath: r.VaultPath,
 			TLS: r.TLS, TLSCA: r.TLSCA, TLSCert: r.TLSCert, TLSKey: r.TLSKey, Production: r.Production,
+			TicketsPerWindow: r.Limits.TicketsPerWindow, MaxPending: r.Limits.MaxPending,
 		},
 		URL: r.URL, AMQPURL: r.AMQPURL, StreamURL: r.StreamURL,
 		VHosts: r.VHosts, Detectors: r.Detectors, BodyMode: r.BodyMode,
@@ -394,6 +398,7 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		{"request_timeout", r.Limits.RequestTimeout, &p.Limits.RequestTimeout},
 		{"idle_timeout", r.Limits.IdleTimeout, &p.IdleTimeout},
 		{"max_session", r.Limits.MaxSession, &p.MaxSession},
+		{"ticket_window", r.Limits.TicketWindow, &p.TicketWindow},
 	} {
 		if f.val == "" {
 			continue
@@ -425,6 +430,8 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		{"max_body_bytes", p.Limits.MaxBodyBytes, 0},
 		{"max_output_bytes", p.Limits.MaxOutputBytes, 0},
 		{"list_page_size", p.Limits.ListPageSize, 0},
+		{"tickets_per_window", p.TicketsPerWindow, 0},
+		{"max_pending", p.MaxPending, 0},
 	} {
 		if f.val < 0 {
 			return Profile{}, errf("limits.%s must not be negative", f.key)

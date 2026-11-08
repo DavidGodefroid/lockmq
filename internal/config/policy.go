@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	kconfig "github.com/DavidGodefroid/lockkit/config"
+	"github.com/DavidGodefroid/lockkit/hubclient"
 )
 
 // DefaultMaskMode is the mode of a mask rule that sets none.
@@ -70,7 +71,8 @@ func (p Policy) modeOf(rule string) string {
 // amqp_url or stream_url, body_mode redact-unknown → detect, a removed
 // detector or mask rule, an added allow rule, a mask mode away from redact,
 // an auto rule made looser (deny < ask < auto),
-// and the shared rules of the profile base (kconfig.DiffBase).
+// and the shared rules of the profile base (kconfig.DiffBase), among them
+// more tickets, a shorter ticket window or more pending tickets.
 func (p Policy) Diff(approved kconfig.Policy) []kconfig.Change {
 	a, ok := approved.(Policy)
 	if !ok {
@@ -144,6 +146,11 @@ func (p Policy) Diff(approved kconfig.Policy) []kconfig.Change {
 	return out
 }
 
+// ticketsLine is the status line of the hub client's ticket limits l.
+func ticketsLine(l hubclient.Limits) string {
+	return fmt.Sprintf("tickets: %d per %s · %d pending (at most %d per window, auto-decided included)", l.RateN, l.RateWindow, l.MaxPending, l.RateTotal)
+}
+
 // Describe is the policy as lines for the console's status screen.
 func (p Policy) Describe() []string {
 	c := Canonical(p)
@@ -172,6 +179,7 @@ func (p Policy) Describe() []string {
 		fmt.Sprintf("limits: read_max %d · peek_max %d · delivery_headroom %d · max_body_bytes %d · max_output_bytes %d · list_page_size %d · request_timeout %s",
 			pr.Limits.ReadMax, pr.Limits.PeekMax, pr.Limits.DeliveryHeadroom, pr.Limits.MaxBodyBytes, pr.Limits.MaxOutputBytes, pr.Limits.ListPageSize, pr.Limits.RequestTimeout),
 		fmt.Sprintf("session: idle %s · max %s", pr.IdleTimeout, pr.MaxSession),
+		ticketsLine(pr.TicketLimits()),
 		"body_mode: "+pr.BodyMode+" · detectors: "+strings.Join(pr.Detectors, ", "),
 		"auto rules (lox run): "+pr.Auto.String(),
 	)
