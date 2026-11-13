@@ -70,11 +70,11 @@ func ParseManaged(f *managed.File) (*Managed, error) {
 	if ok, err := f.Decode(&rawProfile{}, ManagedTool, managed.KindDefaults); err != nil {
 		return nil, err
 	} else if ok {
-		var t rawTable
+		var t map[string]any
 		if _, err := f.Decode(&t, ManagedTool, managed.KindDefaults); err != nil {
 			return nil, err
 		}
-		m.Defaults = t.v
+		m.Defaults = t
 		if err := m.checkDefaults(); err != nil {
 			return nil, where(managed.KindDefaults, err)
 		}
@@ -84,11 +84,11 @@ func ParseManaged(f *managed.File) (*Managed, error) {
 		if _, err := f.Decode(&rawProfile{}, ManagedTool, managed.KindProfiles, name); err != nil {
 			return nil, err
 		}
-		var t rawTable
+		var t map[string]any
 		if _, err := f.Decode(&t, ManagedTool, managed.KindProfiles, name); err != nil {
 			return nil, err
 		}
-		p, err := profileFromTable(name, t.v, m.Defaults)
+		p, err := profileFromTable(name, t, m.Defaults)
 		if err != nil {
 			return nil, where(key, err)
 		}
@@ -101,22 +101,6 @@ func ParseManaged(f *managed.File) (*Managed, error) {
 		m.Profiles[name] = p
 	}
 	return m, nil
-}
-
-// rawTable is a table as the file holds it (the keys it sets). Its
-// UnmarshalTOML takes the table whole: decoded into a map[string]any, the
-// keys of a nested table would read as unknown to File.Decode's strict
-// check.
-type rawTable struct{ v map[string]any }
-
-// UnmarshalTOML implements toml.Unmarshaler.
-func (r *rawTable) UnmarshalTOML(v any) error {
-	m, ok := v.(map[string]any)
-	if !ok {
-		return errors.New("want a table")
-	}
-	r.v = m
-	return nil
 }
 
 // checkDefaults refuses a managed default beyond the bounds: the defaults
