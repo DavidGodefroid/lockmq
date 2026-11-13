@@ -6,7 +6,31 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
-Builds on lockkit v0.18.0.
+## [0.9.0] - 2026-11-13
+
+Builds on lockkit v0.19.0; works with `lox run` as v0.8.0.
+
+### Breaking
+
+- lockkit v0.18.0 (lockkit#120): the console's status answer no longer carries
+  `auto_approve`, and the auto-mode identifiers deprecated since lockkit v0.9.0 are gone. A
+  client that reads `auto_approve` gets false; the hub's auto rules (`[profiles.NAME.auto]`)
+  are unchanged.
+- lockkit v0.18.0: more config keys and values are refused as secrets: keys holding
+  `passphrase`, `apikey`, `bearer` or `cookie` (camelCase and joined parts too, `apiKey`,
+  `authToken`), and values embedding a bearer token, an `Authorization:` header or a URL
+  with userinfo. A profile named like a secret no longer loads: rename it.
+- With a managed configuration (`/etc/lockfamily/managed.toml`), a profile beyond its
+  `[lockmq.bounds]`, or a project or user profile named as a managed one, is refused (see
+  Added). Without the file, nothing changes.
+
+### Behaviour
+
+- lockkit v0.19.0 (lockkit#130): masking with the default detectors can mask more, or under
+  another kind: `fr_nir` runs before `card` (a NIR whose digits pass Luhn is masked as a
+  NIR), `phone` also finds a national number after a phone word and 12-digit German mobiles,
+  `be_niss` finds other separators after `NISS`/`rijksregister`, an e-mail local part may
+  hold an apostrophe. The new lockkit detectors are opt-in.
 
 ### Added
 
