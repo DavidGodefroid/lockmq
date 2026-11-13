@@ -1,0 +1,4 @@
+exit 3
+--- stdout
+--- stderr
+lockmq managed show: managed: <managed>: unknown key "bogus"

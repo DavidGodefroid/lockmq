@@ -183,6 +183,26 @@ func withBody(m Masked, body any, truncated bool) Masked {
 	return m
 }
 
+// strictest is the first of rules that match, a redact one before any
+// other: a rule of a weaker mode never weakens a redact rule on the same
+// value (a managed pii_mask among them).
+func strictest(rules []Rule, match func(Rule) bool) (Rule, bool) {
+	var hit Rule
+	found := false
+	for _, r := range rules {
+		if !match(r) {
+			continue
+		}
+		if r.Mode == pii.ModeRedact {
+			return r, true
+		}
+		if !found {
+			hit, found = r, true
+		}
+	}
+	return hit, found
+}
+
 // redact replaces a value with its reference.
 func (j *job) redact(v any) any {
 	ref := j.m.refs.PutDistinct(j.result, pii.CellText(v))
@@ -323,10 +343,8 @@ func (j *job) walk(v any, p []step) any {
 // leaf masks a string or number of the body at path p: a mask rule wins,
 // then an allow rule, then the body mode.
 func (j *job) leaf(v any, p []step) any {
-	for _, r := range j.masks {
-		if r.path != nil && r.path.covers(p) {
-			return j.maskMode(v, r.Mode)
-		}
+	if r, ok := strictest(j.masks, func(r Rule) bool { return r.path != nil && r.path.covers(p) }); ok {
+		return j.maskMode(v, r.Mode)
 	}
 	allowed := false
 	for _, r := range j.allows {
@@ -522,11 +540,9 @@ func (j *job) headers(h map[string]any) map[string]any {
 // an allow rule or a structural field (detectors), then the field name
 // heuristic, then the body mode for headers (redactUnknown).
 func (j *job) named(name string, v any, rule func(Rule) bool, structural, redactUnknown bool) any {
-	for _, r := range j.masks {
-		if rule(r) {
-			mode := r.Mode
-			return j.mapLeaves(v, func(x any) any { return j.maskMode(x, mode) })
-		}
+	if r, ok := strictest(j.masks, rule); ok {
+		mode := r.Mode
+		return j.mapLeaves(v, func(x any) any { return j.maskMode(x, mode) })
 	}
 	for _, r := range j.allows {
 		if rule(r) {

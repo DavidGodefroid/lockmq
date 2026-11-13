@@ -253,7 +253,9 @@ func TestProfileAddPeekDefaultNo(t *testing.T) {
 // CheckProfileName refuses an invalid one without quoting it, and a
 // duplicate is not named.
 func TestProfileAddNameDoesNotEcho(t *testing.T) {
-	const tok = "glsa_CanarySecretToken123"
+	// Not secret-looking as a config key (lockkit refuses and names a key
+	// with Token or Secret among its parts), so that the duplicate is reached.
+	const tok = "glsa_CanaryValue123"
 	dupCfg := strings.Replace(oneProfile, "[profiles.dev]", "[profiles."+tok+"]", 1)
 	if dupCfg == oneProfile {
 		t.Fatal("oneProfile has no [profiles.dev]")

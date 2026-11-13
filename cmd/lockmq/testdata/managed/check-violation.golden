@@ -1,0 +1,5 @@
+exit 3
+--- stdout
+blocked by company policy: lockmq.bounds.vhosts = billing, orders (profile dev: vhosts = (every vhost))
+blocked by company policy: lockmq.bounds.tier = read (profile dev: tier = peek)
+--- stderr

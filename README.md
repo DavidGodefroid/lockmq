@@ -144,7 +144,9 @@ profile set to tier `peek`, and is refused near the delivery limit.
 
 More: [the catalogue and the protocols](docs/architecture.md), [the
 safety model and its limits](docs/safety.md), and [every
-profile key](docs/configuration.md).
+profile key](docs/configuration.md). A company bounds every profile of a
+machine with the family's [managed configuration](https://github.com/DavidGodefroid/lockfamily/blob/main/docs/managed.md)
+([lockmq's keys](docs/configuration.md#managed-configuration)).
 
 ## How it works
 
@@ -207,7 +209,7 @@ Every rule and limit: [docs/safety.md](docs/safety.md). Threat model:
 | [docs/install.md](docs/install.md) | install paths, by hand, the launcher and its image, building |
 | [docs/docker.md](docs/docker.md) | the setup guide: image, project, console, agent wiring, broker in a container |
 | [docs/usage.md](docs/usage.md) | every command, auto rules, the console, the MCP tools, refusal codes |
-| [docs/configuration.md](docs/configuration.md) | every profile key, auto rules, SSH, PII rules |
+| [docs/configuration.md](docs/configuration.md) | every profile key, auto rules, SSH, PII rules, the managed configuration |
 | [docs/architecture.md](docs/architecture.md) | the life of a request, the approval screen, process layout, protocols |
 | [docs/safety.md](docs/safety.md) | the safety model, peek, console keys, limitations, roadmap, the comparison and highlights in full |
 | [docs/security-model.md](docs/security-model.md) | principles, boundaries, threats and limits |

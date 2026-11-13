@@ -1,6 +1,8 @@
 # lockmq configuration
 
-Profiles, auto rules and PII rules: every key of the files in `.lockmq/`.
+Profiles, auto rules and PII rules: every key of the files in `.lockmq/`,
+and the company's [managed configuration](#managed-configuration) that bounds
+them.
 The commands that write them are in [usage.md](usage.md).
 
 ## Profiles
@@ -116,3 +118,82 @@ Mask rules of the queue read, of the origin queue in a message's first
 `x-death` and of its exchange apply; allow rules only from the queue read, so
 a forged `x-death` can only add masking. The agent may add a mask rule
 (`lockmq pii add`); an allow rule is a loosening the human confirms.
+
+## Managed configuration
+
+A company can bound every lockmq of a machine with the Lock Family's
+managed file, `/etc/lockfamily/managed.toml` on Linux and
+`/Library/Application Support/lockfamily/managed.toml` on macOS (schema,
+signing and deployment:
+[lockfamily docs/managed.md](https://github.com/DavidGodefroid/lockfamily/blob/main/docs/managed.md)).
+The file and its directory must be owned by root and writable by root
+only; a badly owned, invalid or badly signed file is a refusal to start,
+never a file ignored. lockmq reads its `[lockmq]` section:
+
+```toml
+version = 1
+organisation = "Acme"
+
+[lockmq.bounds]                    # the loosest policy allowed
+tier = "read"
+vhosts = ["orders", "billing"]
+credentials = ["vault"]
+hosts = ["*.mq.acme.internal"]
+limits = { read_max = 50, max_session = "8h" }
+detectors = ["email", "iban"]      # always on, added to every profile
+
+[[lockmq.bounds.pii_mask]]         # always on, added to the PII rules
+queue = ["orders/*"]
+body  = "$.customer.email"
+
+[lockmq.defaults]                  # for the keys a profile leaves unset
+tls = "verify-full"
+limits = { read_max = 20 }
+
+[lockmq.profiles.orders-prod]      # served as written
+url = "https://mq.acme.internal:15671"
+production = true
+vhosts = ["orders"]
+```
+
+Precedence: hard-coded floor > managed bounds and profiles > project file >
+user file > managed defaults > built-in defaults.
+
+- **Profiles**: a managed profile is served as written (the defaults fill
+  what it leaves unset). A profile of the same name in the project or user
+  config is refused at load, naming it: rename yours.
+- **Defaults**: `[lockmq.defaults]` takes every profile key, `limits.*`
+  included; a value of the config files wins over it.
+- **Bounds**: the merged profile is checked against `[lockmq.bounds]` at
+  the console's start and at every policy poll (2 s). A profile beyond a
+  bound is refused with no prompt, citing the key
+  (`blocked by company policy: lockmq.bounds.tier = read (profile dev: tier = peek)`),
+  audited `refused-managed`, and no human can approve past it. A loosening
+  edited in while the console runs is refused at the next poll, never
+  pending. A duration or size beyond its bound is a violation, never clamped.
+  A managed default or a managed profile beyond the bounds is a load error.
+- `lockmq managed show` prints the file, its fingerprint and signature, the
+  bounds, the defaults and the managed profiles; `lockmq managed check
+  [--profile P]` checks the profiles as the console does, with no connection
+  and no credential: one `blocked by company policy: …` line per violation
+  and exit 3, else `ok: …` and exit 0 (`lox run` runs it before it starts
+  the lock). `lockmq doctor` has a `managed` line.
+
+| Bound key | Type | Looser (refused) |
+|---|---|---|
+| `production` | `true` | a profile that is not production |
+| `tier` | `read` or `peek` | a higher tier (`peek` under `read`) |
+| `tls` | TLS mode, a floor | a weaker mode (`disable` < `prefer` < `require` < `verify-ca` < `verify-full`) |
+| `body_mode` | `"redact-unknown"` | `detect` |
+| `vhosts` | allowed vhosts | a vhost outside the list, or no `vhosts` (every vhost) |
+| `credentials` | allowed modes (`ask`, `keychain`, `vault`) | a mode outside the list |
+| `hosts` | host patterns (`*` any run) | a host of `url`, `amqp_url`, `stream_url` or `ssh.host` matching none |
+| `credentials_ttl` | duration ceiling | longer, or none (kept for the session) |
+| `auto.<action>` (`connect`, `list`, `read`, `peek`, `get`, `publish`, `purge`, `delete`) | `deny`, `ask` or `auto`, a ceiling | a looser rule (`deny` < `ask` < `auto`) |
+| `limits.read_max`, `limits.peek_max`, `limits.max_body_bytes`, `limits.max_output_bytes`, `limits.list_page_size` | integer ceiling | a larger value (the built-in default counts when the profile sets none) |
+| `limits.request_timeout`, `limits.idle_timeout`, `limits.max_session` | duration ceiling | a longer duration |
+| `detectors` | required detectors | none: they are added to every profile |
+| `[[pii_mask]]` | mask rules (`queue`, `exchange`, one of `body`/`header`/`property`, `mode`), as `[[mask]]` | none: they are added to the rules in force; a `[[allow]]` that could clear one is refused at load, and a user mask of the same target takes the managed mode |
+
+`[family] vault = { required = true }` acts as `credentials = ["vault"]`,
+cited as `family.vault.required`.

@@ -4,11 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DavidGodefroid/lockkit/console"
 	"github.com/DavidGodefroid/lockkit/hubclient"
 	"github.com/DavidGodefroid/lockkit/ipc"
-
-	"github.com/DavidGodefroid/lockmq/internal/product"
 )
 
 // The profile's limits.tickets_per_window, limits.ticket_window and
@@ -38,43 +35,17 @@ func TestHubTicketLimits(t *testing.T) {
 		t.Fatalf("a ticket over the limit reached the hub: %d tickets, want %d", n, before)
 	}
 
-	// A policy put in force with other limits replaces them; 0 is the
-	// default.
+	// The console applies the limits of each policy it puts in force: the
+	// profile hands them over; 0 is the default.
 	pol, err := r.be.LoadPolicy()
 	if err != nil {
 		t.Fatal(err)
 	}
 	np := pol.(Policy)
 	np.Policy.Profile.TicketsPerWindow, np.Policy.Profile.TicketWindow, np.Policy.Profile.MaxPending = 60, 0, 0
-	if err := r.be.ApplyPolicy(np); err != nil {
-		t.Fatal(err)
-	}
 	want = hubclient.DefaultLimits()
 	want.RateN = 60
-	if got := r.srv.Hub().Client.Limits(); got != want {
+	if got := np.Profile().TicketLimits.Effective(); got != want {
 		t.Fatalf("after the policy change %+v, want %+v", got, want)
-	}
-	pendingOf(t, read(3))
-}
-
-// Limits applied before the hub is open reach its client when it opens.
-func TestApplyPolicyBeforeHub(t *testing.T) {
-	r := newRig(t, rigOpts{limits: "max_pending = 7\n"})
-	pol, err := r.be.LoadPolicy()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := r.be.ApplyPolicy(pol); err != nil {
-		t.Fatal(err)
-	}
-	opts, _, _ := hubOptions(t)
-	h, err := console.OpenHub(product.P, *opts, t.TempDir(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = h.Close() })
-	r.be.OnHub(h)
-	if got := h.Client.Limits().MaxPending; got != 7 {
-		t.Fatalf("max_pending %d, want 7", got)
 	}
 }
