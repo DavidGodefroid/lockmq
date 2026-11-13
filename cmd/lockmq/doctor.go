@@ -124,6 +124,17 @@ func runDoctor(e env, args []string) int {
 			return d.finish(exitFail)
 		}
 	}
+	// The company's managed file, as the console reads it; refused, the
+	// config check below fails on it too.
+	if m, err := config.LoadManaged(); err != nil {
+		d.add(verbs.Check{Check: "managed", Status: verbs.StatusFail, Detail: err.Error()}, "✗ managed: "+err.Error())
+	} else {
+		detail := noManaged
+		if m != nil {
+			detail = m.File.Describe()
+		}
+		d.add(verbs.Check{Check: "managed", Status: verbs.StatusOK, Detail: detail}, "✓ managed: "+detail)
+	}
 	ps, root, err := e.loadProfiles()
 	if err != nil {
 		d.add(verbs.Check{Check: "config", Status: verbs.StatusFail, Detail: err.Error()}, "✗ config: "+err.Error())

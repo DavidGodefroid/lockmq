@@ -88,7 +88,12 @@ Human commands
   doctor     [--profile P] [--instance NAME] [--fix [--yes]] [--json]
                                         check the config, each profile's tier, the consoles,
                                         the project's .lockmq and the agent wiring
-  init       [claude|codex|cursor|gemini ...]
+  managed    show                       the company's managed configuration (managed.toml):
+                                        its fingerprint, bounds, defaults and profiles
+  managed    check [--profile P] [--project DIR]
+                                        check the profiles against its bounds, as the
+                                        console does at start (exit 3 when one is blocked)
+  init      [claude|codex|cursor|gemini ...]
                                         wire agents to lockmq in the project (never asks)
   update     [vX.Y.Z]                   update the launcher and its image (on the host;
                                         cosign signature and checksum checked)
@@ -154,6 +159,8 @@ func run(e env, args []string) int {
 		return runProfile(e, args[1:])
 	case "doctor":
 		return runDoctor(e, args[1:])
+	case "managed":
+		return runManaged(e, args[1:])
 	case "init":
 		return runInit(e, args[1:])
 	case "hub-key":

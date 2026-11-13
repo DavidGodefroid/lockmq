@@ -1,0 +1,20 @@
+exit 0
+--- stdout
+Managed by Acme (sha256:cb411c0e878f)
+path: <managed>
+organisation: Acme
+fingerprint: sha256:cb411c0e878f2e289471558e15c62e989c5c09c15b5c16d1fd69eb542b3afdaf
+signed: no
+bounds:
+  lockmq.bounds.tier = read
+  lockmq.bounds.vhosts = billing, orders
+  lockmq.bounds.credentials = ask, vault
+  lockmq.bounds.limits.read_max = 50
+  lockmq.bounds.limits.max_session = 8h0m0s
+  lockmq.bounds.detectors = email
+  lockmq.bounds.pii_mask = queue=orders/* body=$.customer.email (redact)
+defaults:
+  lockmq.defaults.limits.read_max = 10
+  lockmq.defaults.tls = "require"
+profiles: shared
+--- stderr

@@ -165,6 +165,33 @@ func flatKeys(t map[string]any, prefix string) []string {
 	return out
 }
 
+// DescribeDefaults is [lockmq.defaults] as lines for `lockmq managed
+// show` ("lockmq.defaults.limits.read_max = 10").
+func (m *Managed) DescribeDefaults() []string {
+	if m == nil {
+		return nil
+	}
+	var out []string
+	var walk func(t map[string]any, prefix string)
+	walk = func(t map[string]any, prefix string) {
+		for _, k := range slices.Sorted(maps.Keys(t)) {
+			if sub, ok := t[k].(map[string]any); ok {
+				walk(sub, prefix+k+".")
+				continue
+			}
+			var buf bytes.Buffer
+			if err := toml.NewEncoder(&buf).Encode(map[string]any{"v": t[k]}); err != nil {
+				continue
+			}
+			v := strings.TrimSpace(strings.TrimPrefix(buf.String(), "v = "))
+			v = strings.Join(strings.Fields(v), " ")
+			out = append(out, ManagedTool+"."+managed.KindDefaults+"."+prefix+k+" = "+v)
+		}
+	}
+	walk(m.Defaults, "")
+	return out
+}
+
 // defaults is the managed defaults (nil for a nil m).
 func (m *Managed) defaults() map[string]any {
 	if m == nil {

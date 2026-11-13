@@ -90,6 +90,18 @@ func runConsole(e env, args []string) int {
 		Sanitizer: mqconsole.Sanitizer(), Hub: hub, OnHub: be.OnHub,
 	})
 	if err != nil {
+		if errors.Is(err, console.ErrManaged) {
+			// Refused by the company's managed configuration: the lines
+			// cite the managed key; no human can approve past it.
+			lines := console.ManagedLines(err)
+			if len(lines) == 0 {
+				lines = []string{err.Error()}
+			}
+			for _, l := range lines {
+				fmt.Fprintln(e.stderr, "lockmq console: "+l)
+			}
+			return exitUsage
+		}
 		fmt.Fprintln(e.stderr, "lockmq console:", err)
 		if errors.Is(err, console.ErrConfig) {
 			return exitUsage
