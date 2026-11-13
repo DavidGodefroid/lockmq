@@ -38,6 +38,15 @@ Builds on lockkit v0.18.0.
   tickets is a loosening, reviewed like the others (the typed profile name on production).
   A lowering applies at once. The status screen shows the limits in force.
 
+### Fixed
+
+- The launcher mounts the machine's managed directory (`/etc/lockfamily`,
+  `/Library/Application Support/lockfamily` on macOS) read-only on `/etc/lockfamily` in its
+  containers, as `lox run` does in its locks: `lockmq managed show`, `managed check`,
+  `doctor` and the other commands run from the host see the company's managed configuration
+  (#59). No directory: no mount; a path that is not a directory (a file, a dangling link) or
+  holds a `:` stops the launcher.
+
 ## [0.8.1] - 2026-11-07
 
 Builds on lockkit v0.14.1.
