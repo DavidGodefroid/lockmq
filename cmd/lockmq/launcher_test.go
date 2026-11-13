@@ -19,7 +19,10 @@ type launcherFixture struct {
 	// fake holds what the fake docker prints for lox run's volumes and
 	// containers (launcher_lockup_test.go).
 	fake string
-	env  []string
+	// launcher is scripts/lockmq as the repository holds it; managed is the
+	// launcher's managed directory (the host's /etc/lockfamily).
+	launcher, managed string
+	env               []string
 }
 
 func newLauncherFixture(t *testing.T) *launcherFixture {
@@ -55,11 +58,35 @@ func newLauncherFixture(t *testing.T) *launcherFixture {
 		t.Fatal(err)
 	}
 	f.script = filepath.Join(root, "lockmq")
-	writeExec(t, f.script, string(launcher))
+	f.launcher = string(launcher)
+	// The machine's managed directory: one of the fixture's, absent until
+	// a test makes it, never the host's own.
+	f.managed = filepath.Join(root, "managed dir", "lockfamily")
+	writeExec(t, f.script, f.managedAt(t, f.managed, f.managed))
 	f.env = []string{"PATH=" + f.bin, "HOME=" + filepath.Join(root, "home")}
 	// The workspace (root) runs a lockmq lock mq under lox run.
 	f.loxUp(t, root, map[string]string{"mq": "lockmq"})
 	return f
+}
+
+// The lines of the launcher that pick the managed directory by uname -s.
+const (
+	managedDarwin = `Darwin) managed_dir="/Library/Application Support/lockfamily" ;;`
+	managedOther  = `*) managed_dir=/etc/lockfamily ;;`
+)
+
+// managedAt is the launcher with darwin as its managed directory on macOS
+// and other elsewhere.
+func (f *launcherFixture) managedAt(t *testing.T, darwin, other string) string {
+	t.Helper()
+	s := f.launcher
+	for _, r := range [][2]string{{managedDarwin, darwin}, {managedOther, other}} {
+		if !strings.Contains(s, r[0]) {
+			t.Fatalf("launcher lacks %q", r[0])
+		}
+		s = strings.Replace(s, r[0], r[0][:strings.Index(r[0], "managed_dir=")]+`managed_dir="`+r[1]+`" ;;`, 1)
+	}
+	return s
 }
 
 func (f *launcherFixture) fakeDocker(t *testing.T) {
