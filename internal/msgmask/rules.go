@@ -45,7 +45,9 @@ type Rules struct {
 // Properties a rule may name: the free-text AMQP properties.
 var ruleProperties = []string{"app_id", "cluster_id", "correlation_id", "message_id", "reply_to", "type", "user_id"}
 
-type rawRule struct {
+// RuleSpec is a rule as a file holds it: a [[mask]] or [[allow]] table of
+// pii.toml, or a [[lockmq.bounds.pii_mask]] table of the managed file.
+type RuleSpec struct {
 	Queue    []string `toml:"queue,omitempty"`
 	Exchange []string `toml:"exchange,omitempty"`
 	Body     string   `toml:"body,omitempty"`
@@ -55,8 +57,8 @@ type rawRule struct {
 }
 
 type rawRules struct {
-	Mask  []rawRule `toml:"mask"`
-	Allow []rawRule `toml:"allow"`
+	Mask  []RuleSpec `toml:"mask"`
+	Allow []RuleSpec `toml:"allow"`
 }
 
 // LoadRules reads .lockmq/pii.toml (design §7). A missing file is no rules.
@@ -90,7 +92,7 @@ func LoadRules(path string) (Rules, error) {
 	return out, nil
 }
 
-func build(r rawRule, mask bool) (Rule, error) {
+func build(r RuleSpec, mask bool) (Rule, error) {
 	rule := Rule{Queues: kconfig.SortedSet(r.Queue), Exchanges: kconfig.SortedSet(r.Exchange),
 		Body: r.Body, Header: r.Header, Property: r.Property, Mode: r.Mode}
 	if len(r.Queue) == 0 && len(r.Exchange) == 0 {
@@ -224,12 +226,12 @@ func FromTexts(mask, allow []string, modes map[string]string) (Rules, error) {
 // AppendMask adds r as a [[mask]] table at the end of the rules file at
 // path (created when missing), leaving the rest of the file as it is.
 func AppendMask(path string, r Rule) error {
-	raw := rawRule{Queue: r.Queues, Exchange: r.Exchanges, Body: r.Body, Header: r.Header, Property: r.Property}
+	raw := RuleSpec{Queue: r.Queues, Exchange: r.Exchanges, Body: r.Body, Header: r.Header, Property: r.Property}
 	if r.Mode != "" && r.Mode != pii.ModeRedact {
 		raw.Mode = r.Mode
 	}
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(rawRules{Mask: []rawRule{raw}}); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(rawRules{Mask: []RuleSpec{raw}}); err != nil {
 		return fmt.Errorf("pii rules: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -246,13 +248,13 @@ func AppendMask(path string, r Rule) error {
 	return f.Close()
 }
 
-func parseText(text string) (rawRule, error) {
-	var r rawRule
+func parseText(text string) (RuleSpec, error) {
+	var r RuleSpec
 	seen := map[string]bool{}
 	for _, f := range strings.Fields(text) {
 		k, v, ok := strings.Cut(f, "=")
 		if !ok || v == "" || seen[k] {
-			return rawRule{}, errors.New("rule: want key=value fields (queue, exchange, body, header, property)")
+			return RuleSpec{}, errors.New("rule: want key=value fields (queue, exchange, body, header, property)")
 		}
 		seen[k] = true
 		switch k {
@@ -267,7 +269,7 @@ func parseText(text string) (rawRule, error) {
 		case "property":
 			r.Property = v
 		default:
-			return rawRule{}, errors.New("rule: unknown field (want queue, exchange, body, header or property)")
+			return RuleSpec{}, errors.New("rule: unknown field (want queue, exchange, body, header or property)")
 		}
 	}
 	return r, nil

@@ -17,7 +17,10 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/BurntSushi/toml"
+
 	kconfig "github.com/DavidGodefroid/lockkit/config"
+	"github.com/DavidGodefroid/lockkit/managed"
 	"github.com/DavidGodefroid/lockkit/pii"
 
 	"github.com/DavidGodefroid/lockmq/internal/broker/mgmt"
@@ -151,9 +154,11 @@ type rawFile struct {
 	Profiles map[string]rawProfile `toml:"profiles"`
 }
 
-// Load reads the project config (found by walking up from cwd) and the user
-// config. On a profile name present in both, the project profile wins as a
-// whole. It also returns the project root ("" when none).
+// Load reads the project config (found by walking up from cwd), the user
+// config and the company's managed file. On a profile name present in
+// both config files, the project profile wins as a whole; a managed
+// profile wins over both, and either file redefining it is an error. It
+// also returns the project root ("" when none).
 func Load(cwd string) (map[string]Profile, string, error) {
 	userPath, _ := kconfig.UserConfigPath(product.P)
 	return LoadFrom(cwd, userPath)
@@ -162,48 +167,101 @@ func Load(cwd string) (map[string]Profile, string, error) {
 // LoadFrom is Load with an explicit user config path ("" for none). A
 // missing user config file is not an error.
 func LoadFrom(cwd, userConfigPath string) (map[string]Profile, string, error) {
-	out := map[string]Profile{}
-	if userConfigPath != "" {
-		ps, err := loadFile(userConfigPath)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return nil, "", err
-		}
-		for n, p := range ps {
-			out[n] = p
-		}
-	}
-	root, ok := kconfig.FindProjectRoot(product.P, cwd)
-	if !ok {
-		return out, "", nil
-	}
-	ps, err := loadFile(kconfig.ProjectConfigPath(product.P, root))
+	m, err := LoadManaged()
 	if err != nil {
 		return nil, "", err
 	}
-	for n, p := range ps {
-		out[n] = p
+	return LoadWith(cwd, userConfigPath, m)
+}
+
+// LoadWith is LoadFrom with the managed part already read (nil: none).
+func LoadWith(cwd, userConfigPath string, m *Managed) (map[string]Profile, string, error) {
+	user, err := loadUser(userConfigPath, m)
+	if err != nil {
+		return nil, "", err
+	}
+	var project map[string]Profile
+	root, ok := kconfig.FindProjectRoot(product.P, cwd)
+	if ok {
+		if project, err = loadFile(kconfig.ProjectConfigPath(product.P, root), m.defaults()); err != nil {
+			return nil, "", err
+		}
+	}
+	out, err := merge(m, project, user)
+	if err != nil {
+		return nil, "", err
 	}
 	return out, root, nil
 }
 
-// LoadFile reads the profiles of one config file.
-func LoadFile(path string) (map[string]Profile, error) { return loadFile(path) }
+// LoadUser reads the profiles of the user config file alone ("" or a
+// missing file: none) with the managed ones.
+func LoadUser(userConfigPath string) (map[string]Profile, error) {
+	m, err := LoadManaged()
+	if err != nil {
+		return nil, err
+	}
+	user, err := loadUser(userConfigPath, m)
+	if err != nil {
+		return nil, err
+	}
+	return merge(m, nil, user)
+}
 
-func loadFile(path string) (map[string]Profile, error) {
+func loadUser(path string, m *Managed) (map[string]Profile, error) {
+	if path == "" {
+		return nil, nil
+	}
+	ps, err := loadFile(path, m.defaults())
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return ps, err
+}
+
+// merge merges the profiles by precedence (managed.MergeProfiles) and adds
+// the detectors the managed bounds require to every one.
+func merge(m *Managed, project, user map[string]Profile) (map[string]Profile, error) {
+	out, err := managed.MergeProfiles(m.profiles(), project, user)
+	if err != nil {
+		return nil, err
+	}
+	m.BoundsOf().Require(out)
+	return out, nil
+}
+
+// LoadFile reads the profiles of one config file, without the managed
+// file.
+func LoadFile(path string) (map[string]Profile, error) { return loadFile(path, nil) }
+
+func loadFile(path string, defaults map[string]any) (map[string]Profile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
-	return ParseProfiles(data, filepath.Clean(path))
+	return parseProfiles(data, filepath.Clean(path), defaults)
 }
 
 // ParseProfiles decodes and validates config data; name labels errors.
 // Errors never quote a value that could hold a secret.
 func ParseProfiles(data []byte, name string) (map[string]Profile, error) {
+	return parseProfiles(data, name, nil)
+}
+
+// parseProfiles is ParseProfiles with the managed defaults: the keys a
+// profile leaves unset take them.
+func parseProfiles(data []byte, name string, defaults map[string]any) (map[string]Profile, error) {
 	var raw rawFile
-	md, err := kconfig.Decode(product.P, data, name, &raw)
-	if err != nil {
+	if _, err := kconfig.Decode(product.P, data, name, &raw); err != nil {
 		return nil, err
+	}
+	// The tables as written: the keys a profile sets (the defaults fill
+	// the others; an explicit empty detector list is kept).
+	var tables struct {
+		Profiles map[string]map[string]any `toml:"profiles"`
+	}
+	if _, err := toml.Decode(string(data), &tables); err != nil {
+		return nil, fmt.Errorf("config: %s: invalid TOML", name)
 	}
 	names := make([]string, 0, len(raw.Profiles))
 	for pn := range raw.Profiles {
@@ -212,9 +270,7 @@ func ParseProfiles(data []byte, name string) (map[string]Profile, error) {
 	sort.Strings(names)
 	out := make(map[string]Profile, len(names))
 	for _, pn := range names {
-		p, err := buildProfile(pn, raw.Profiles[pn],
-			md.IsDefined("profiles", pn, "detectors"),
-			md.IsDefined("profiles", pn, "limits", "delivery_headroom"))
+		p, err := profileFromTable(pn, tables.Profiles[pn], defaults)
 		if err != nil {
 			return nil, fmt.Errorf("config: %s: %w", name, err)
 		}

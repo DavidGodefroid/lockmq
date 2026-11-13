@@ -19,6 +19,7 @@ import (
 	kconfig "github.com/DavidGodefroid/lockkit/config"
 	"github.com/DavidGodefroid/lockkit/console"
 	"github.com/DavidGodefroid/lockkit/kit"
+	"github.com/DavidGodefroid/lockkit/managed"
 	"github.com/DavidGodefroid/lockkit/pii"
 	"github.com/DavidGodefroid/lockkit/sanitize"
 
@@ -89,6 +90,8 @@ func New(o Options) *Backend {
 var (
 	_ console.Backend    = (*Backend)(nil)
 	_ console.PIIBackend = (*Backend)(nil)
+
+	_ console.ManagedBackend = (*Backend)(nil)
 )
 
 // Sanitizer scrubs lockmq's error text: URI userinfo (amqp, amqps,
@@ -116,16 +119,18 @@ func (b *Backend) piiPath() string {
 }
 
 // LoadPolicy implements console.Backend: the profile from the config files
-// and the PII rules, in canonical form.
+// and the company's managed file, and the PII rules with the managed mask
+// rules, in canonical form.
 func (b *Backend) LoadPolicy() (console.Policy, error) {
+	m, err := config.LoadManaged()
+	if err != nil {
+		return nil, err
+	}
 	var profiles map[string]config.Profile
-	var err error
 	if b.o.Root != "" {
-		profiles, _, err = config.LoadFrom(b.o.Root, b.o.UserConfig)
-	} else if b.o.UserConfig != "" {
-		profiles, err = config.LoadFile(b.o.UserConfig)
+		profiles, _, err = config.LoadWith(b.o.Root, b.o.UserConfig, m)
 	} else {
-		err = errors.New("no config file")
+		profiles, err = config.LoadUser(b.o.UserConfig)
 	}
 	if err != nil {
 		return nil, err
@@ -140,8 +145,31 @@ func (b *Backend) LoadPolicy() (console.Policy, error) {
 			return nil, err
 		}
 	}
+	if rules, err = m.BoundsOf().ApplyPII(rules); err != nil {
+		return nil, err
+	}
 	mask, allow, modes := rules.Texts()
 	return Policy{config.NewPolicy(pr, mask, allow, modes)}, nil
+}
+
+// ManagedBounds implements console.ManagedBackend: p at the ceiling of
+// [lockmq.bounds] (config.Bounds.Check). A value outside an allowlist bound
+// (credentials, hosts, family.vault.required) is an error naming the
+// managed key, which the console refuses as a violation.
+func (b *Backend) ManagedBounds(p console.Policy, f *managed.File) (managed.Bounds, error) {
+	pol, ok := p.(Policy)
+	if !ok {
+		return managed.Bounds{}, fmt.Errorf("not a lockmq policy: %T", p)
+	}
+	m, err := config.ParseManaged(f)
+	if err != nil {
+		return managed.Bounds{}, err
+	}
+	mb, err := m.BoundsOf().Check(pol.Policy)
+	if c, ok := mb.Ceiling.(config.Policy); ok {
+		mb.Ceiling = Policy{c}
+	}
+	return mb, err
 }
 
 // inForce is the approved policy (the console saves it before it
