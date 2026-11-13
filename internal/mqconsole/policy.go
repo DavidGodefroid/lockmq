@@ -51,7 +51,7 @@ func (p Policy) Profile() console.Profile {
 		Name: pr.Name, Production: pr.Production, Where: where(pr),
 		Host: u.Host, Port: port, DefaultPort: def,
 		User: pr.User, Credentials: pr.Credentials, VaultPath: pr.VaultPath, CredentialsTTL: pr.CredentialsTTL,
-		IdleTimeout: pr.IdleTimeout, MaxSession: pr.MaxSession,
+		IdleTimeout: pr.IdleTimeout, MaxSession: pr.MaxSession, TicketLimits: pr.TicketLimits(),
 	}
 }
 
