@@ -379,13 +379,34 @@ sends progress notifications so the client does not time out.
 | `E_UNSAFE_NAME` | stop | a vhost or name that is, or holds, a `.` or `..` path segment |
 | `E_POLICY` | stop | anything else the policy refuses |
 
+## Managed configuration
+
+```sh
+lockmq managed show
+lockmq managed check [--profile P] [--project DIR]
+```
+
+`managed show` prints the company's managed file (`/etc/lockfamily/managed.toml`):
+its `Managed by …` line, path, organisation, fingerprint and signature, then
+lockmq's bounds, defaults and managed profiles. With no file it prints
+`no managed configuration` and exits 0; a file refused (badly owned, invalid,
+badly signed) prints the error and exits 3.
+
+`managed check` loads the config files and the managed file as the console
+does and checks every profile (or the one named) against the bounds, with no
+connection and no credential: one `blocked by company policy: …` line per
+violation and exit 3, else one `ok: …` line and exit 0. `lox run` runs it
+before it starts the lock. The keys: [configuration.md](configuration.md#managed-configuration).
+
 ## Doctor
 
 ```sh
 lockmq doctor [--profile P] [--instance NAME] [--fix [--yes]] [--json]
 ```
 
-Checks the config, the separated setup, the project's `.lockmq` as `lox run`
+Checks the company's managed file (`managed`: its `Managed by …` line, none,
+or the error that refuses it), the config, the separated setup, the
+project's `.lockmq` as `lox run`
 copies it (yours, as are the files and directories in it, none of them
 writable by group or others, no link), each profile (tier first; `peek`
 flagged NOT READ-ONLY), whether its console runs (with its start command),

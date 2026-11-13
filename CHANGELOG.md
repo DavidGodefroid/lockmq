@@ -6,9 +6,28 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
-Builds on lockkit v0.15.0.
+Builds on lockkit v0.18.0.
+
+### Added
+
+- The company's managed configuration (`/etc/lockfamily/managed.toml`, the Lock Family's
+  `managed.toml`): lockmq enforces its `[lockmq]` section (#57). `[lockmq.profiles.<name>]`
+  are served as written and cannot be redefined in the config files; `[lockmq.defaults]`
+  fill the keys a profile leaves unset; `[lockmq.bounds]` bound every profile (tier,
+  production, tls, body_mode, vhosts, credentials, hosts, credentials_ttl, auto rules,
+  limits): a profile beyond them is refused at the console's start and at every policy poll,
+  with no prompt, citing the managed key, and no human can approve past it. Required
+  `detectors` and `[[lockmq.bounds.pii_mask]]` rules are always on; a user `[[allow]]` that
+  could clear a managed mask is refused. `[family] vault.required` requires
+  `credentials = "vault"`. Keys: docs/configuration.md.
+- `lockmq managed show` and `lockmq managed check [--profile P]` (exit 3 on a violation, one
+  `blocked by company policy: …` line each; `lox run` runs it before it starts the lock), and
+  a `managed` line in `lockmq doctor`.
 
 ### Changed
+
+- A mask rule in `redact` mode wins over a weaker rule on the same value, whatever their
+  order.
 
 - Hub mode: the console opens at most 30 tickets a human decides per 5 minutes (was 10)
   and 30 pending ones (was 20); a ticket `lox run`'s auto mode decides leaves that count,

@@ -40,6 +40,11 @@ jobs:
             grep -E -- '--- FAIL|_test\.go:[0-9]+:|^FAIL|panic:' test.log | head -40 | sed 's/^/::error::/'
             exit 1
           }
+      # The managed-configuration tests place a managed file through
+      # managed.SetTestPath, which only this tag builds: a release build
+      # never carries it.
+      - name: go test -tags lockfamily_managed_test
+        run: go test -tags lockfamily_managed_test ./...
 
   lint:
     name: lint (hygiene, gofmt, staticcheck, govulncheck, goreleaser check)
@@ -89,7 +94,7 @@ jobs:
           docker pull --quiet rabbitmq:4.1-management &
           wait
       - name: go test -tags integration
-        run: go test -tags integration -count=1 -timeout 25m ./test/integration/
+        run: go test -tags 'integration lockfamily_managed_test' -count=1 -timeout 25m ./test/integration/
 
   # The image of docs/docker.md: both targets build, ALLOWED_UIDS is
   # checked, and test/docker/e2e.py follows the guide against a RabbitMQ

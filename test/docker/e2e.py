@@ -9,8 +9,9 @@ connect ticket, as does a read: the decision on a real hub is
 lockhub's own end-to-end test); the agent's commands run in
 throwaway containers that share only the socket volume and the project.
 It also checks the image's accounts and modes, that the console refuses to
-start without its hub, and that it refuses a peer that is neither lockmq
-nor in lockmq-clients.
+start without its hub, that it refuses a peer that is neither lockmq nor in
+lockmq-clients, and that it enforces the company's managed file
+(/etc/lockfamily/managed.toml, root-owned, in a volume of its own).
 
     python3 test/docker/e2e.py IMAGE
 
@@ -32,7 +33,7 @@ import urllib.request
 
 IMAGE = sys.argv[1] if len(sys.argv) > 1 else "lockmq"
 NET, BROKER, CONSOLE = "lockmq-e2e-net", "lockmq-e2e-rabbit", "lockmq-e2e-console"
-RUN_VOL, HOME_VOL = "lockmq-e2e-run", "lockmq-e2e-home"
+RUN_VOL, HOME_VOL, MANAGED_VOL = "lockmq-e2e-run", "lockmq-e2e-home", "lockmq-e2e-managed"
 ADMIN, ADMIN_PASS = "admin", "e2e-admin-pass"
 RO, RO_PASS = "lockmq-ro", "e2e-ro-pass"
 MGMT = "http://127.0.0.1:15699"
@@ -66,7 +67,7 @@ def api(method, path, body=None):
 
 def cleanup():
     sh("docker", "rm", "-f", CONSOLE, BROKER, check_=False)
-    sh("docker", "volume", "rm", "-f", RUN_VOL, HOME_VOL, check_=False)
+    sh("docker", "volume", "rm", "-f", RUN_VOL, HOME_VOL, MANAGED_VOL, check_=False)
     sh("docker", "network", "rm", NET, check_=False)
 
 
@@ -111,7 +112,7 @@ def start_broker():
 class Console:
     """The console in a pseudo-terminal, answering its prompts."""
 
-    def __init__(self, project, *extra):
+    def __init__(self, project, *extra, docker=()):
         hub = ["--hub", HUB_URL, "--hub-plain-http", "--hub-key-file", os.path.join(project, "hub.pub"), "--instance", INSTANCE]
         self.out = b""
         self.lock = threading.Lock()
@@ -120,7 +121,7 @@ class Console:
         if self.pid == 0:
             os.execvp("docker", ["docker", "run", "-it", "--rm", "--name", CONSOLE, "--user", "lockmq",
                                  "--network", NET, "-v", f"{project}:{project}",
-                                 "-v", f"{RUN_VOL}:/run/lockmq", "-v", f"{HOME_VOL}:/home/lockmq",
+                                 "-v", f"{RUN_VOL}:/run/lockmq", "-v", f"{HOME_VOL}:/home/lockmq", *docker,
                                  IMAGE, "console", "--project", project, *hub, *extra])
         threading.Thread(target=self.pump, daemon=True).start()
 
@@ -152,6 +153,56 @@ class Console:
 
     def stop(self):
         sh("docker", "rm", "-f", CONSOLE, check_=False)
+
+
+def write_managed(body, mode="0644"):
+    """Writes the managed file as root into its volume: 0:0, mode, the
+    directory 0755 (a company's MDM or package does the same on a host)."""
+    sh("docker", "run", "--rm", "-i", "--user", "0", "-v", f"{MANAGED_VOL}:/etc/lockfamily", "--entrypoint", "sh", IMAGE, "-c",
+       "cat > /etc/lockfamily/managed.toml && chown 0:0 /etc/lockfamily /etc/lockfamily/managed.toml && "
+       f"chmod 0755 /etc/lockfamily && chmod {mode} /etc/lockfamily/managed.toml", input=body)
+
+
+def managed_checks(project):
+    """[lockmq.bounds] tier = "read": the console prints the managed line
+    and serves a read profile; managed check exits 3 on a peek profile; a
+    managed file others can write is a refusal to start."""
+    mount = ["-v", f"{MANAGED_VOL}:/etc/lockfamily:ro"]
+    write_managed('version = 1\norganisation = "Acme E2E"\n\n[lockmq.bounds]\ntier = "read"\n')
+    con = Console(project, docker=mount)
+    deadline, up = time.time() + 120, False
+    while time.time() < deadline:
+        if agent(project, "status").returncode == 0:
+            up = True
+            break
+        time.sleep(2)
+    check(up and "Managed by Acme E2E (sha256:" in con.text(), "managed: the console prints the managed line and serves a read profile")
+    con.stop()
+    if failures:
+        print(con.text()[-4000:])
+    sh("docker", "wait", CONSOLE, check_=False)
+
+    peek = tempfile.mkdtemp(prefix="lockmq-e2e-peek-")
+    os.chmod(peek, 0o755)
+    os.makedirs(os.path.join(peek, ".lockmq"))
+    with open(os.path.join(peek, ".lockmq", "config.toml"), "w") as f:
+        f.write(f'[profiles.dev]\nurl = "http://{BROKER}:15672"\ntier = "peek"\n')
+    r = sh("docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/tmp", *mount,
+           "-v", f"{peek}:{peek}", "-w", peek, IMAGE, "managed", "check", check_=False)
+    check(r.returncode == 3 and r.stdout.strip() == "blocked by company policy: lockmq.bounds.tier = read (profile dev: tier = peek)",
+          f"managed check exits 3 on a peek profile under tier = read\n{r.stdout}{r.stderr}")
+
+    write_managed('version = 1\norganisation = "Acme E2E"\n\n[lockmq.bounds]\ntier = "read"\n', mode="0666")
+    con = Console(project, docker=mount)
+    deadline = time.time() + 60
+    while time.time() < deadline and "must be writable by root only" not in con.text():
+        time.sleep(1)
+    check("must be writable by root only" in con.text() and agent(project, "status").returncode != 0,
+          "a managed file others can write is a refusal to start")
+    con.stop()
+    if failures:
+        print(con.text()[-4000:])
+    sh("docker", "wait", CONSOLE, check_=False)
 
 
 def agent(project, *args, user=None, extra=()):
@@ -299,6 +350,9 @@ def main():
         r = sh("docker", "run", "--rm", "--user", "lockmq", "-v", f"{RUN_VOL}:/run/lockmq", "-v", f"{HOME_VOL}:/home/lockmq",
                IMAGE, "console", "--allowed-uids", "0", check_=False)
         check(r.returncode != 0 and "leading zero" in r.stdout + r.stderr, f"--allowed-uids 0 refused\n{r.stdout}{r.stderr}")
+
+        sh("docker", "wait", CONSOLE, check_=False)
+        managed_checks(project)
     finally:
         cleanup()
     if failures:
