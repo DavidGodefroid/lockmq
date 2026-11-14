@@ -6,7 +6,9 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
-Builds on lockkit v0.20.0.
+## [0.10.0] - 2026-11-14
+
+Builds on lockkit v0.20.0; works with `lox run` as v0.8.0.
 
 ### Breaking
 

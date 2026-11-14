@@ -266,6 +266,7 @@ force (`tickets: 30 per 5m0s · 30 pending`).
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.10.0 | v0.20.0 | as v0.8.0; the agent's client and the console must both be v0.10.0 (an older console refuses the new `hello`, an older client is refused as `old_client`) |
 | v0.9.1 | v0.19.0 | as v0.8.0 |
 | v0.9.0 | v0.19.0 | as v0.8.0 |
 | v0.8.1 | v0.14.1 | as v0.8.0 |
