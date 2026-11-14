@@ -6,6 +6,12 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Hub mode: an approved read or peek no longer fails `E_STALE` when RabbitMQ reports a
+  queue's absent policy, operator policy or arguments as `null` at planning and as `{}` at
+  the recheck (seen on 4.1): empty forms hash the same (#69).
+
 ## [0.9.1] - 2026-11-14
 
 Builds on lockkit v0.19.0; works with `lox run` as v0.8.0.
