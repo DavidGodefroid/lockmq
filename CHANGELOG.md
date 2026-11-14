@@ -6,6 +6,10 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-14
+
+Builds on lockkit v0.19.0; works with `lox run` as v0.8.0.
+
 ### Fixed
 
 - Hub mode: a read or peek the hub decides within its short wait (an auto rule of
