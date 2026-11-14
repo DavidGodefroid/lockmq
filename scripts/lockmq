@@ -293,7 +293,7 @@ update() {
 # type, workspace), and every container that mounts it is lox run's (run
 # by compose from lox run's own state directory) or mounts it read-only.
 # These checks catch mistakes and files others can write; an agent that
-# runs as you with Docker access gets past any of them (docs/launcher.md).
+# runs as you with Docker access gets past any of them (docs/docker.md).
 # up.json only names the instance:
 # what is mounted is what Docker's labels prove, read as JSON, compared
 # whole; anything else fails closed.

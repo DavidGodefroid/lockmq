@@ -3,9 +3,11 @@
 lockmq runs in Docker, with nothing on your machine but Docker and the
 `lockmq` launcher. The launcher is a short shell script
 ([`scripts/lockmq`](../scripts/lockmq)): every command you type,
-`lockmq console`, `lockmq version`, `lockmq mcp` and the others, runs in
-the lockmq image, never in a binary of its own on your machine. The image
-holds the separated setup that keeps the console apart from the agent:
+`lockmq version`, `lockmq mcp` and the others, runs in the lockmq image,
+never in a binary of its own on your machine. The console runs in the same
+image, started by lockhub's `lox run` ([Run the console](#run-the-console)).
+The image holds the separated setup that keeps the console apart from the
+agent:
 
 - the console runs as `lockmq` (uid 10011), the only account that holds the
   broker credentials;
@@ -51,8 +53,12 @@ lockmq update vX.Y.Z
 ```
 
 `lockmq update` checks the signatures and the checksum as `install.sh`
-does, and needs cosign the same way. With `LOCKMQ_SKIP_COSIGN=1` nothing is
-verified and the launcher runs the image by its tag.
+does, and needs cosign the same way. Without cosign, `LOCKMQ_SKIP_COSIGN=1`
+installs unverified (the checksum only, which detects corruption) and the
+launcher runs the image by its tag. With cosign installed the variable is
+ignored: the signatures are always checked.
+
+With Homebrew, upgrade with `brew upgrade lockmq`, not `lockmq update`.
 
 ### What runs where
 
@@ -62,10 +68,10 @@ runs each command with the account it needs:
 
 | Command | Runs as | Volumes |
 |---|---|---|
-| `console` | `lockmq`, in a container of its own per project (`lockmq-console-<n>`; `LOCKMQ_CONSOLE_NAME` names it), with `--add-host=host.docker.internal:host-gateway`, no log driver, no capability, `no-new-privileges`, a read-only root with a 64 MB `/tmp`, at most 256 processes and 1 GB of memory | `lockmq-run`, `lockmq-home` |
+| `console` | `lockmq`, in a container of its own, but the console then refuses to start: it runs under `lox run` only ([Run the console](#run-the-console)) | `lockmq-run`, `lockmq-home` |
 | `init` | you (your uid and gid), with your home mounted: it writes the agents' files | |
 | `profile add` | you, with `HOME=/tmp` | |
-| the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox run` runs, read-only ([below](#the-socket-of-lox-runs-lock)) |
+| the agent commands: `mcp`, `status`, `queues`, `read`, `peek`, `doctor`... | `agent` | the socket volume of the workspace's lockmq lock that `lox run` runs, read-only ([below](#the-socket-of-lox-runs-lock)); without it they stop, but `doctor` runs anyway and says why |
 | `doctor --fix` | root for its repairs only, then `agent` for every check, as `doctor` | as `doctor` |
 | everything else: `help`... | `agent` | none |
 
@@ -82,13 +88,13 @@ The launcher reads:
   your own build (below);
 - `LOCKMQ_VAULT=1`: the image with the `vault` CLI
   ([Credentials from Vault](#credentials-from-vault));
-- `LOCKMQ_DOCKER_ARGS`: more `docker run` arguments, split on spaces, for
-  example `LOCKMQ_DOCKER_ARGS="--network lockmq-net" lockmq console`;
-- `LOCKMQ_READONLY_PROJECT=1`: the console mounts the project read-only and
-  only `.lockmq/` writable (it must then be a directory, not a link), for a
-  project your agents write;
-- `VAULT_ADDR`, `VAULT_NAMESPACE`: passed to the console; `VAULT_CACERT`
-  too, with its file mounted read-only at its own path.
+- `LOCKMQ_DOCKER_ARGS`: more `docker run` arguments, split on spaces.
+
+`LOCKMQ_READONLY_PROJECT`, `LOCKMQ_CONSOLE_NAME`, `VAULT_ADDR`,
+`VAULT_NAMESPACE` and `VAULT_CACERT` only reach the launcher's own
+`console` command, which no longer starts. Under `lox run` the console
+reads a reviewed read-only copy of `.lockmq/`, and Vault is set in
+`lockfamily.yaml` ([Credentials from Vault](#credentials-from-vault)).
 
 The launcher never mounts the Docker socket.
 
@@ -119,12 +125,13 @@ Settings > Resources > File sharing, or the launcher's commands fail with
 The consoles run hub-attached only, started by `lox run` (lockhub): each
 under compose, with its socket in the volume
 `lockfamily-<8 hex of sha256(workspace)>_<instance>-run`, which `lox run`
-names in `<workspace>/.lockfamily/up.json` (lockhub's `docs/lox-run.md`).
+names in `<workspace>/.lockfamily/up.json` (lockhub's
+[`docs/lox-run.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md#host-agents-the-locks-launchers)).
 The agent commands mount that volume on `/run/lockmq`, read-only
 (connecting to a socket needs no write), and no other: without it they stop
 (exit 2) and say why, and what to do (`lox run`), never falling back to the
-fixed `lockmq-run`. The launcher takes the volume only after the checks
-lea makes for its own agents:
+fixed `lockmq-run` (`doctor` runs anyway and says why). The launcher takes
+the volume only after the checks lea makes for its own agents:
 
 - `up.json` is found in the nearest directory up from here whose
   `.lockfamily` holds one (that directory is the workspace); the
@@ -158,8 +165,9 @@ prove. Anything else fails closed.
 What these checks are for: mistakes (a stale or copied `up.json`, another
 workspace's lock, a volume or compose file of the same name) and files
 others than you can write. They are no boundary against an agent that
-runs as you on the host with Docker access (Claude Code started in a
-terminal usually does): it can write `up.json`, make volumes and
+runs as you on the host with Docker access (any host agent, such as
+Claude Code, Codex, Cursor or Gemini CLI started in a terminal, usually
+does): it can write `up.json`, make volumes and
 containers with any labels, or `docker exec` into lox run's containers.
 Even then it holds none of the console's credentials and cannot sign a
 decision (the hub signs them, the console checks the hub's key), but it
@@ -174,12 +182,7 @@ whose `.lockmq` lox run's console serves.
 
 A project path, `$HOME` (for `init`) or a `VAULT_CACERT` path holding `:` is
 refused: docker `-v` separates on it. `LOCKMQ_DOCKER_ARGS` is split on
-spaces and never globbed. With `LOCKMQ_READONLY_PROJECT=1`, `.lockmq/` must
-be a directory whose physical path is itself; the launcher checks it twice,
-the second time right before `docker run`, but cannot close the instant
-between that check and Docker's own mount: an agent that can replace
-`.lockmq` in that instant could redirect the console's writable mount.
-Mount `.lockmq` read-only in the agents' containers to close it.
+spaces and never globbed.
 
 On macOS (Docker Desktop), `lockmq doctor --fix` giving back to you a
 `.lockmq/` an older release gave to uid 10011 (a `chown` through Docker
@@ -201,13 +204,21 @@ The base images are pinned by digest in the `Dockerfile`.
 
 ### Migrating
 
-From the former Docker guide: its `docker run ... lockmq ...` commands keep
-working, but the launcher replaces them. Install it, then
-use `lockmq console`, `lockmq init`, `lockmq profile add` (formerly
-`lockmq setup`, removed); the `lockmq-run` and
-`lockmq-home` volumes are the same. An agent entry that runs
-`sh -c 'exec docker run ... lockmq mcp'` keeps working; `lockmq init` now
-writes `lockmq mcp`, which goes through the launcher.
+From the former Docker guide: its `docker run ... lockmq ...` commands, a
+standalone `lockmq console`, and an agent entry that runs
+`sh -c 'exec docker run ... lockmq mcp'` no longer work. The console runs
+only under `lox run`, and it serves its socket in lox run's volume, not in
+`lockmq-run`. To migrate, install the launcher, then, in the project:
+
+```sh
+lox add lockmq NAME   # declares the lock in lockfamily.yaml
+lox run               # starts the hub and the console
+lockmq init <agent>   # claude, codex, cursor or gemini: writes `lockmq mcp`
+```
+
+`lockmq profile add` replaces `lockmq setup` (removed). lox run's console
+keeps its state in a volume of its own (`<project>_<instance>-home`): the
+old `lockmq-run` and `lockmq-home` volumes are no longer used.
 
 From a host install (the release archives and packages of v0.1.0, then
 `sudo lockmq install`): `install.sh` replaces the binary with the launcher,
@@ -221,10 +232,10 @@ package with your package manager first: releases no longer publish any.
 ## Set up a project
 
 In the project directory, `init` writes `.lockmq/config.toml` with a
-commented example profile, and the agent files (here Claude Code's):
+commented example profile, and the agent files:
 
 ```sh
-lockmq init claude
+lockmq init claude    # or codex, cursor, gemini
 ```
 
 The MCP command it writes, `lockmq mcp`, is the launcher: the agent starts
@@ -246,8 +257,8 @@ container itself, and `profile add` knows it:
 
 - a broker on your machine is `host.docker.internal` (the default), which
   the launcher maps to your machine;
-- a broker in another container is reached by its name on a shared network
-  (`LOCKMQ_DOCKER_ARGS="--network NAME" lockmq console`), as in
+- a broker in another container is reached by its name on a network the
+  lock joins (`networks:` in `lockfamily.yaml`), as in
   [A broker in a container](#a-broker-in-a-container);
 - `profile add` refuses `localhost`, `127.0.0.1` and `::1`;
 - `credentials = "keychain"` needs an OS keychain, which the container does
@@ -265,7 +276,7 @@ lockmq doctor --fix --yes
 
 `.lockmq/` stays yours: `lox run` reads it as you and copies only your own
 regular files and directories that neither group nor others can write
-(lockhub's `docs/lox-run.md`, "Profiles: a reviewed copy"); the console reads
+(lockhub's [`docs/lox-run.md`, "Profiles: a reviewed copy"](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md#profiles-a-reviewed-copy)); the console reads
 that copy, never the project, and `lox run` shows you every line of its
 TOML files before the copy. `doctor` reports what `lox run` would refuse;
 `--fix` takes group and others' write away from your files and
@@ -284,46 +295,56 @@ The console runs hub-attached only: lockhub's `lox run` starts it, with its
 hub flags (`lockmq console` on its own refuses to start: "launched by `lox
 run` only"). Run `lox run` from the workspace, in a terminal of its own
 outside the agent: it starts the hub and the locks, then serves the
-decisions (the agent's reads and peeks) in the foreground until you quit.
+decisions in the foreground until you quit. The tickets are the agent's
+reads and peeks, a first connection to the broker (`auto.connect = "ask"`, the
+default) and, when the profile sets `auto.list = "ask"`, its metadata reads.
+They are decided in `lox run`, with `lox approve`, on the lea deck or on a
+paired phone (lockhub's
+[`docs/approvals.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/approvals.md)).
 
 ```sh
 lox add lockmq events
-lox run             # starts the hub and the locks, then asks you the agent's reads and peeks
+lox run             # starts the hub and the locks, then asks you the agent's tickets
 lox attach events   # another terminal: the console's own questions: policy review, password (detach: Ctrl-P Ctrl-Q)
 ```
 
-The rest of this page describes the launcher's own console container
-(`lockmq console` with the hub flags `lox run` writes): its options,
-`--profile P`, `--show-results` or `--allow-unmask`, and
-`LOCKMQ_DOCKER_ARGS="--network NAME"` for a broker container. The
-`lockmq-home` volume keeps the console account's state from one run to the
-next: the approved policy, the audit log and `~/.ssh/known_hosts` for an
-`ssh` profile. A key for an `ssh` tunnel must be in that volume, owned by
-`lockmq` with mode 0600.
+`lox run` runs the console under compose, with the settings of its lock in
+`lockfamily.yaml` (`profile`, `allowed_uids`, `vault`, `networks`...; lockhub's
+[`docs/lox-run.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md#consoles-under-compose)).
+The lock's home volume (`<project>_<instance>-home`) keeps the console
+account's state from one run to the next: the approved policy, the audit
+log and `~/.ssh/known_hosts` for an `ssh` profile. A key for an `ssh`
+tunnel must be in that volume, owned by `lockmq` with mode 0600.
 
 ## Credentials from Vault
 
 `credentials = "vault"` runs the `vault` CLI in the console's container. The
 default image leaves it out (it adds some 550 MB); the release's `-vault`
 image has it (`ghcr.io/davidgodefroid/lockmq:X.Y.Z-vault`, checked against
-the pinned Vault release sums), which `LOCKMQ_VAULT=1` selects. For your own
-build, `docker build --target vault -t lockmq:vault .` and
-`LOCKMQ_IMAGE=lockmq:vault`.
+the pinned Vault release sums). Under `lox run`, a lock with `vault: true`
+in `lockfamily.yaml` runs that image (`lox add` pins it), and gets
+`VAULT_ADDR`, `VAULT_NAMESPACE` and a reviewed copy of the CA file from the
+workspace's `vault:` block (lockhub's
+[`docs/lox-add.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-add.md#vault-per-lock)):
 
-The console reads `VAULT_ADDR` and `VAULT_NAMESPACE` from its environment,
-which the launcher passes on:
-
-```sh
-LOCKMQ_VAULT=1 VAULT_ADDR=https://vault.example.com lockmq console
+```yaml
+vault:
+  address: https://vault.example.com
+locks:
+  events:
+    type: lockmq
+    vault: true
 ```
 
-`VAULT_CACERT` names a file on your machine: the launcher mounts it
-read-only in the console's container, at the same path.
+Your own build of that image: `docker build --target vault -t lockmq:vault .`.
 
 The console account needs no `vault login`: at start the console asks
 `Vault token for <VAULT_ADDR>:` in its terminal (no echo) and keeps the
-token in memory for the session, never in `lockmq-home` or anywhere on
-disk.
+token in memory for the session, never in its home volume or anywhere on
+disk. Answer it with `lox attach NAME`. With `vault_token: cli` on the
+lock, `lox run` answers it with your host Vault CLI's token instead
+(lockhub's
+[`docs/lox-run.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md)).
 
 Get the token without storing it, then paste it at the prompt:
 
@@ -334,19 +355,20 @@ vault login -method=oidc -no-store -token-only
 `-no-store -token-only` prints the token and writes no `~/.vault-token`.
 A plain `vault login` would store the token in your account, where the
 agent runs: the agent could read it and fetch the login from Vault itself,
-bypassing the console. The console does not read a stored token (`VAULT_TOKEN`
-wins), so a stored one can be deleted. For the same reason,
-do not leave `VAULT_TOKEN` set in that shell. When Vault refuses a read
+bypassing the console. The console never reads a stored token: the token
+you type goes to its `vault` CLI as `VAULT_TOKEN`, over any inherited one.
+So a stored one can be deleted. For the same reason, do not leave
+`VAULT_TOKEN` set in your shell. When Vault refuses a read
 (`not authenticated or not allowed`: the token is expired or revoked, or
 its policy may not read `vault_path`), the console asks for a token again;
 three refusals in a row stop the connection.
 
 ## Wire the agent
 
-`lockmq init claude` wrote `lockmq mcp` as the MCP command in `.mcp.json`:
-the agent runs the launcher, which starts the MCP server in a throwaway
-container, as `agent`, with the socket volume and the project mounted. Start
-the agent at the project root, or below it.
+`lockmq init <agent>` writes `lockmq mcp` as the MCP command (for Claude
+Code, in `.mcp.json`): the agent runs the launcher, which starts the MCP
+server in a throwaway container, as `agent`, with the socket volume and the
+project mounted. Start the agent at the project root, or below it.
 
 ```json
 {
@@ -364,49 +386,52 @@ For every project instead, `claude mcp add --scope user lockmq -- lockmq
 mcp`. Gemini CLI and Cursor take the same `command` and `args` in the files
 `lockmq init` writes for them (`.gemini/settings.json`, `.cursor/mcp.json`),
 and Codex in the `[mcp_servers.lockmq]` table `lockmq init codex` prints for
-`~/.codex/config.toml`. Keep the timeouts there (`timeout`,
-`tool_timeout_sec`): the console waits up to 5 minutes for an approval.
+`~/.codex/config.toml`. Keep the 10-minute timeouts there (`timeout`,
+`tool_timeout_sec`): a read or peek answers at once with a pending ticket
+(it stays pending for 1 hour and is renewed on the next run), but a first
+connection waits up to 10 minutes for its connect ticket, then fails as not
+decided in time. Silence is never an approval.
 
 The client commands run the same way: `lockmq status`, `lockmq queues`...
+`lockmq doctor` runs as `agent` (`--fix` makes its repairs as root first).
 
-`lockmq doctor` runs as `agent` (`--fix` makes its repairs as root first); `docker run --rm --user lockmq -v
-lockmq-run:/run/lockmq -v lockmq-home:/home/lockmq
-ghcr.io/davidgodefroid/lockmq:X.Y.Z doctor` checks the console account.
+The client's confinement check runs in that throwaway container, which
+passes it: no Docker socket, no Lock Family state, and a `.lockfamily/`
+that `agent` cannot write. It does not confine the host agent itself,
+which can still drive Docker
+([what these checks are for](#the-socket-of-lox-runs-lock)). To contain
+the agent, run it in lea.
 
 ## Agent in its own container
 
 When the agent itself runs in a container that cannot reach the Docker
 socket, the launcher cannot start the MCP server: the agent runs the
 `lockmq` binary inside its own container instead, as a client of the
-console container. The two containers share only the socket volume.
+console that `lox run` runs. lea's agents reach the console this way; for
+a container of your own, the two containers share the lock's socket volume and the
+project path.
 
 The console checks every peer by uid against its own container's accounts,
-where the agent's uid has none: name it when you start the console, with
-the release image as it is:
+where the agent's uid has none: name it in the lock's `allowed_uids` in
+`lockfamily.yaml`, which `lox run` passes to the console as
+`--allowed-uids` and shows in its review (lockhub's
+[`docs/lox-run.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md#consoles-under-compose)):
 
-```sh
-lockmq console --allowed-uids 1000
+```yaml
+locks:
+  events:
+    type: lockmq
+    allowed_uids: [1000]   # the uid of the agent's process
 ```
 
-or at build time, in an image of your own:
-
-```sh
-docker build -t lockmq --build-arg ALLOWED_UIDS=1000 .
-LOCKMQ_IMAGE=lockmq lockmq console
-```
-
-`--allowed-uids` and `ALLOWED_UIDS` are comma-separated lists of uids: the
-build writes them to `allowed_uids` in the image's `/etc/lockmq/system.toml`,
-the flag adds them to it for that console only (the console prints them at
-start). Both refuse root (0), the console's own uid (10011) and 65534
-(nobody, the kernel's overflow uid). Only whoever starts the console sets
-them: the human, through the launcher (which passes the flag on) or
-through `lox run` (lockhub v0.2.4 or later: a lock's `allowed_uids` in the
-lockfamily.yaml `lox run` reviews with you); no client can. It is the uid the kernel reports
-for the agent's process, as the console sees it: the agent container's uid
-when neither container remaps user namespaces. Every process of that uid,
-in any container that mounts the socket volume, may then use the console:
-name only the agent's.
+The uids refuse root (0), the console's own uid (10011) and 65534 (nobody,
+the kernel's overflow uid). An image you build yourself can also take them
+at build time (`--build-arg ALLOWED_UIDS=1000`, written to `allowed_uids` in
+its `/etc/lockmq/system.toml`). Only the human sets them; no client can. It
+is the uid the kernel reports for the agent's process, as the console sees
+it: the agent container's uid when neither container remaps user
+namespaces. Every process of that uid, in any container that mounts the
+socket volume, may then use the console: name only the agent's.
 
 The agent's image needs what a client host has:
 
@@ -422,21 +447,27 @@ The agent's image needs what a client host has:
   the socket directory is mode 2710 and the socket 0660, group
   `lockmq-clients`.
 
-Start the agent's container with the socket volume and the project at the
-same path as the console's, for example:
+To pass the client's confinement check, the agent's container must not
+reach a rootful runtime socket (`/var/run/docker.sock`) or the Lock Family
+state, and must not be able to write the project's `.lockfamily/`
+([security model](security-model.md)).
+
+Start the agent's container with lox run's socket volume (its name is
+`socket_volume` in `.lockfamily/up.json`) and the project at the same path
+as the console's, for example:
 
 ```sh
-docker run … -v lockmq-run:/run/lockmq -v "$PWD:$PWD" -w "$PWD" agent-image
+docker run … -v lockfamily-1a2b3c4d_events-run:/run/lockmq:ro \
+  -v "$PWD:$PWD" -w "$PWD" agent-image
 ```
 
-`lockmq init claude` then needs no change: the `lockmq mcp` it writes in
-`.mcp.json` runs inside the agent's container. Check from there with
-`lockmq status`.
+`lockmq init <agent>` then needs no change: the `lockmq mcp` it writes runs
+inside the agent's container. Check from there with `lockmq status`.
 
 ## A broker in a container
 
-Put the broker and the console on one network, and name the broker by its
-container name in the profile:
+Put the broker on a Docker network, and name the broker by its container
+name in the profile:
 
 ```sh
 docker network create lockmq-net
@@ -449,14 +480,25 @@ url      = "http://rabbitmq:15672"
 amqp_url = "amqp://rabbitmq:5672"
 ```
 
-and start the console on it: `LOCKMQ_DOCKER_ARGS="--network lockmq-net"
-lockmq console`. A broker that
-publishes its ports on your machine is `host.docker.internal` instead.
+Then let the lock reach that network, in `lockfamily.yaml`:
+
+```yaml
+locks:
+  events:
+    type: lockmq
+    networks: [lockmq-net]
+```
+
+The console itself never joins it: the lock's egress gateway does, and
+forwards only the profile's endpoints (lockhub's
+[`docs/lox-run.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md#a-database-on-a-docker-network-networks)).
+A broker that publishes its ports on your machine is `host.docker.internal`
+instead.
 
 The stream protocol connects to the address the broker **advertises**, not
 the one in `stream_url`: set `stream.advertised_host` and
-`stream.advertised_port` in the broker's configuration to what the console's
-container can reach (the broker's container name and port 5552 on a shared
+`stream.advertised_port` in the broker's configuration to the host and port
+of `stream_url` (the broker's container name and port 5552 on a shared
 network), or leave `stream_url` out and read streams over AMQP.
 
 Create the read-only user once, with the container's admin:
@@ -479,15 +521,16 @@ with the broker's own rights.
 Inside Docker the boundary is the same as on a host: the agent's container
 holds no credential, has no broker connection and reaches the console only
 through the socket; a process that is neither the console account nor in
-`lockmq-clients` (nor in `ALLOWED_UIDS` or `--allowed-uids`) is refused.
+`lockmq-clients` (nor a uid the lock's `allowed_uids` names) is refused.
 
 Your own account is another matter. Whoever can run `docker` commands can
-`docker attach` to the console and type an approval, `docker exec` into it
-and read its memory, or open the `lockmq-home` volume. An agent that runs
-shell commands in your account usually can: the launcher it runs for the
-MCP server is itself a `docker run`. The console cannot see this (its terminal belongs to the
-container), so treat Docker mode like the in-agent approval it improves on:
-it keeps credentials out of the agent's reach and the approval in your
-terminal, but it does not stop an agent determined to go around it. For that
-boundary, run the agent itself in a container with no access to the Docker
-socket ([Agent in its own container](#agent-in-its-own-container)).
+`docker attach` to the console and answer its own questions (the policy
+review, the password), `docker exec` into it and read its memory, or open
+the lock's home volume. An agent that runs shell commands in your account
+usually can: the launcher it runs for the MCP server is itself a
+`docker run`. The console cannot see this (its terminal belongs to the
+container), so treat a host agent like the in-agent approval this setup
+improves on: it keeps credentials out of the agent's reach and the
+decisions on the hub, but it does not stop an agent determined to go around
+it. For that boundary, run the agent itself in a container with no access
+to the Docker socket ([Agent in its own container](#agent-in-its-own-container)).

@@ -15,8 +15,17 @@ only guide the agent. The full model, its threats and its limits are in
   ticket on lockhub, decided by `lox run` on the profile's
   [auto rules](usage.md#auto-rules) or by you (also `lox approve`, the lea
   deck or a paired phone); no socket method can approve. By default stream
-  reads pass and peeks are asked; an unmasked read is always asked. No
-  decision within 5 minutes means denied.
+  reads pass and peeks are asked; an unmasked read is always asked. A read
+  or peek ticket stays pending (1 h, renewed when the agent runs it again);
+  a connect ticket not decided within 10 minutes fails. Silence is never an
+  approval.
+- **Confined agents.** The console serves only clients that report they
+  run confined (for example inside lea). An unconfined client or an older
+  client is refused, unless a non-production profile sets
+  `unconfined = true`. The check covers the lockmq client, not the agent: a
+  host agent that runs `lockmq` through the launcher passes it (the client
+  runs in a throwaway container), and can still drive Docker. Run the agent
+  inside lea to contain it.
 - **Credentials.** Asked at console start (no echo), or read from Vault at
   every connection (a container has no keychain). Errors that
   leave the console are scrubbed of known secrets, URI userinfo and
@@ -56,7 +65,7 @@ variable can set them, and each change is audited.
 
 ## Limitations
 
-- No writes of any kind (purge, move, requeue, publish, shovel), as of v0.8.x.
+- No writes of any kind (purge, move, requeue, publish, shovel) in the current release.
 - RabbitMQ only; JSON and UTF-8 text bodies only, other bodies are shown as
   size and hash.
 - Masking is best effort: a value in a free-text field that no detector,
@@ -72,7 +81,7 @@ variable can set them, and each change is audited.
 
 ## Roadmap
 
-Not in v0.8.x, and not promised for a given release:
+Not in the current release, and not promised for a given release:
 
 - body formats beyond JSON and UTF-8 text.
 
@@ -141,9 +150,11 @@ you set its auto rule to `auto` (a loosening you confirm), and refused near the 
 <td valign="top">
 
 **🕶️ Masking for messages**<br>
-JSON bodies masked per leaf (`redact-unknown` on production), headers and
-properties by rule and name, value detectors, `<redacted:rN.K>` references;
-binary and compressed bodies reduced to size and hash.
+JSON bodies masked per leaf; on production, by default (`redact-unknown`),
+every string leaf of a JSON body and every header string no allow rule names
+is redacted. Text bodies (`text/*` or undeclared) and properties go through
+rules, name heuristics and value detectors; `<redacted:rN.K>` references;
+binary, compressed and other declared content types reduced to size and hash.
 
 </td>
 <td valign="top">

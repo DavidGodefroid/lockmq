@@ -37,7 +37,7 @@ serves an allowlist of read operations and masks personal data in messages.
 The agent only asks.
 
 > [!NOTE]
-> **Pre-release** (`v0.8.x`): a release may still change the config files,
+> **Pre-release** (before v1.0): a release may still change the config files,
 > the MCP tools or the CLI.
 
 ## Why lockmq
@@ -48,7 +48,9 @@ The agent only asks.
   [lockhub](https://github.com/DavidGodefroid/lockhub), decided in `lox run`.
   Lists and stream reads pass on your rules; connections and queue peeks wait for you.
 - **Personal data stays masked.** Bodies, headers and properties are masked
-  per field; on production every string no allow rule names is redacted.
+  per field. On production, by default, every JSON body string and header
+  string that no allow rule names is redacted; text bodies and properties go
+  through rules and detectors.
 - **Nothing moves.** Stream reads store no offset; there are no writes, and
   a queue peek (which requeues) exists only on a profile you allow.
 
@@ -190,15 +192,19 @@ AMQP 0-9-1. The approval screen, the process layout and the protocols:
   descriptions only guide the agent; the console's checks are the guarantee.
 - **OS separation.** The console runs as its own account in its own
   container; the kernel checks every peer on the socket.
-- **Confined agents only.** An agent that does not run confined (on the
-  host, or in a container that sees the Docker socket) is refused, unless a
-  non-production profile sets `unconfined = true`.
+- **Confined clients only.** A lockmq client that does not run confined (on
+  the host, or in a container that sees the Docker socket) is refused, unless
+  a non-production profile sets `unconfined = true`. The check covers the
+  client, not the agent: a host agent that runs `lockmq` through the launcher
+  passes it, since the client runs in a throwaway container. To contain the
+  agent itself, run it inside lea.
 - **Allowlist, read-only broker user.** What is not in the catalogue does
   not exist. Use a `monitoring` user with empty `configure` and `write`.
 - **The AI tightens, the human loosens.** The agent may add mask rules; any
   loosening of the policy waits for your confirmation in the console.
-- **Audit.** Every decision, refusal and run goes to an append-only JSONL
-  log, never with a message body, header or property value.
+- **Audit.** Every decision, refusal and run goes to a hash-chained JSONL
+  log, never with a message body, header or property value
+  ([limits](docs/security-model.md#limits)).
 - **Known limits.** Masking is best effort, RabbitMQ lets the `read`
   permission purge a queue, and whoever can run `docker` commands can reach
   the console's container.

@@ -41,14 +41,17 @@ Issues of interest include, among others:
   screen.
 
 Attacks that require running code as the same OS user as the console are out
-of scope, as documented in the threat model.
+of scope, as documented in the threat model
+([out of scope](docs/security-model.md#out-of-scope)).
 
 ## Verifying a release
 
 `scripts/install.sh` and `lockmq update` check the cosign signatures of
 `checksums.txt` and of the image `ghcr.io/davidgodefroid/lockmq:X.Y.Z`
 against the release workflow run for that tag, then pin the launcher to the
-verified image digest. To check the image by hand:
+verified image digest. They need cosign: without it, `LOCKMQ_SKIP_COSIGN=1`
+installs unverified (the checksum only) and the launcher runs the image by
+its tag. To check the image by hand:
 
 ```sh
 cosign verify \

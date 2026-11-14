@@ -129,7 +129,7 @@ purge   = "deny"    <span class="cmt"># no such operation yet: locked down in ad
 </table>
 </div>
   <div class="prose">
-    <p><code>--dry-run</code> on <code>read</code> and <code>peek</code> asks the console for its verdict and the approval screen, without a ticket and without reading a message.</p>
+    <p><code>--dry-run</code> on <code>read</code> and <code>peek</code> asks the console for its verdict and the approval screen, without a read or peek ticket and without reading a message. A first connection may still ask its connect ticket.</p>
     <p><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md#client-commands">All client commands</a></p>
   </div>
 </section>
@@ -143,7 +143,7 @@ purge   = "deny"    <span class="cmt"># no such operation yet: locked down in ad
 <tbody>
 <tr><td>Management HTTP API</td><td>every catalogue operation; <code>peek</code></td><td><code>url</code> (required)</td></tr>
 <tr><td>Stream protocol</td><td>stream reads, first/last offsets, a named consumer’s stored offset</td><td><code>stream_url</code></td></tr>
-<tr><td>AMQP 0-9-1</td><td>stream reads when the stream port is not reachable, or through ssh</td><td><code>amqp_url</code></td></tr>
+<tr><td>AMQP 0-9-1</td><td>stream reads when the profile has no <code>stream_url</code>, or through ssh</td><td><code>amqp_url</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -156,6 +156,7 @@ purge   = "deny"    <span class="cmt"># no such operation yet: locked down in ad
     <p>Over the stream protocol the consumer is opened <strong>without a name</strong>. No offset is stored and no single-active-consumer group is joined; it reads at most <code>read_max</code> messages, then closes.</p>
     <p>Over AMQP 0-9-1 it is a consumer with <code>x-stream-offset</code> and manual acks. On a stream an ack only returns credit: nothing is removed.</p>
     <p>A real consumer’s position never moves: <code>store_offset</code> is never called.</p>
+    <p>The console checks that the target is a stream before the read, not at each ack. Over AMQP, if someone else deletes the stream and declares a classic or quorum queue under the same name in between, those acks could remove its messages; broker permissions match names, not types, so they cannot prevent it. The stream protocol reader does not have this gap.</p>
   </div>
 </section>
 
@@ -194,7 +195,7 @@ purge   = "deny"    <span class="cmt"># no such operation yet: locked down in ad
     <p>Masking covers message properties, application properties, headers and bodies. Queue, exchange and stream names are kept.</p>
     <ul>
       <li><strong>JSON bodies</strong> are parsed and masked per leaf. <code>body_mode = "redact-unknown"</code> (the production default) redacts every string no allow rule names. <code>detect</code> uses mask rules, key-name heuristics and value detectors.</li>
-      <li><strong>Other bodies</strong>: UTF-8 text goes through the detectors. Binary, compressed or invalid bodies become <code>&lt;bytes:N sha256:H type:T&gt;</code>.</li>
+      <li><strong>Other bodies</strong>: a <code>text/*</code> body, or one with no content type, goes through the detectors (not <code>redact-unknown</code>). Binary, compressed or invalid bodies, and bodies of any other declared type, become <code>&lt;bytes:N sha256:H type:T&gt;</code>.</li>
       <li><strong>References</strong>: a redacted value becomes <code>&lt;redacted:rN.K&gt;</code>, the same reference for the same value within a result. The clear value stays in the console’s memory.</li>
       <li><strong>Dead-letter queues</strong>: mask rules of the queue read, of the origin queue in a message’s first <code>x-death</code> and of its exchange apply. Allow rules come only from the queue read, so a forged header can only add masking.</li>
     </ul>
@@ -257,6 +258,7 @@ body  = "$.items[*].sku"</code></pre>
 <tr><td><code>E_UNMASK_OFF</code></td><td>ask the user</td><td><code>--unmask</code> while unmasked output is off in the console</td></tr>
 <tr><td><code>E_AUTO_DENIED</code></td><td>ask the user</td><td>the profile’s rule for this action is <code>deny</code></td></tr>
 <tr><td><code>E_STALE</code></td><td>rewrite</td><td>the queue changed between the approval and the run; nothing was read: ask again</td></tr>
+<tr><td><code>-32009</code> (unconfined)</td><td>ask the user</td><td>the client does not run confined (on the host, with the Docker socket, or an older client) and the profile does not accept it: run the agent inside lea, or ask for <code>unconfined = true</code> on a non-production profile</td></tr>
 <tr><td><code>E_UNSAFE_NAME</code></td><td>stop</td><td>a vhost or name that is, or holds, a <code>.</code> or <code>..</code> path segment</td></tr>
 <tr><td><code>E_POLICY</code></td><td>stop</td><td>anything else the policy refuses</td></tr>
 </tbody>
@@ -304,7 +306,7 @@ body  = "$.items[*].sku"</code></pre>
       </nav>
     </div>
     <div class="wrap footer-bottom">
-      <p>Pre-release (v0.8.x). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p>Pre-release, before v1.0. lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
       <p><a href="https://lockfamily.dev">lockfamily.dev</a> · <a href="https://github.com/DavidGodefroid/lockfamily">the family on GitHub</a></p>
     </div>
   </footer>

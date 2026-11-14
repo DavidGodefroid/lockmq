@@ -67,6 +67,7 @@
   <h2 id="agents">Which AI agents does it work with?</h2>
   <p>Any MCP client: Claude Code, Codex, Cursor, Gemini CLI, … each starts the MCP server with the same command, <code>lockmq mcp</code> (<a href="../install/#wire">wire the agent</a>).</p>
   <p><code>lockmq init</code> writes the project files for these four. An agent can also use the <code>lockmq</code> CLI from a shell.</p>
+  <p>The agent must run confined: in a container without the Docker socket, for example inside <a href="https://github.com/DavidGodefroid/lea">lea</a>. The console refuses a client that runs on the host or sees the Docker socket, or an older client, unless a non-production profile sets <code>unconfined = true</code>. The check covers the client, not the agent: a host agent that runs <code>lockmq</code> through the launcher passes it (the client runs in a throwaway container), so only running the agent itself inside lea contains it.</p>
 </section>
 <section aria-labelledby="os">
   <h2 id="os">Which operating systems?</h2>
@@ -107,17 +108,17 @@
 <section aria-labelledby="own-account">
   <h2 id="own-account">Why does the console need its own OS account?</h2>
   <p>An agent in the console’s own account could read or type into its terminal. Separation is mandatory: without it the console refuses to start. The Docker image holds it: the console runs as <code>lockmq</code>, the agent as <code>agent</code>.</p>
-  <p><strong>⚠️ Warning:</strong> an agent that can run <code>docker</code> commands, as the default MCP wiring (a <code>docker run</code>) allows, can attach to the console or open its volume. The separation is then void.</p>
+  <p><strong>⚠️ Warning:</strong> an agent that can run <code>docker</code> commands can attach to the console or open its volume. The confinement check does not catch it when it runs <code>lockmq</code> through the launcher (the client runs in a throwaway container that passes the check). Run the agent inside lea to contain it.</p>
   <p>For a hard boundary, run the agent in a container of its own, without the Docker socket. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md#what-docker-does-and-does-not-separate">What Docker does and does not separate</a>.</p>
 </section>
 <section aria-labelledby="timeout">
   <h2 id="timeout">What happens if nobody answers a ticket?</h2>
-  <p>The console waits up to 5 minutes for a decision. No decision means denied.</p>
+  <p>A read or peek ticket stays pending: it waits up to 1 hour for a decision, and is asked again on the agent’s next run. A connect ticket not decided within 10 minutes fails. Silence is never an approval.</p>
 </section>
 <section aria-labelledby="pii">
   <h2 id="pii">How is personal data in messages protected?</h2>
-  <p>JSON bodies are masked per leaf. On production every string is redacted unless an allow rule names it; elsewhere mask rules, key-name heuristics and value detectors decide.</p>
-  <p>Headers and properties follow rules and heuristics, and binary or compressed bodies are reduced to their size and hash. Masking is best effort: a value in a free-text field that nothing catches comes back in clear. <a href="../how-it-works/#masking">More on masking</a>.</p>
+  <p>JSON bodies are masked per leaf. On production, by default, every string leaf of a JSON body and every header string is redacted unless an allow rule names it; elsewhere mask rules, key-name heuristics and value detectors decide.</p>
+  <p>Text bodies (<code>text/*</code> or no content type) and properties go through rules, heuristics and detectors. Bodies of any other declared type, and binary or compressed ones, are reduced to their size and hash. Masking is best effort: a value in a free-text field that nothing catches comes back in clear. <a href="../how-it-works/#masking">More on masking</a>.</p>
 </section>
 <section aria-labelledby="see-values">
   <h2 id="see-values">Can I see the real values myself?</h2>
@@ -145,7 +146,7 @@
 </section>
 <section aria-labelledby="stable">
   <h2 id="stable">Is lockmq stable?</h2>
-  <p>It is a pre-release (<code>v0.8.x</code>): any release may still change the config files, the MCP tools or the CLI.</p>
+  <p>It is a pre-release (before v1.0): any release may still change the config files, the MCP tools or the CLI.</p>
 </section>
 <section aria-labelledby="go">
   <h2 id="go">Do I need Go to install it?</h2>
@@ -197,7 +198,7 @@
       </nav>
     </div>
     <div class="wrap footer-bottom">
-      <p>Pre-release (v0.8.x). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p>Pre-release, before v1.0. lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
       <p><a href="https://lockfamily.dev">lockfamily.dev</a> · <a href="https://github.com/DavidGodefroid/lockfamily">the family on GitHub</a></p>
     </div>
   </footer>
