@@ -232,11 +232,9 @@ func TestAutoModeFullAutoLocalAndLockedProd(t *testing.T) {
 		okData(t, local.call(mqconsole.Params{Op: "queues"}))
 		peek := mqconsole.Params{Op: "peek"}
 		peek.Target, peek.Count = dlqName, 1
-		tk := pendingTicket(local.call(peek))
-		if tk == "" {
-			t.Fatal("peek not pending on the hub")
-		}
-		data := okData(t, local.runDecided(peek, tk))
+		// `lox run`'s rule decides the peek within the hub's short wait:
+		// it runs in the same call, never pending (#64).
+		data := okData(t, local.call(peek))
 		if msgs, _ := data["messages"].([]any); len(msgs) != 1 || strings.Contains(fmt.Sprint(data), "@example.com") {
 			t.Fatalf("peek: %v", data)
 		}
@@ -259,7 +257,7 @@ func TestAutoModeFullAutoLocalAndLockedProd(t *testing.T) {
 		// A metadata read the profile asks for is a plan only the human
 		// may approve; its run asks the session's connection first.
 		list := mqconsole.Params{Op: "queues"}
-		tk = pendingTicket(prod.call(list))
+		tk := pendingTicket(prod.call(list))
 		if tk == "" {
 			t.Fatal("prod list not pending on the hub")
 		}

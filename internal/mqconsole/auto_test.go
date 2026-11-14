@@ -427,9 +427,12 @@ func TestAutoDecidedRunsInOneCall(t *testing.T) {
 	for _, val := range []string{"auto", "ask"} {
 		t.Run("read="+val, func(t *testing.T) {
 			r, hub, _ := hubRig(t, rigOpts{auto: autoTOML("uat", "read", val)})
-			hub.AutoDecide("lox.auto.read")
 			p := readParams()
 			p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+			// The session's first connection is a human's (auto.connect=ask):
+			// approved before the hub's auto rules take over.
+			mustOK(t, r.call(MethodRun, Params{Op: "queues", Requester: p.Requester}))
+			hub.AutoDecide("lox.auto.read")
 			resp := r.call(MethodRun, p)
 			tks := actionTickets(t, hub)
 			if len(tks) != 1 {
