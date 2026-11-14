@@ -190,6 +190,9 @@ AMQP 0-9-1. The approval screen, the process layout and the protocols:
   descriptions only guide the agent; the console's checks are the guarantee.
 - **OS separation.** The console runs as its own account in its own
   container; the kernel checks every peer on the socket.
+- **Confined agents only.** An agent that does not run confined (on the
+  host, or in a container that sees the Docker socket) is refused, unless a
+  non-production profile sets `unconfined = true`.
 - **Allowlist, read-only broker user.** What is not in the catalogue does
   not exist. Use a `monitoring` user with empty `configure` and `write`.
 - **The AI tightens, the human loosens.** The agent may add mask rules; any

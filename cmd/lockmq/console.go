@@ -20,7 +20,7 @@ import (
 // its hub. It is launched by `lox run` only: the hub flags are required,
 // and requests are decided on lockhub.
 func runConsole(e env, args []string) int {
-	const usage = "lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME [--profile P] [--project DIR] [--allow-unmask] [--show-results] [--allowed-uids UID,...] (launched by lox run)"
+	const usage = "lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME [--profile P] [--project DIR] [--allow-unmask] [--show-results] [--allowed-uids UID,...] [--runtime-gids GID,...] (launched by lox run)"
 	fs := flag.NewFlagSet("console", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "profile to serve")

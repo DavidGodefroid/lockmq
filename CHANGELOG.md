@@ -6,6 +6,28 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+Builds on lockkit v0.20.0.
+
+### Breaking
+
+- lockkit v0.20.0 (lockkit#133): agents that do not run confined are refused by
+  default. The client reports at `hello` whether it runs confined (in a container, no
+  rootful runtime socket such as `/var/run/docker.sock`, no readable Lock Family state,
+  a read-only `.lockfamily/`); the console refuses an unconfined one with
+  `CodeUnconfined`, as it does a peer holding a group that owns a runtime socket, or an
+  older client that sends no report (`old_client`). Upgrade the client (agent side) and
+  the console together: an older console refuses the new `hello` (#71).
+
+### Added
+
+- Profile key `unconfined = true`: serves agents that do not run confined on a profile
+  that is not production, with a red banner and `"unconfined":true` on the audit records
+  of the connection. It is part of the policy fingerprint, and switching it on is a
+  loosening; a production profile with it is refused. See
+  [docs/configuration.md](docs/configuration.md#confined-agents) (#71).
+- `lockmq console --runtime-gids GID,...` (written by `lox run`): a client holding one of
+  these groups, owning the host's container runtime sockets, is unconfined (#71).
+
 ## [0.9.1] - 2026-11-14
 
 Builds on lockkit v0.19.0; works with `lox run` as v0.8.0.

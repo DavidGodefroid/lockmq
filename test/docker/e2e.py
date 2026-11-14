@@ -205,6 +205,76 @@ def managed_checks(project):
     sh("docker", "wait", CONSOLE, check_=False)
 
 
+def wait_status(project, extra=()):
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        r = agent(project, "status", extra=extra)
+        if r.returncode == 0:
+            return r
+        time.sleep(2)
+    return r
+
+
+# An agent that sees the host's runtime socket does not run confined.
+UNCONFINED = ["-v", "/var/run/docker.sock:/var/run/docker.sock"]
+
+
+def unconfined_checks(project):
+    """lockkit#133: an unconfined agent is refused by default; served once
+    the profile sets unconfined = true; a production profile with it does
+    not start."""
+    con = Console(project)
+    check(wait_status(project).returncode == 0, "unconfined: the console serves a confined agent")
+    r = agent(project, "status", extra=UNCONFINED)
+    check(r.returncode != 0, f"an agent that sees the runtime socket is refused (exit {r.returncode})\n{r.stdout}{r.stderr}")
+    deadline = time.time() + 30
+    while time.time() < deadline and "refused an unconfined agent (no_host_runtime" not in con.text():
+        time.sleep(1)
+    check("refused an unconfined agent (no_host_runtime" in con.text(), "the console names the refused unconfined agent")
+    con.stop()
+    if failures:
+        print(con.text()[-4000:])
+    sh("docker", "wait", CONSOLE, check_=False)
+
+    cfg = os.path.join(project, ".lockmq", "config.toml")
+    with open(cfg) as f:
+        orig = f.read()
+    tables = [l.strip() for l in orig.splitlines() if l.strip().startswith("[")]
+    check(tables[-1:] == ["[profiles.dev]"], f"profile dev is the last table of config.toml\n{orig}")
+    with open(cfg, "w") as f:
+        f.write(orig.rstrip("\n") + "\n    unconfined = true\n")
+    try:
+        con = Console(project)
+        r = wait_status(project, extra=UNCONFINED)
+        check(r.returncode == 0, f"unconfined = true: the unconfined agent is served\n{r.stdout}{r.stderr}")
+        check("this lock protects against mistakes, not against a compromised agent" in con.text(), "unconfined = true: the console prints its banner")
+        con.stop()
+        if failures:
+            print(con.text()[-4000:])
+        sh("docker", "wait", CONSOLE, check_=False)
+    finally:
+        with open(cfg, "w") as f:
+            f.write(orig)
+
+    prod = tempfile.mkdtemp(prefix="lockmq-e2e-prod-")
+    os.chmod(prod, 0o755)
+    os.makedirs(os.path.join(prod, ".lockmq"))
+    with open(os.path.join(prod, ".lockmq", "config.toml"), "w") as f:
+        f.write(f'[profiles.dev]\nurl = "https://{BROKER}:15671"\nproduction = true\nunconfined = true\n')
+    with open(os.path.join(project, "hub.pub")) as src, open(os.path.join(prod, "hub.pub"), "w") as f:
+        f.write(src.read())
+    os.chmod(os.path.join(prod, "hub.pub"), 0o644)
+    con = Console(prod)
+    deadline = time.time() + 60
+    while time.time() < deadline and "unconfined is never allowed on a production profile" not in con.text():
+        time.sleep(1)
+    check("unconfined is never allowed on a production profile" in con.text(), "a production profile with unconfined = true does not start")
+    con.stop()
+    if failures:
+        print(con.text()[-4000:])
+    sh("docker", "wait", CONSOLE, check_=False)
+
+
 def agent(project, *args, user=None, extra=()):
     cmd = ["docker", "run", "--rm", "-v", f"{project}:{project}", "-w", project, "-v", f"{RUN_VOL}:/run/lockmq"]
     if user:
@@ -352,6 +422,7 @@ def main():
         check(r.returncode != 0 and "leading zero" in r.stdout + r.stderr, f"--allowed-uids 0 refused\n{r.stdout}{r.stderr}")
 
         sh("docker", "wait", CONSOLE, check_=False)
+        unconfined_checks(project)
         managed_checks(project)
     finally:
         cleanup()

@@ -74,6 +74,7 @@ read over AMQP.
 | `tls_ca`, `tls_cert`, `tls_key` | none | a private CA; a client certificate (both or neither) |
 | `tier` | `read` | `read` or `peek` |
 | `production` | `false` | typed approval, `redact-unknown` body mode |
+| `unconfined` | `false` | `true` serves agents that do not run confined (see [below](#confined-agents)); refused on a production profile; switching it on is a loosening |
 | `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`, `ip`, `secret`, `person_name`; `[]` disables them |
 | `body_mode` | `redact-unknown` on production, `detect` otherwise | |
 | `limits.request_timeout` | 10s | |
@@ -94,6 +95,33 @@ Changing the file later: tightenings (a lower limit, `peek` → `read`, a
 removed vhost, a new mask rule) apply at once; loosenings (more tickets, a
 shorter `ticket_window` or more pending tickets among them) wait for you in
 the console (`:review`).
+
+### Confined agents
+
+The console serves only agents that run confined (lockkit#133): the client
+checks at `hello` that it runs in a container, that no rootful container
+runtime socket (`/var/run/docker.sock` and the like) is reachable, that the
+Lock Family's state directory is not readable, and that the project's
+`.lockfamily/` is not writable; the console also refuses a peer holding a
+group that owns a runtime socket. An agent run on the host, or in a container
+that mounts the Docker socket, is refused with `CodeUnconfined` and its
+reasons; an older client that sends no report is refused as `old_client`.
+Client and console must be the same lockmq version.
+
+`unconfined = true` lets such an agent in on a profile that is not
+production, for a local broker:
+
+```toml
+[profiles.dev]
+url        = "http://127.0.0.1:15672"
+unconfined = true   # the lock then protects against mistakes, not against a compromised agent
+```
+
+It is a loosening, approved in the console; the console prints a red banner
+and marks every audit record and hub ticket of an unconfined connection. A
+production profile with `unconfined = true` is refused, and the managed
+file's `[family] require_confined_agent = true` refuses unconfined agents whatever the
+profile says.
 
 ## PII rules
 

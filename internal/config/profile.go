@@ -143,6 +143,7 @@ type rawProfile struct {
 	SSH            *kconfig.RawSSH `toml:"ssh"`
 	Tier           string          `toml:"tier"`
 	Production     bool            `toml:"production"`
+	Unconfined     bool            `toml:"unconfined"`
 	Detectors      []string        `toml:"detectors"`
 	BodyMode       string          `toml:"body_mode"`
 	Limits         rawLimits       `toml:"limits"`
@@ -381,7 +382,7 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		Base: kconfig.Base{
 			User: r.User, Credentials: r.Credentials, VaultPath: r.VaultPath,
 			TLS: r.TLS, TLSCA: r.TLSCA, TLSCert: r.TLSCert, TLSKey: r.TLSKey, Production: r.Production,
-			TicketsPerWindow: r.Limits.TicketsPerWindow, MaxPending: r.Limits.MaxPending,
+			Unconfined: r.Unconfined, TicketsPerWindow: r.Limits.TicketsPerWindow, MaxPending: r.Limits.MaxPending,
 		},
 		URL: r.URL, AMQPURL: r.AMQPURL, StreamURL: r.StreamURL,
 		VHosts: r.VHosts, Detectors: r.Detectors, BodyMode: r.BodyMode,
@@ -523,6 +524,11 @@ func buildProfile(name string, r rawProfile, detectorsSet, headroomSet bool) (Pr
 		if !u.TLS && p.Production && p.SSH == nil && !kconfig.IsLoopback(u.Host) {
 			return Profile{}, errf("a production profile on a remote host needs TLS URLs (https, amqps, rabbitmq-stream+tls) or an ssh tunnel; tls cannot apply to a plain scheme")
 		}
+	}
+	// The console refuses it at start too (lockkit#133); refused here, the
+	// mistake shows in doctor and profile add already.
+	if p.Unconfined && p.Production {
+		return Profile{}, errf("unconfined is never allowed on a production profile")
 	}
 	switch {
 	case p.MaxSession < MinIdleTimeout || p.MaxSession > MaxMaxSession:
