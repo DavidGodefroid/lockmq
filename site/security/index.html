@@ -82,8 +82,9 @@
 <caption>Boundaries and what enforces them</caption>
 <thead><tr><th scope="col">Boundary</th><th scope="col">Enforced by</th></tr></thead>
 <tbody>
-<tr><th scope="row">Agent ↔ console</th><td>a separate OS account (the console container runs as <code>lockmq</code>, the agent as <code>agent</code>); a Unix socket in a directory only the clients group reaches; the kernel’s peer credentials checked on every connection; the console refuses to start without the separated setup. <strong>⚠️ Void when the agent can run <code>docker</code></strong> (the default MCP wiring is a <code>docker run</code>): see below.</td></tr>
-<tr><th scope="row">Console ↔ human</th><td>the screen goes masked to lockhub in a ticket signed by the instance key; a read or peek runs only on a decision verified under the pinned hub key, for this instance and ticket, under the same policy and request hash, once; a 5-minute timeout means denied</td></tr>
+<tr><th scope="row">Agent ↔ console</th><td>a separate OS account (the console container runs as <code>lockmq</code>, the agent as <code>agent</code>); a Unix socket in a directory only the clients group reaches; the kernel’s peer credentials checked on every connection; the console refuses to start without the separated setup. <strong>⚠️ Void when the agent can run <code>docker</code></strong>: see below.</td></tr>
+<tr><th scope="row">Confined agents</th><td>each client reports in its <code>hello</code> whether it runs confined (in a container, no container runtime socket, no readable Lock Family state); the console also refuses a peer holding a group that owns a runtime socket. An unconfined agent, or an older client that sends no report, is refused by default. <code>unconfined = true</code> serves one, on a non-production profile only. The check covers the lockmq client, not the agent: a host agent that runs <code>lockmq</code> through the launcher passes it, because the client runs in a throwaway container. Run the agent itself confined, for example inside <a href="https://github.com/DavidGodefroid/lea">lea</a>.</td></tr>
+<tr><th scope="row">Console ↔ human</th><td>the screen goes masked to lockhub in a ticket signed by the instance key; a read or peek runs only on a decision verified under the pinned hub key, for this instance and ticket, under the same policy and request hash, once. A read or peek ticket stays pending (1 h, asked again on the next run); a connect ticket not decided within 10 minutes fails. Silence is never an approval.</td></tr>
 <tr><th scope="row">Console ↔ broker</th><td>an allowlist of operations and endpoints; one broker user; TLS <code>verify-full</code> by default; an optional ssh tunnel opened by the console</td></tr>
 <tr><th scope="row">Policy</th><td>config files read every 2 s; loosenings held until confirmed; the approved policy stored in the console account’s state</td></tr>
 </tbody>
@@ -91,7 +92,7 @@
 </div>
   <div class="limits" role="note" aria-labelledby="docker-note">
     <h3 id="docker-note">An agent that can run <code>docker</code> can reach the console</h3>
-    <p class="prose">It can <code>docker attach</code> or <code>docker exec</code> into the console, or open its volume. For a hard boundary, run the agent in a container of its own, without the Docker socket. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md#what-docker-does-and-does-not-separate">What Docker does and does not separate</a>.</p>
+    <p class="prose">It can <code>docker attach</code> or <code>docker exec</code> into the console, or open its volume. The confinement check does not catch such an agent when it runs <code>lockmq</code> through the launcher: the client runs in a throwaway container that passes the check. A client that itself sees the Docker socket is refused by default. For a hard boundary, run the agent in a container of its own, without the Docker socket. <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md#what-docker-does-and-does-not-separate">What Docker does and does not separate</a>.</p>
   </div>
 </section>
 
@@ -138,7 +139,7 @@
   <div class="prose">
     <ul>
       <li><strong>Approval.</strong> Every <code>read</code> and <code>peek</code> builds a screen: the queue or stream, the starting point and count, what moves (nothing, for a stream read), the masking in force, the agent’s intent. It is decided on lockhub by the profile’s rules: stream reads pass by default, peeks are asked.</li>
-      <li><strong>Masking.</strong> JSON bodies are masked per leaf: <code>redact-unknown</code> (the production default) redacts every string no allow rule names; <code>detect</code> uses mask rules, field-name heuristics and value detectors. Headers and properties follow rules and heuristics.</li>
+      <li><strong>Masking.</strong> JSON bodies are masked per leaf: <code>redact-unknown</code> (the production default) redacts every string leaf of a JSON body, and every header string, that no allow rule names; <code>detect</code> uses mask rules, field-name heuristics and value detectors. Text bodies (<code>text/*</code> or no content type) and properties go through rules, heuristics and detectors only. Bodies of any other declared type are opaque.</li>
       <li><strong>Opaque bodies.</strong> Bodies that are binary, compressed, invalid JSON, deeper than 64 levels or larger than four times <code>max_body_bytes</code> become <code>&lt;bytes:N sha256:H type:T&gt;</code>. So does any body the broker cut short.</li>
       <li><strong>Clear output.</strong> Ctrl-O prints results in clear in the console only. Unmasked output to the agent needs <code>:unmask</code> in the console, and every such request is asked, never auto-approved.</li>
       <li><strong>Size.</strong> At most <code>read_max</code> (≤ 200) or <code>peek_max</code> (≤ 20) messages, each body cut at <code>max_body_bytes</code>, the answer cut at <code>max_output_bytes</code>.</li>
@@ -176,7 +177,7 @@
     <li>RabbitMQ allows a purge to any user with <code>read</code> on the queue: the allowlist is the only barrier.</li>
     <li>The approval screen can only show what the broker reports before the read. Unacked messages are invisible to a peek, and a peek cannot know the next message’s delivery count before taking it.</li>
     <li>Through an ssh tunnel streams are read over AMQP; offsets and lag need the stream protocol and are unavailable.</li>
-    <li>The audit log is append-only by convention (<code>chattr +a</code> on Linux makes it so for the console account too); there is no hash chain.</li>
+    <li>Each audit record carries <code>prev_hash</code>, the hash of the line before it: an edited, removed, inserted or reordered line breaks the chain. The log is still append-only only by convention: <code>chattr +a</code> on Linux makes it so for the console account too.</li>
   </ul>
 </section>
 
@@ -221,7 +222,7 @@
       </nav>
     </div>
     <div class="wrap footer-bottom">
-      <p>Pre-release (v0.8.x). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p>Pre-release, before v1.0. lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
       <p><a href="https://lockfamily.dev">lockfamily.dev</a> · <a href="https://github.com/DavidGodefroid/lockfamily">the family on GitHub</a></p>
     </div>
   </footer>

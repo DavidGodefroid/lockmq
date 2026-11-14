@@ -147,5 +147,5 @@ esac
 command -v docker >/dev/null 2>&1 || say "docker is not installed: the launcher needs it (docs/docker.md)"
 # A former host install (sudo lockmq install) left its system file behind.
 if [ -e /etc/lockmq/system.toml ]; then
-	say "a former host install remains (/etc/lockmq/system.toml): see docs/docker.md#migrating-from-a-host-install"
+	say "a former host install remains (/etc/lockmq/system.toml): see docs/docker.md#migrating"
 fi

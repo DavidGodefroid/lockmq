@@ -54,7 +54,7 @@
   <main id="main" tabindex="-1">
     <div class="wrap">
 
-<p class="eyebrow">Install · pre-release v0.8.x</p>
+<p class="eyebrow">Install · pre-release (before v1.0)</p>
 <h1>Install lockmq</h1>
 <div class="prose">
   <p class="lead">lockmq runs in Docker. On your machine you need only Docker and the <code>lockmq</code> launcher, a short shell script that runs every command in the signed release image.</p>
@@ -70,7 +70,7 @@
     <p class="install-note">Homebrew asks you to trust a third-party tap once. <code>brew install davidgodefroid/tap/lockfamily</code> installs the whole family instead.</p>
   </div>
   <ol class="steps prose">
-    <li><p>In your project, <code>lox add lockmq</code> asks where your broker is (never the password). It writes the profile, wires your agent, runs <code>lockmq doctor --fix</code>, shows a short review and starts the console.</p>
+    <li><p>In your project, <code>lox add lockmq</code> asks where your broker is (never the password). It writes the profile, wires Claude Code, runs <code>lockmq doctor --fix</code>, shows a short review and starts the console. For Codex, Cursor or Gemini CLI, also run <code>lockmq init codex</code>, <code>cursor</code> or <code>gemini</code>.</p>
       <pre tabindex="0"><code>lox add lockmq</code></pre></li>
     <li><p>In a terminal of its own, outside any agent, keep <code>lox run</code> open. It serves the decisions: every ticket shows up there.</p>
       <pre tabindex="0"><code>lox run</code></pre></li>
@@ -151,8 +151,8 @@ rabbitmqctl set_permissions -p orders lockmq-ro '^$' '^$' '^(order-events)$'</co
   </div>
   <pre tabindex="0"><code>claude mcp add --scope user lockmq -- lockmq mcp</code></pre>
   <div class="prose">
-    <p>Codex, Gemini CLI and Cursor take the same command (<code>lockmq</code>, argument <code>mcp</code>). Keep their <code>tool_timeout_sec</code> or <code>timeout</code> long: the console waits up to 5 minutes for a decision.</p>
-    <p>An agent in a container of its own, without the Docker socket, runs <code>lockmq</code> as a client of the console container.</p>
+    <p>Codex, Gemini CLI and Cursor take the same command (<code>lockmq</code>, argument <code>mcp</code>). Keep their <code>tool_timeout_sec</code> or <code>timeout</code> long: a first connection waits up to 10 minutes for its connect ticket.</p>
+    <p>An agent started on the host is not confined, even though its <code>lockmq</code> client, run by the launcher in a throwaway container, passes the console's confinement check: the agent can still drive Docker. Run the agent confined, in a container of its own without the Docker socket (for example inside <a href="https://github.com/DavidGodefroid/lea">lea</a>); it runs <code>lockmq</code> as a client of the console container.</p>
     <p><a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/docker.md">The full Docker guide</a> · <a href="https://github.com/DavidGodefroid/lockmq/blob/main/docs/usage.md">every command in the usage guide</a></p>
   </div>
 </section>
@@ -193,7 +193,7 @@ rabbitmqctl set_permissions -p orders lockmq-ro '^$' '^$' '^(order-events)$'</co
       </nav>
     </div>
     <div class="wrap footer-bottom">
-      <p>Pre-release (v0.8.x). lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
+      <p>Pre-release, before v1.0. lockmq is licensed under the <a href="https://github.com/DavidGodefroid/lockmq/blob/main/LICENSE">Apache License 2.0</a>.</p>
       <p><a href="https://lockfamily.dev">lockfamily.dev</a> · <a href="https://github.com/DavidGodefroid/lockfamily">the family on GitHub</a></p>
     </div>
   </footer>

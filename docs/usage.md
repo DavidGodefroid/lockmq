@@ -37,8 +37,8 @@ its start (`ask`, the default) or reads it from Vault (`vault`, at
 | `--tier read\|peek` | `tier` | default `read` |
 
 Without `--non-interactive`, in a terminal, it asks for what the flags did
-not give (it may offer the keychain outside a container), and the peek
-question:
+not give (the keychain is offered outside a container only: the Docker
+image has none), and the peek question:
 
 ```
 Allow reading messages of classic and quorum queues? Not strictly read-only:
@@ -54,9 +54,10 @@ The profile is validated before it is written: a flag named like a secret
 (`--password`, ...), a value that embeds a password (a URL with
 `user:password@`), a positional argument and a name already in the config
 are refused, and the file is left as it was. An error names the flag,
-never its value. In a container the management URL defaults to
-`http://host.docker.internal:15672`, and `localhost`, `127.0.0.1` and
-`::1`, the container itself, are refused.
+never its value. In a container the URL question offers
+`http://host.docker.internal:15672` (with `--non-interactive`, `--url` is
+required), the keychain is refused, and `localhost`, `127.0.0.1` and `::1`,
+the container itself, are refused.
 
 `--json` prints exactly one line of JSON on stdout, lockkit's
 `verbs.Profile` on success:
@@ -74,7 +75,8 @@ and `verbs.Error` on failure, whose `code` is `usage`, `secret`, `exists`
 
 Questions and messages then go to stderr. `lox add lockmq` runs
 `lockmq profile add --non-interactive --json --profile NAME ... --url URL --user USER --vhost V`,
-then `lockmq init claude` and `lockmq doctor --fix --yes --json`.
+then `lockmq init claude` and `lockmq doctor --fix --yes --json`: it wires Claude Code only.
+For Codex, Cursor or Gemini CLI, also run `lockmq init codex|cursor|gemini`.
 
 Every key is described in [configuration.md](configuration.md). Changing the
 file later: tightenings (a lower limit, `peek` → `read`, a removed vhost, a
@@ -89,7 +91,7 @@ key, one rule per action:
 
 ```toml
 [profiles.local]
-url  = "http://127.0.0.1:15672"
+url  = "http://host.docker.internal:15672"
 auto = "full-auto"          # every action auto: the local broker is left to the agent
 
 [profiles.prod]
@@ -175,16 +177,18 @@ lockmq init [claude|codex|cursor|gemini ...]
 Writes the project's agent files (default: the agents found on the
 machine); it never asks, and running it again changes nothing: the MCP server entry (`lockmq mcp`), the Claude Code skill, the
 `AGENTS.md` / `GEMINI.md` section, the Cursor rule, and an example
-`.lockmq/config.toml` when there is none. Claude Code may call the catalogue
-tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
-`lockmq_pii_add` always ask.
+`.lockmq/config.toml` when there is none. For Claude Code, `init claude`
+pre-allows the catalogue tools, `lockmq_pii_list`, `lockmq status` and
+`lockmq doctor`; every other tool (`lockmq_read`, `lockmq_peek`,
+`lockmq_pii_add`, `lockmq_request_change`) asks. Codex, Cursor and Gemini CLI
+use their own permission model.
 
 ## The console
 
 ```sh
 lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
               [--profile P] [--project DIR] [--allow-unmask] [--show-results]
-              [--allowed-uids UID,...] [--runtime-gids GID,...]
+              [--allowed-uids UID,...] [--runtime-gids GID,...] [--facade-keys-file FILE]
 ```
 
 The console is launched by `lox run` only (lockhub's CLI), which writes the
@@ -210,6 +214,7 @@ Keys and commands while it runs (lockkit's console):
 | Key / command | Does |
 |---|---|
 | `:review` | show the pending loosening and the change requests of clients, apply or refuse |
+| `:reopen` | offer again a loosening you refused, while it is still in the config files (then `:review`) |
 | `:status` | the policy in force, the session |
 | Ctrl-O, `:results` | print each read and peek result in clear in the console (the agent still gets it masked) |
 | `:unmask` | let clients ask for unmasked output (`--unmask`), each such request approved on lockhub, never auto-approved |
@@ -266,11 +271,12 @@ force (`tickets: 30 per 5m0s · 30 pending`).
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
-| v0.10.0 | v0.20.0 | as v0.8.0; the agent's client and the console must both be v0.10.0 (an older console refuses the new `hello`, an older client is refused as `old_client`) |
+| v0.10.0 | v0.20.0 | as v0.8.0; upgrade the agent's client and the console together (an older console refuses the new `hello`; an older client is unconfined, `old_client`, and refused unless the profile sets `unconfined = true`) |
 | v0.9.1 | v0.19.0 | as v0.8.0 |
 | v0.9.0 | v0.19.0 | as v0.8.0 |
 | v0.8.1 | v0.14.1 | as v0.8.0 |
 | v0.8.0 | v0.13.0 | `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later: tickets are version 2 (kinds `connect` and `action`, `lockkit` ticket kinds), which an older hub refuses |
+| v0.7.0 | v0.11.0 | as v0.6.1 |
 | v0.6.1 | v0.10.0 | as v0.6.0 |
 | v0.6.0 | v0.10.0 | as v0.5.0 |
 | v0.5.0 | v0.9.1 | v0.3.0 or later (`lox`): the console runs under `lox up` only (deprecated since lockhub v0.10.0, now `lox run`), and the launcher's agent commands read its `.lockfamily/up.json` (version 1) |
@@ -285,9 +291,12 @@ lockhub runs these consoles from v0.2.0 on (the console account, a
 terminal, the reviewed profile copy; the CLI was named `lock` before v0.3.0); lockhub v0.1.x cannot run them. A console
 older than a feature `lockfamily.yaml` asks of it refuses the flag and does not start: leave
 `devices`/`reveal`/`allowed_uids` off for it. A lock on lockkit older than v0.5.0 ignores the hub's reveal and
-renewal requests, which then time out. lockhub's CI runs a lockmq image under its CLI since
-lockhub#91 (on lockhub's main, in no lockhub release yet): a host `lockmq mcp`, lockmq v0.5.0's
-launcher and image, reads a stream message once its ticket is approved. Otherwise the table
+renewal requests, which then time out. lockhub's CI has run a lockmq image under its CLI
+since lockhub#91 (lockhub v0.4.0). From lockmq v0.10.0 a client that runs on the host, or
+that sees the Docker socket, is unconfined: it is refused unless a profile that is not
+production sets `unconfined = true` ([confined agents](configuration.md#confined-agents)).
+The launcher's `lockmq mcp` runs the client in a throwaway container, which passes the
+check even when the agent that started it runs on the host. Otherwise the table
 follows each release's lockkit and lockhub's
 [CHANGELOG](https://github.com/DavidGodefroid/lockhub/blob/main/CHANGELOG.md) ("Supported locks",
 v0.2.0).
@@ -306,9 +315,7 @@ values), so a renewal is never a one-click "unchanged" one. The run of the new t
 queue again and refuses one that moved `E_STALE`, as any hub run. Renewals are audited
 (`event: renew`, with the stored request). `lox run` also passes `--facade-keys-file FILE`,
 the local facades whose Ctrl-O may reveal a ticket's clear screen, sealed to them (audited
-`event: reveal`). A console started again without the hub flags withdraws the plans its hub
-mode left pending and refuses a run that names a `ticket` with `withdrawn` (plan again; the
-human approves on this terminal): `ticket` is a hub-mode param only.
+`event: reveal`).
 
 ## Client commands
 
@@ -334,8 +341,8 @@ console (the start command is printed), 3 usage or configuration error.
 | `lockmq connections [--page N]`, `lockmq channels [--page N]` | on the served vhosts only; user and connection names through the detectors |
 | `lockmq stream NAME [--vhost V]` | a stream's queue data and first/last offsets |
 | `lockmq stream-offset NAME --consumer REF [--vhost V]` | a named consumer's stored offset and its lag |
-| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--intent TEXT] [--unmask] [--dry-run]` | stream messages, masked; approved on lockhub |
-| `lockmq peek QUEUE [--count N] [--intent TEXT] [--unmask] [--dry-run]` | NOT read-only; tier `peek` only; approved every time |
+| `lockmq read STREAM --from first\|last\|N\|TIMESTAMP [--max N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T]` | stream messages, masked; approved on lockhub |
+| `lockmq peek QUEUE [--count N] [--vhost V] [--intent TEXT] [--unmask] [--dry-run] [--ticket T]` | NOT read-only; tier `peek` only; asked every time by default (`auto.peek = "ask"`), auto only after a loosening you confirm |
 | `lockmq pii list`, `lockmq pii add "RULE"` | the mask and allow rules; add a mask rule |
 | `lockmq request "CHANGE"` | queue a change for the human (`tier=peek`, `limits.read_max=50`) |
 | `lockmq logout` | end the console's session |
@@ -368,7 +375,8 @@ and kept in the audit log.
 `lockmq_consumers`, `lockmq_connections`, `lockmq_channels`,
 `lockmq_stream`, `lockmq_stream_offset`, `lockmq_read`, `lockmq_peek`,
 `lockmq_pii_list`, `lockmq_pii_add`, `lockmq_request_change`. Results start
-with an untrusted-data line; refusals come back as tool errors with a
+with an untrusted-data line, except `lockmq_status` and a queued
+`lockmq_request_change`; refusals come back as tool errors with a
 structured `refusal` (`code`, `retry`, `hint`). While you decide, the server
 sends progress notifications so the client does not time out.
 
@@ -443,7 +451,9 @@ usage error) prints a `verbs.Error` instead.
 ## Audit log
 
 `~/.local/state/lockmq/audit.log` of the console account (mode 0600): one
-JSON line per event (`login`, `policy`, `catalog`, `refused`, `approved`,
-`denied`, `auto`, `timeout`, `run`, `logout`) with the operation, vhost,
+JSON line per event (`login`, `policy`, `catalog`, `refused`, `pending`,
+`approved`, `denied`, `timeout`, `abandoned`, `renew`, `reveal`, `run`,
+`results`, `unmask`, `hub-request`, `logout`; `auto` and `mode` appear in
+older logs only) with the operation, vhost,
 target and message count, the agent's intent and the client's uid. Never a
 message body, header or property value.

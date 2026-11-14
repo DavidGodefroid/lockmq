@@ -19,15 +19,20 @@ and where it stops.
 6. **Results are data, not instructions.** Everything read from the broker is
    framed as untrusted.
 7. **Reading a message is not always free.** An operation that can change
-   what a consumer receives (`peek`) needs its own tier, set by the human, and
-   a human approval every time, with its side effects on the screen.
+   what a consumer receives (`peek`) needs its own tier, set by the human,
+   with its side effects on the screen. It is asked of the human every time
+   by default (`auto.peek = "ask"`); an auto rule approves it only after the
+   human confirmed that loosening.
+8. **Confined agents only.** The console serves an agent only when its client
+   reports that it runs confined.
 
 ## Boundaries
 
 | Boundary | Enforced by |
 |---|---|
 | Agent ↔ console | separate OS account (the image's `lockmq` account; the agent runs as `agent`); a Unix socket in a directory only the clients group reaches; the kernel's peer credentials checked on every connection; the console refuses to start without the separated setup |
-| Console ↔ human | approval screens in the console's own terminal; on production the typed profile name; 5-minute timeout = denied. In hub mode the screen goes masked in a ticket signed by the instance key (kept in the console account's home); a read or peek runs only on a decision verified under the pinned hub key, for this instance and the ticket, under the same policy and request hash, once (nonce), for the agent token that asked |
+| Confined agents | at `hello` the client reports whether it runs confined (in a container, no rootful runtime socket, no readable Lock Family state, a read-only `.lockfamily/`); the console also refuses a peer holding a group that owns a runtime socket. An unconfined agent, or an older client that sends no report, is refused by default (`CodeUnconfined`); `unconfined = true` serves it only on a profile that is not production. The check covers the lockmq client, not the agent: a host agent that runs it through the launcher passes it (see Limits). Run the agent confined, for example inside lea (see [configuration.md](configuration.md#confined-agents)) |
+| Console ↔ human | the screen goes masked in a ticket signed by the instance key (kept in the console account's home) and is decided on lockhub; a read or peek runs only on a decision verified under the pinned hub key, for this instance and the ticket, under the same policy and request hash, once (nonce), for the agent token that asked. A read or peek ticket stays pending (1 h, renewed when the agent runs it again); a connect ticket not decided within 10 minutes fails; silence is never an approval. On production the console's start asks for the typed profile name |
 | Console ↔ broker | an allowlist of operations and endpoints; one broker user; TLS `verify-full` by default; optional ssh tunnel opened by the console |
 | Policy | config files read every 2 s; loosenings held until confirmed; the approved policy stored in the console account's state |
 
@@ -44,7 +49,8 @@ Only the operations of the catalogue exist:
   single-active-consumer group), metadata and `QueryOffset`;
 - AMQP 0-9-1: `basic.qos`, `basic.consume` with `x-stream-offset` on a
   stream, manual acks (on a stream an ack only returns credit),
-  `basic.cancel`.
+  `basic.cancel`. The queue's type is checked over the management API
+  before the read, not again on the AMQP channel (see "Limits").
 
 Never: `/api/definitions`, `/api/users*` (password hashes), other users'
 `/api/permissions*`, any other non-GET endpoint, `basic.get`,
@@ -158,15 +164,16 @@ gives it). When on:
 | Threat | Mitigation |
 |---|---|
 | Agent changes broker state | operation allowlist; GET only plus the `get` of peek; no publish, declare, purge, store_offset or destructive ack mode; broker user with empty configure/write |
-| Peek dead-letters or drops a message | off by default; tier per profile set by the human; delivery limit read first, refusal near it; side effects on the screen; never auto-approved |
+| Peek dead-letters or drops a message | off by default; tier per profile set by the human; delivery limit read first, refusal near it; side effects on the screen; asked of the human every time unless the human confirmed `auto.peek = "auto"` |
 | Agent turns peek on | `read` → `peek` is a loosening: no effect until confirmed in the console; no IPC method loosens |
-| A read moves a real consumer | unnamed stream consumer; never `store_offset` |
+| A read moves a real consumer | unnamed stream consumer; never `store_offset`; the target must be a stream when the read is planned and when it runs (see "Limits" for the AMQP reader) |
 | Password hashes or URI passwords leak | those endpoints never called; userinfo stripped from every URI |
 | PII in bodies of unknown shape | `redact-unknown` on production; detectors; proposals of mask rules |
 | Prompt injection in payloads | results framed as untrusted data |
 | Endpoint allowlist escaped through `.`/`..` path segments | such names refused before any request, and in the config |
 | Broker overload | paginated lists with selected columns, one request at a time, `request_timeout`, `read_max`; `queue` reads its own consumers, not the vhost's |
 | Agent reads the console's terminal or types into it | separate account and session; same-user mode refused |
+| An agent outside a sandbox reaches the console's account or the container runtime | confined clients only: an unconfined client or an older client refused by default; `unconfined = true` never on production. A host agent using the launcher is not caught (see Limits): run it inside lea |
 
 ## Limits
 
@@ -184,5 +191,34 @@ gives it). When on:
 - `consumers` and vhost-wide `bindings` are single unpaginated management
   calls (the API does not page them): on a very large vhost they can exceed
   the response cap; use `queue NAME` or `bindings --queue/--exchange`.
-- The audit log is append-only by convention (`chattr +a` on Linux makes it
-  so for the console account too); there is no hash chain.
+- Each audit record carries `prev_hash`, the SHA-256 of the line before it:
+  lockkit's `audit.Verify` detects a record edited, removed, inserted or
+  reordered (lockmq has no command for it yet). The chain does not stop the
+  console account from rewriting the whole file: `chattr +a` on Linux makes
+  the log append-only for that account too.
+- A stream read over AMQP checks the queue's type before it starts, then
+  consumes and acks by name. If someone else deletes the stream and declares
+  a classic or quorum queue with the same name in between, those acks could
+  remove messages from it. Broker permissions match names, not types, so they
+  cannot prevent this. The stream protocol reader does not have this gap.
+- The confinement check runs in the lockmq client. The launcher starts that
+  client in a throwaway container (no Docker socket, no Lock Family state),
+  which passes the check even when the agent that started it runs on the
+  host with Docker access. Such an agent is served, on production too, and
+  can still reach the console's container through Docker. Only running the
+  agent itself confined (for example inside lea) closes this.
+- An agent served unconfined (`unconfined = true`, never on production) is
+  guarded against mistakes, not against a compromised agent.
+
+### Out of scope
+
+- Attacks that require running code as the console's OS account, or as
+  root: that account holds the credentials, the instance key and the audit
+  log.
+- An agent that can run `docker` or attach to the console's container (see
+  [what Docker does and does not separate](docker.md#what-docker-does-and-does-not-separate)),
+  and an agent served unconfined on a profile with `unconfined = true`.
+- Personal data in free text that no rule, heuristic or detector catches:
+  masking is best effort.
+- What the broker's own permissions allow outside lockmq, such as a purge
+  with `read` (see "The broker user").

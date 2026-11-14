@@ -17,7 +17,7 @@ amqp_url     = "amqps://rabbitmq.example.com:5671"    # optional
 stream_url   = "rabbitmq-stream+tls://rabbitmq.example.com:5551"  # optional
 vhosts       = ["orders"]                              # empty: every vhost the account sees
 user         = ""                                      # empty: asked at console start
-credentials  = "vault"                                 # ask | keychain | vault
+credentials  = "vault"                                 # ask | vault | keychain (not in the Docker image)
 vault_path   = "rabbitmq/creds/lockmq-ro"
 tls          = "verify-full"
 tier         = "read"                                  # read | peek
@@ -67,7 +67,7 @@ read over AMQP.
 | `amqp_url`, `stream_url` | none | optional; an operation that needs a missing one says which key to set |
 | `vhosts` | every vhost the account sees | the only vhosts served |
 | `user` | asked at start | with `credentials = "vault"`: the secret's username |
-| `credentials` | `ask` | `ask`, `keychain` or `vault` |
+| `credentials` | `ask` | `ask`, `keychain` or `vault` (`keychain` needs an OS keychain: not available in the Docker image) |
 | `vault_path` | required with `vault` | e.g. `rabbitmq/creds/<role>` |
 | `credentials_ttl` | none | at least `1m`: the secret is asked again once it is that old |
 | `tls` | `verify-full` | `disable`, `prefer`, `require`, `verify-ca`, `verify-full` |
@@ -75,7 +75,7 @@ read over AMQP.
 | `tier` | `read` | `read` or `peek` |
 | `production` | `false` | typed approval, `redact-unknown` body mode |
 | `unconfined` | `false` | `true` serves agents that do not run confined (see [below](#confined-agents)); refused on a production profile; switching it on is a loosening |
-| `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`, `ip`, `secret`, `person_name`; `[]` disables them |
+| `detectors` | `card`, `email`, `iban`, `phone` | also `be_niss`, `fr_nir`, `nl_bsn`, `us_ssn`, `eu_vat`, `be_company`, `be_eid`, `passport`, `birth_date`, `plate`, `postal_address`, `ip`, `secret`, `person_name`, `phone_loose`; `[]` disables them |
 | `body_mode` | `redact-unknown` on production, `detect` otherwise | |
 | `limits.request_timeout` | 10s | |
 | `limits.read_max` | 20 | ceiling 200 |
@@ -103,17 +103,20 @@ checks at `hello` that it runs in a container, that no rootful container
 runtime socket (`/var/run/docker.sock` and the like) is reachable, that the
 Lock Family's state directory is not readable, and that the project's
 `.lockfamily/` is not writable; the console also refuses a peer holding a
-group that owns a runtime socket. An agent run on the host, or in a container
+group that owns a runtime socket. A client run on the host, or in a container
 that mounts the Docker socket, is refused with `CodeUnconfined` and its
-reasons; an older client that sends no report is refused as `old_client`.
-Client and console must be the same lockmq version.
+reasons; the check covers the client process, not the agent that starts it
+(the launcher runs the client in a throwaway container that passes it, even
+for a host agent, so run the agent inside lea to contain it); an older client that sends no report is unconfined too
+(`old_client`), refused unless the profile sets `unconfined = true`.
+Upgrade the client and the console together (the v0.10.0 `hello`).
 
 `unconfined = true` lets such an agent in on a profile that is not
 production, for a local broker:
 
 ```toml
 [profiles.dev]
-url        = "http://127.0.0.1:15672"
+url        = "http://host.docker.internal:15672"
 unconfined = true   # the lock then protects against mistakes, not against a compromised agent
 ```
 

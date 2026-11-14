@@ -34,7 +34,8 @@ Gemini CLI, also run `lockmq init codex` (or `cursor`, `gemini`).
 
 If a lea container already runs for the project, `lox add` says `lea gets lock
 NAME at its next start: lea stop, then lea`: lea mounts the locks' sockets
-when its container starts, so `lea stop`, then `lea` brings the new lock in.
+when its container starts, so `lea stop`, then `lea` brings the new lock in
+(lockhub's [`docs/lox-add.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-add.md)).
 
 ## By hand
 
@@ -59,7 +60,8 @@ lox attach events   # another terminal: the console's own questions: policy revi
 
 The console runs hub-attached only: lockhub starts it with its hub flags,
 and `lockmq console` on its own refuses to start. (lockhub's older `lox up`
-is deprecated: it prints "use lox run".)
+is deprecated: it still works, but points you to `lox run`; see lockhub's
+[`docs/lox-run.md`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-run.md).)
 
 `lockmq init claude` wires Claude Code to `lockmq mcp`, which the launcher
 runs in a throwaway container.
@@ -73,8 +75,10 @@ Inside the containers `localhost` is the container itself: `profile add` offers
 `host.docker.internal` for a broker on your machine, and a broker container
 is reached by its name on a network shared with the console. Then ask your
 agent: "which queues have no consumer?", "why does orders.failed fill up?".
-Catalogue calls answer at once; stream reads pass on the default rules, and
-peeks wait for your decision in `lox run` ([auto rules](usage.md#auto-rules)).
+On the default rules, the first connection waits for your decision in
+`lox run` (once per session); then catalogue calls answer at once, stream
+reads pass, and peeks wait for your decision
+([auto rules](usage.md#auto-rules)).
 
 ## The launcher and its image
 
@@ -84,7 +88,8 @@ the `lockmq` launcher, which runs every command in
 pinned Vault CLI for `credentials = "vault"` (`LOCKMQ_VAULT=1`).
 
 - `lockmq version` prints the launcher's and the image's versions.
-- `lockmq update` updates both.
+- `lockmq update` updates both, for an install made with `scripts/install.sh`.
+  With Homebrew, use `brew upgrade lockmq`.
 
 See [docker.md](docker.md), including your own build and migrating from a
 host install.
