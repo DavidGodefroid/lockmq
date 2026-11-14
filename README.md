@@ -175,7 +175,8 @@ sequenceDiagram
    CLI. The console checks the operation, the vhost, the tier and the
    arguments before any broker call.
 2. Catalogue calls run at once. A read or a peek becomes a ticket on
-   lockhub, and the agent gets `pending`.
+   lockhub, and the agent gets `pending`; a ticket your profile's auto
+   rules decide within a couple of seconds runs in the same call.
 3. `lox run` decides, on your profile's rules or by asking you. The console
    checks the signed decision, reads, masks and caps the messages.
 
