@@ -81,6 +81,18 @@ must pass. Pull requests are squash-merged: the title becomes the commit
 subject and the description its body. Use a conventional prefix (`feat:`,
 `fix:`, `docs:`, `chore:`, ...).
 
+Docs are published at [lockfamily.dev/docs](https://lockfamily.dev/docs/) from
+this repo's Markdown (`README.md`, `CHANGELOG.md`, `docs/**`). Adding a file
+under `docs/`, or renaming or removing a README H2 section, needs a matching
+change to [lockfamily's `docs-site/nav.toml`](https://github.com/DavidGodefroid/lockfamily/blob/main/docs-site/nav.toml):
+open a lockfamily PR, or the nightly docs build fails. A push to `main` that
+touches the docs, and each published release, sends lockfamily a
+`repository_dispatch` of type `docs` (`.github/workflows/docs-dispatch.yml`)
+so the site rebuilds within minutes. It needs the secret
+`LOCKFAMILY_DOCS_TOKEN`, a fine-grained token limited to
+DavidGodefroid/lockfamily (Contents: read and write); without it the workflow
+passes with a notice and the nightly build picks the change up.
+
 Participation is governed by the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Releases
