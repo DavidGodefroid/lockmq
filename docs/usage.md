@@ -222,7 +222,9 @@ terminal; the policy, `:review` and the catalogue stay here. `op.run` (`lockmq r
 `lockmq peek`, the MCP tools) never runs a read or peek without a decided plan: it stores
 the request as a plan bound to the client's uid, the agent's lea token and the policy, pushes
 a signed ticket with the screen masked, and answers `pending` with the ticket and the
-instance. The same call with `ticket` (`--ticket`) runs it once the hub approved it: the
+instance. A ticket the hub decides within its short wait (2 s; an auto rule of `lox run`)
+is run, or refused, in that same call: the agent gets the data, or `denied`, without
+asking again. The same call with `ticket` (`--ticket`) runs it once the hub approved it: the
 decision is verified (pinned hub key, this instance, the ticket, still usable, nonce once),
 the request is prepared again under the policy in force and must hash the same: the plan hash
 covers the operation, vhost, target and arguments, and the queue's properties read on the

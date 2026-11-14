@@ -71,7 +71,8 @@ var screenDetectors = func() []pii.Detector {
 // hubPlan turns a read or peek (or a metadata read its profile asks for)
 // into a plan decided on the hub: stored,
 // bound to the peer, the agent's token and the policy, its masked screen
-// pushed in a signed ticket. The agent hears pending.
+// pushed in a signed ticket. The agent hears pending, unless the hub
+// decided the ticket within its short wait: it runs in this call.
 func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env, h *console.Hub, p Params, pp *prep) ipc.Response {
 	hash, err := planHash(p, pp.props)
 	if err != nil {
@@ -111,6 +112,13 @@ func (b *Backend) hubPlan(ctx context.Context, req ipc.Request, env console.Env,
 			render.Masking{Detectors: screenDetectors})}
 	a := env.Approve(ctx, req.ID, sc)
 	if a.Pending != nil {
+		if a.Decided {
+			// Decided within the hub's short wait (an auto rule of `lox
+			// run`): run, or refuse, the ticket in this same call.
+			run := p
+			run.Ticket = a.Pending.Ticket
+			return b.hubRun(ctx, req, env, h, run)
+		}
 		return a.Refusal
 	}
 	_ = h.Store.End(stored.ID, caller, plans.Withdrawn, "not submitted")

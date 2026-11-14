@@ -419,3 +419,55 @@ func auditLineOf(t *testing.T, log, tk, who string) string {
 	t.Fatalf("no audit line of ticket %s decided by %s:\n%s", tk, who, log)
 	return ""
 }
+
+// A read an auto rule of `lox run` decides as the hub accepts it runs in
+// the same call: the agent gets the data, never pending (#64). A ticket
+// signed never_auto that an auto rule approves answers denied at once.
+func TestAutoDecidedRunsInOneCall(t *testing.T) {
+	for _, val := range []string{"auto", "ask"} {
+		t.Run("read="+val, func(t *testing.T) {
+			r, hub, _ := hubRig(t, rigOpts{auto: autoTOML("uat", "read", val)})
+			p := readParams()
+			p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+			// The session's first connection is a human's (auto.connect=ask):
+			// approved before the hub's auto rules take over.
+			mustOK(t, r.call(MethodRun, Params{Op: "queues", Requester: p.Requester}))
+			hub.AutoDecide("lox.auto.read")
+			resp := r.call(MethodRun, p)
+			tks := actionTickets(t, hub)
+			if len(tks) != 1 {
+				t.Fatalf("action tickets %d", len(tks))
+			}
+			if val == "ask" {
+				if resp.Error == nil || resp.Error.Code != ipc.CodeDenied || r.reader.reads != 0 {
+					t.Fatalf("an auto approval of a never_auto read: %+v %s reads %d", resp.Error, resp.Result, r.reader.reads)
+				}
+				return
+			}
+			out := mustOK(t, resp)
+			if strings.Contains(out, `"status":"pending"`) || r.reader.reads != 1 || !hub.Consumed(tks[0].ID) {
+				t.Fatalf("reads %d consumed %v out %s", r.reader.reads, hub.Consumed(tks[0].ID), out)
+			}
+			if a := r.auditLog(); !strings.Contains(a, `"auto_rule":"auto.read=auto"`) || !strings.Contains(a, `"decided_by":"auto:lox.auto.read"`) {
+				t.Errorf("audit:\n%s", a)
+			}
+			run := p
+			run.Ticket = tks[0].ID
+			if resp := r.call(MethodRun, run); resp.Error == nil || r.reader.reads != 1 {
+				t.Fatalf("ran twice: %+v", resp)
+			}
+		})
+	}
+}
+
+// No decision within the hub's short wait: the read answers pending, as
+// before, and nothing runs.
+func TestAutoUndecidedStaysPending(t *testing.T) {
+	r, hub, _ := hubRig(t, rigOpts{auto: autoTOML("uat", "read", "auto")})
+	p := readParams()
+	p.Requester = ipc.Requester{Agent: "dev-1", Token: "tok-1"}
+	pd := pendingOf(t, r.call(MethodRun, p))
+	if r.reader.reads != 0 || hub.Consumed(pd.Ticket) {
+		t.Fatalf("reads %d consumed %v", r.reader.reads, hub.Consumed(pd.Ticket))
+	}
+}

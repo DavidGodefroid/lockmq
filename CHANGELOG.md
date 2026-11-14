@@ -6,6 +6,12 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Hub mode: a read or peek the hub decides within its short wait (an auto rule of
+  `lox run`, lockkit#162) runs in the same call and returns its result, or `denied`,
+  instead of answering `pending` with no notification to follow (#64).
+
 ## [0.9.0] - 2026-11-13
 
 Builds on lockkit v0.19.0; works with `lox run` as v0.8.0.
