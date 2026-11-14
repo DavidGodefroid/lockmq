@@ -184,7 +184,7 @@ tools and `lockmq status` without a prompt; `lockmq_read`, `lockmq_peek` and
 ```sh
 lockmq console --hub URL [--hub-plain-http] --hub-key-file FILE --instance NAME
               [--profile P] [--project DIR] [--allow-unmask] [--show-results]
-              [--allowed-uids UID,...]
+              [--allowed-uids UID,...] [--runtime-gids GID,...]
 ```
 
 The console is launched by `lox run` only (lockhub's CLI), which writes the
@@ -237,6 +237,10 @@ is `hub`. `lockmq hub-key --instance NAME` prints the instance key for `lox run`
 `lox run` also passes `--hub-plain-http` for its `http://lockhub:8443` on the hub's own network:
 without it an `http://` hub URL other than loopback is refused, and with it the URL must still
 be a service name without a dot or a private address.
+`--runtime-gids GID,...` (written by `lox run` for a console in a container) names the groups
+owning the host's container runtime sockets: a client holding one is unconfined, whatever it
+reports. Unconfined agents are refused unless the profile sets `unconfined = true`
+([confined agents](configuration.md#confined-agents)).
 
 <a id="ticket-limits"></a>**Ticket limits.** The console bounds the tickets it opens on lockhub, so
 that an agent cannot flood you with questions. In the profile's `limits` table:
@@ -262,6 +266,7 @@ force (`tickets: 30 per 5m0s · 30 pending`).
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.10.0 | v0.20.0 | as v0.8.0; the agent's client and the console must both be v0.10.0 (an older console refuses the new `hello`, an older client is refused as `old_client`) |
 | v0.9.1 | v0.19.0 | as v0.8.0 |
 | v0.9.0 | v0.19.0 | as v0.8.0 |
 | v0.8.1 | v0.14.1 | as v0.8.0 |

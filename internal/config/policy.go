@@ -186,6 +186,9 @@ func (p Policy) Describe() []string {
 	if pr.SSH != nil {
 		lines = append(lines, "ssh: "+kconfig.SSHString(pr.SSH))
 	}
+	if pr.Unconfined {
+		lines = append(lines, "unconfined: true (agents that do not run confined are served)")
+	}
 	for _, r := range c.Mask {
 		lines = append(lines, "mask "+r+" ("+c.modeOf(r)+")")
 	}
