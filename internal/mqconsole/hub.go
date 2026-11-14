@@ -42,7 +42,31 @@ type planInputs struct {
 
 func planInputsOf(p Params, props map[string]any) planInputs {
 	p.Intent, p.Ticket, p.Requester = "", "", ipc.Requester{}
-	return planInputs{p, props}
+	return planInputs{p, normalizeProps(props)}
+}
+
+// normalizeProps returns props with every empty map or list as nil: the
+// management API reports an absent policy as null or {} from one call to
+// the next (RabbitMQ 4.1, #69), and both must hash the same.
+func normalizeProps(props map[string]any) map[string]any {
+	if props == nil {
+		return nil
+	}
+	out := make(map[string]any, len(props))
+	for k, v := range props {
+		switch x := v.(type) {
+		case map[string]any:
+			if len(x) == 0 {
+				v = nil
+			}
+		case []any:
+			if len(x) == 0 {
+				v = nil
+			}
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // planHash is the plan hash of a request (planInputs).

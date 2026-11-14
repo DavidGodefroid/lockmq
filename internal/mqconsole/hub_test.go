@@ -462,3 +462,29 @@ func TestHubRenewRequestFromHub(t *testing.T) {
 		t.Fatalf("peeks %d", r.broker.peekCount())
 	}
 }
+
+func TestPlanHashEmptyPolicyForms(t *testing.T) {
+	p := Params{Op: "peek"}
+	p.Target, p.Count = "orders.failed", 1
+	props := func(v any) map[string]any {
+		return map[string]any{"type": "classic", "broker_major": 4,
+			"arguments": v, "policy": v, "operator_policy": v}
+	}
+	base, err := planHash(p, props(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nilMap map[string]any
+	for name, v := range map[string]any{"empty map": map[string]any{}, "nil map": nilMap, "empty list": []any{}} {
+		if h, err := planHash(p, props(v)); err != nil || h != base {
+			t.Errorf("%s: hash %s, want %s (err %v)", name, h, base, err)
+		}
+	}
+	for _, k := range []string{"arguments", "policy", "operator_policy"} {
+		pr := props(nil)
+		pr[k] = map[string]any{"x": 1}
+		if h, _ := planHash(p, pr); h == base {
+			t.Errorf("%s set: hash unchanged", k)
+		}
+	}
+}
