@@ -262,6 +262,7 @@ force (`tickets: 30 per 5m0s · 30 pending`).
 
 | lockmq | lockkit | lockhub |
 |---|---|---|
+| v0.9.1 | v0.19.0 | as v0.8.0 |
 | v0.9.0 | v0.19.0 | as v0.8.0 |
 | v0.8.1 | v0.14.1 | as v0.8.0 |
 | v0.8.0 | v0.13.0 | `lox run` (lockhub#121) or a hub on lockkit v0.13.0 or later: tickets are version 2 (kinds `connect` and `action`, `lockkit` ticket kinds), which an older hub refuses |
