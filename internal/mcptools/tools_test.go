@@ -117,6 +117,9 @@ func TestToolsAreExactlyTheNames(t *testing.T) {
 		if tl.Description == "" {
 			t.Errorf("%s has no description", tl.Name)
 		}
+		if tl.Name == "lockmq_read" && !strings.Contains(tl.Description, "Asked of the human only when the profile sets auto.read to ask; auto by default.") {
+			t.Errorf("lockmq_read description should explain the auto.read approval rule: %s", tl.Description)
+		}
 	}
 	want := Names()
 	slices.Sort(got)
