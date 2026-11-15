@@ -66,8 +66,8 @@
   <div class="install">
     <div class="install-head"><span>Install with Homebrew</span></div>
     <pre tabindex="0" aria-label="Install commands"><code><span class="cmd">brew trust davidgodefroid/tap</span>
-<span class="cmd">brew install davidgodefroid/tap/lox davidgodefroid/tap/lockmq</span></code></pre>
-    <p class="install-note">Homebrew asks you to trust a third-party tap once. <code>brew install davidgodefroid/tap/lockfamily</code> installs the whole family instead.</p>
+<span class="cmd">brew install davidgodefroid/tap/lockmq davidgodefroid/tap/lox cosign</span></code></pre>
+    <p class="install-note">Homebrew asks you to trust a third-party tap once. lockmq v0.10 takes lockhub’s <code>lox</code> v0.12.0 or later and cosign v2.5.0 or later, which <code>lox</code> verifies every image with; the <code>lockmq</code> formula pulls in neither. <code>brew install davidgodefroid/tap/lockfamily</code> installs the whole family instead, <code>lox</code> and cosign included.</p>
   </div>
   <ol class="steps prose">
     <li><p>In your project, <code>lox add lockmq</code> asks where your broker is (never the password). It writes the profile, wires Claude Code, runs <code>lockmq doctor --fix</code>, shows a short review and starts the console. For Codex, Cursor or Gemini CLI, also run <code>lockmq init codex</code>, <code>cursor</code> or <code>gemini</code>.</p>

@@ -8,13 +8,15 @@ command in the signed release image. The full Docker guide is
 
 ```sh
 brew trust davidgodefroid/tap
-brew install davidgodefroid/tap/lox davidgodefroid/tap/lockmq
+brew install davidgodefroid/tap/lockmq davidgodefroid/tap/lox cosign
 ```
 
 Homebrew asks you to trust a third-party tap once. `lox` is
-[lockhub](https://github.com/DavidGodefroid/lockhub)'s CLI; the `lockmq`
-formula does not pull it in. `brew install davidgodefroid/tap/lockfamily`
-installs the whole family instead.
+[lockhub](https://github.com/DavidGodefroid/lockhub)'s CLI: lockmq v0.10
+takes `lox` v0.12.0 or later, and cosign v2.5.0 or later, which `lox add`
+and `lox run` verify every image with. The `lockmq` formula pulls in
+neither. `brew install davidgodefroid/tap/lockfamily` installs the whole
+family instead, `lox` and cosign included.
 
 Then, in your project,
 [`lox add lockmq`](https://github.com/DavidGodefroid/lockhub/blob/main/docs/lox-add.md)
@@ -39,7 +41,8 @@ when its container starts, so `lea stop`, then `lea` brings the new lock in
 
 ## By hand
 
-With lockmq's own installer:
+With lockmq's own installer, beside lockhub's `lox` v0.12.0 or later and
+cosign v2.5.0 or later:
 
 ```sh
 # 1. Install the launcher (cosign checks the release and its image)
