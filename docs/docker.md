@@ -44,7 +44,10 @@ on first use: `install.sh` checks the image's cosign signature too (and its
 `-vault` variant's) and writes the verified digests into the launcher, which
 runs the image by digest, never by a tag that could be moved. Linux and
 macOS (Docker Desktop); on Windows, install it in WSL 2 with Docker
-Desktop's WSL integration and run it there.
+Desktop's WSL integration and run it there. The console also takes
+lockhub's `lox` v0.12.0 or later and cosign v2.5.0 or later: `lox add` and
+`lox run` verify every image with cosign. The `lockmq` Homebrew formula
+pulls in neither; the `lockfamily` meta formula installs both.
 
 ```sh
 lockmq version    # the launcher's version and its image's

@@ -62,12 +62,15 @@ too, and every message body in clear. lockmq moves the key and the decision
 
 ```sh
 brew trust davidgodefroid/tap
-brew install davidgodefroid/tap/lox davidgodefroid/tap/lockmq
+brew install davidgodefroid/tap/lockmq davidgodefroid/tap/lox cosign
 ```
 
 lockmq runs in Docker: Homebrew installs the `lockmq` launcher, which runs
-every command in the release's signed image. `lox` is lockhub's CLI. The
-whole family instead: `brew install davidgodefroid/tap/lockfamily`.
+every command in the release's signed image. It also takes lockhub's `lox`
+v0.12.0 or later and cosign v2.5.0 or later: `lox add` and `lox run` verify
+every image with cosign. The `lockmq` formula pulls in neither. The whole
+family instead, `lox` and cosign included:
+`brew install davidgodefroid/tap/lockfamily`.
 
 Without Homebrew, the signed install script of a release:
 
@@ -77,6 +80,9 @@ curl -fsSLO "https://raw.githubusercontent.com/DavidGodefroid/lockmq/$V/scripts/
 less install.sh
 LOCKMQ_VERSION=$V sh install.sh
 ```
+
+Install [lockhub's `lox`](https://github.com/DavidGodefroid/lockhub) v0.12.0
+or later and cosign v2.5.0 or later beside it.
 
 Linux and macOS, on amd64 and arm64 (`CGO_ENABLED=0`); on Windows, WSL 2
 with Docker Desktop. Launcher, image, Vault image, lea and building from

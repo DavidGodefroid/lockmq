@@ -6,6 +6,13 @@ All notable changes to lockmq. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: the install line is `brew install davidgodefroid/tap/lockmq davidgodefroid/tap/lox cosign`,
+  and README, `docs/install.md`, `docs/docker.md` and the site say lockmq v0.10 takes
+  lockhub's `lox` v0.12.0 or later and cosign v2.5.0 or later (`lox add` and `lox run` verify
+  every image with cosign), as lockssh#44 and lockfamily#70 do.
+
 ## [0.10.0] - 2026-11-14
 
 Builds on lockkit v0.20.0; works with `lox run` as v0.8.0.
