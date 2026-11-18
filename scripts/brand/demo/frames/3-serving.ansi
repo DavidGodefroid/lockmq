@@ -1,0 +1,22 @@
+[1m lox run [30m[42m AUTO [0;2m  ~/shop[0m                                                            [32m● hub up[2m[39m · 1 lock · 🔔[0m
+[2m connected none yet: a lock connects on its agent's first request[0m
+[2m locks [0m◇ dev [32mserving[39m
+[2m tabs [0;1;7m 0 feed [0m [2m 1 dev [0m
+[2m──────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[0m [2m12:12:42[0m [36m-[39m        [2m◇ [0mdev      [2m-[0m        prompt Password for lockmq-ro@host.docker.internal:  [32m✔ you[39m
+[2m──────────────────────────────────────────────────────────────────────────────────────────────────────────
+[0m [1m1-9[0;2m lock tabs[0m  [1mShift+Tab[0;2m mode[0m  [1ma[0;2m audit[0m  [1m?[0;2m help[0m  [1mq[0;2m quit[0m

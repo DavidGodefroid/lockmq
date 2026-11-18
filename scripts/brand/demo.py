@@ -1,22 +1,49 @@
 #!/usr/bin/env python3
 """Generate site/assets/demo.svg: lockmq's value in one looping image.
 
-Claude Code (left, the agent's account) lists the queues of a vhost: a catalogue call, answered
-at once. It then asks to read the last messages of a stream: the lockmq console (right, its own
-account) shows the approval screen, the human types y, and the agent gets the messages back with
-the customer's email replaced by a reference. Pure SVG + CSS keyframes, so it plays on GitHub, on
-the site and in any browser. Every animation shares one clock of LOOP seconds.
+An agent (left) asks lockmq about a RabbitMQ broker; the human answers in `lox run` (right), in a
+terminal of their own. Pure SVG + CSS keyframes, so it plays on GitHub, on the site and in any
+browser. Every animation shares one clock of LOOP seconds.
 
-The console lines follow the real output of lockmq and lockkit (approval frame, screen body,
-PII line); keep them in step when those change.
+The text of the two terminals is read from a recording of one real run, kept in
+scripts/brand/demo/ (recorded 2026-11-18 with lockmq v0.10.0, lox v0.12.1 and RabbitMQ 4.4.0). The right
+terminal is the capture as it is; the left one is laid out here from the recorded values.
+
+  demo/frames/*.ansi  the `lox run` terminal (106x22), captured with `tmux capture-pane -e` at six
+                      moments of the run: the console's password question, the password typed,
+                      the lock serving, the connect question, the connection approved, the
+                      stream read approved by a rule.
+  demo/agent.json     the agent's side of the same run (Claude Code, headless): its prompt, the
+                      lockmq_queues and lockmq_read calls with their results as the MCP server
+                      returned them, and its answer. "calls_not_shown" names the calls of the run
+                      this image leaves out.
+
+What this script adds or composes:
+
+  - the layout, the two window frames and their titles, the captions under them, the "you press y"
+    label, the dots that mark a call as running or done, the connectors;
+  - the left terminal's lines: a call is written as tool(arguments) from the recorded input; each
+    queue row is composed from four fields of the returned item (name, type, messages_ready,
+    consumers); the message body is the returned JSON, wrapped after commas; the answer is wrapped;
+  - the cuts: "…" for the read's intent argument, "… +2 messages" for the other two messages.
+    agent.json lists what the run held and this image leaves out (run_order, calls_not_shown,
+    answer_cut), and marks the one value it holds in translation.
+
+To record again, see the demo's pull request
+(lockmq#76) for the fixture; then
 
     python3 scripts/brand/demo.py > site/assets/demo.svg
 """
+import json
+import pathlib
+import re
+import textwrap
 
-LOOP = 14.0
+HERE = pathlib.Path(__file__).parent / "demo"
+LOOP = 20.0
 C = dict(bg="#1a1814", pane="#0e0d0a", bar="#24211b", border="#3a352c", text="#e2e8f0",
-         dim="#64748b", sub="#94a3b8", orange="#fb923c", teal="#5eead4", violet="#a78bfa",
-         red="#f87171", green="#4ade80", yellow="#facc15")
+         dim="#7c8799", sub="#94a3b8", orange="#fb923c", teal="#5eead4", violet="#a78bfa",
+         red="#f87171", green="#4ade80", yellow="#facc15", magenta="#f0abfc")
 FONT = "'JetBrains Mono','SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace"
 SANS = "Inter,-apple-system,'Segoe UI',system-ui,Helvetica,Arial,'DejaVu Sans',sans-serif"
 
@@ -44,17 +71,14 @@ END = LOOP - 0.6
 
 def show(t_in, t_out=END, fade=0.2):
     """Opacity window: hidden, visible from t_in to t_out."""
-    return anim([(0, "opacity:0"), (t_in, "opacity:0"), (t_in + fade, "opacity:1"),
-                 (t_out, "opacity:1"), (t_out + fade, "opacity:0"), (LOOP, "opacity:0")])
-
-
-def move(t0, t1, x0, y0, x1, y1):
-    return anim([(0, f"transform:translate({x0}px,{y0}px);opacity:0"),
-                 (t0, f"transform:translate({x0}px,{y0}px);opacity:0"),
-                 (t0 + 0.05, f"transform:translate({x0}px,{y0}px);opacity:1"),
-                 (t1, f"transform:translate({x1}px,{y1}px);opacity:1"),
-                 (t1 + 0.15, f"transform:translate({x1}px,{y1}px);opacity:0"),
-                 (LOOP, f"transform:translate({x1}px,{y1}px);opacity:0")])
+    frames = [(0, "opacity:0")]
+    if t_in > 0:
+        frames += [(t_in, "opacity:0")]
+        frames += [(t_in + fade, "opacity:1")]
+    else:
+        frames = [(0, "opacity:1")]
+    frames += [(t_out, "opacity:1"), (t_out + fade, "opacity:0"), (LOOP, "opacity:0")]
+    return anim(frames)
 
 
 def esc(s):
@@ -86,136 +110,218 @@ def pane(x, y, w, h, title, account):
     body.append(text(x + w - 14, y + 20, account, size=12, col=C["dim"], family=SANS, anchor="end"))
 
 
-W, H = 1200, 640
+# --- The recorded lox run terminal ----------------------------------------------------------
+SGR_FG = {30: "#0e0d0a", 31: C["red"], 32: C["green"], 33: C["yellow"], 36: C["teal"], 95: C["magenta"]}
+SGR_BG = {42: C["green"]}
+WIDE = {"\U0001F514"}  # the bell takes two cells
+BOX = "─│┌┐└┘"
+
+
+def cells(line):
+    """One captured line as cells [(char, fg, bg, bold, dim, reverse)], one per terminal column."""
+    out = []
+    fg = bg = None
+    bold = dim = rev = False
+    pos = 0
+    for m in re.finditer(r"\x1b\[([0-9;]*)m", line):
+        for ch in line[pos:m.start()]:
+            out.append((ch, fg, bg, bold, dim, rev))
+            if ch in WIDE:
+                out.append(("", fg, bg, bold, dim, rev))
+        pos = m.end()
+        for code in (int(c) for c in (m.group(1) or "0").split(";")):
+            if code == 0:
+                fg = bg = None
+                bold = dim = rev = False
+            elif code == 1:
+                bold = True
+            elif code == 2:
+                dim = True
+            elif code == 7:
+                rev = True
+            elif code == 39:
+                fg = None
+            elif code == 49:
+                bg = None
+            elif code in SGR_FG:
+                fg = SGR_FG[code]
+            elif code in SGR_BG:
+                bg = SGR_BG[code]
+            else:
+                raise SystemExit(f"demo.py: SGR code {code} of the recording has no colour here")
+    for ch in line[pos:]:
+        out.append((ch, fg, bg, bold, dim, rev))
+        if ch in WIDE:
+            out.append(("", fg, bg, bold, dim, rev))
+    return out
+
+
+def terminal(path, x0, y0, cw, lh, size):
+    """A captured frame as SVG. Box-drawing characters become strokes and every run of text is
+    placed at its own column, so the frame keeps its grid whatever monospace font renders it."""
+    out = []
+    for row, line in enumerate(path.read_text().split("\n")):
+        cs = cells(line)
+        base = y0 + row * lh
+        mid = base - size * 0.32
+        col = 0
+        while col < len(cs):
+            ch, fg, bg, bold, dim, rev = cs[col]
+            end = col + 1
+            # a run: same style, and either all box-drawing of one kind, or plain text
+            while end < len(cs) and cs[end][1:] == cs[col][1:] and (
+                    (ch == "─" and cs[end][0] == "─") or
+                    (ch not in BOX and cs[end][0] not in BOX and ch != " " and cs[end][0] != " "
+                     and ch.isascii() and cs[end][0].isascii()) or
+                    (ch == " " and cs[end][0] == " ")):
+                end += 1
+            x = x0 + col * cw
+            w = (end - col) * cw
+            colour = fg or (C["sub"] if dim else C["text"])
+            if dim and fg:
+                op = ' fill-opacity=".75"'
+            else:
+                op = ""
+            if rev:
+                out.append(f'<rect x="{x:.1f}" y="{base - size:.1f}" width="{w:.1f}" height="{lh - 2}" fill="{C["text"]}"/>')
+                colour = C["pane"]
+            elif bg:
+                out.append(f'<rect x="{x:.1f}" y="{base - size:.1f}" width="{w:.1f}" height="{lh - 2}" fill="{bg}"/>')
+            stroke = f'stroke="{colour}" stroke-width="1.2" fill="none"' + (' stroke-opacity=".55"' if dim else "")
+            cx = x + cw / 2
+            if ch == "─":
+                out.append(f'<path d="M{x:.1f} {mid:.1f}h{w:.1f}" {stroke}/>')
+            elif ch == "│":
+                out.append(f'<path d="M{cx:.1f} {mid - lh / 2:.1f}v{lh}" {stroke}/>')
+            elif ch in "┌┐└┘":
+                dx = cw / 2 if ch in "┌└" else -cw / 2
+                dy = lh / 2 if ch in "┌┐" else -lh / 2
+                out.append(f'<path d="M{cx + dx:.1f} {mid:.1f}h{-dx:.1f}v{dy:.1f}" {stroke}/>')
+            elif ch.strip():
+                s = "".join(c[0] for c in cs[col:end])
+                wt = ' font-weight="700"' if bold else ""
+                out.append(f'<text x="{x:.1f}" y="{base:.1f}" fill="{colour}"{op}{wt}>{esc(s)}</text>')
+            col = end
+    return "".join(out)
+
+
+W, H = 1200, 590
 body.append(f'<rect width="{W}" height="{H}" rx="24" fill="{C["bg"]}"/>')
+PY, PH = 28, 444
 
-# --- Agent pane (left) --------------------------------------------------------------------
-AX, AY, AW, AH = 24, 32, 500, 516
-pane(AX, AY, AW, AH, "✻ Claude Code", "account alice")
-LH = 19
-ax, ay = AX + 16, AY + 58
-agent = [
-    (0.3, [("> ", C["dim"]), ("which queues in orders have no consumer?", C["text"])]),
-    (1.1, [("● ", C["green"]), ("lockmq_queues", C["text"]), ('(vhost: "orders")', C["sub"])]),
-    (2.1, [("  └ ", C["dim"]), ("orders.failed   quorum   ready 1204  consumers 0", C["sub"])]),
-    (2.1, [("    ", C["dim"]), ("orders.retry    classic  ready 0     consumers 1", C["sub"])]),
-    (2.1, [("    ", C["dim"]), ("order-events    stream             consumers 2", C["sub"])]),
-    (2.8, [("● ", C["text"]), ("orders.failed has no consumer: 1204 waiting.", C["text"])]),
-    (2.8, [("  ", C["text"]), ("Reading the last order events to see why.", C["text"])]),
-    (3.7, [("● ", C["green"]), ("lockmq_read", C["text"]),
-           ('(name: "order-events", from: "last",', C["sub"])]),
-    (3.7, [("             ", C["text"]), ("count: 3)", C["sub"])]),
-]
-for i, (t, parts) in enumerate(agent):
-    body.append(spans(ax, ay + i * LH, parts, cls=show(t)))
-row = len(agent)
-body.append(spans(ax, ay + row * LH, [("  └ ", C["dim"]), ("waiting for approval in the lockmq console…",
-                                                            C["yellow"])], cls=show(4.0, 7.0)))
-reply = [
-    (7.3, [("  └ ", C["dim"]), ("3 messages · untrusted data from the broker", C["sub"])]),
-    (7.5, [("    ", C["dim"]), ('{"order_id": "A-1042", "status": "payment_failed",', C["text"])]),
-    (7.5, [("    ", C["dim"]), (' "customer": {"email": ', C["text"]), ('"<redacted:r1.1>"', C["teal"]),
-           ("},", C["text"])]),
-    (7.5, [("    ", C["dim"]), (' "reason": "card_declined"}', C["text"])]),
-    (7.6, [("    ", C["dim"]), ("… 2 more, same reason", C["dim"])]),
-    (8.6, [("● ", C["text"]), ("The last 3 orders failed on card_declined, and", C["text"])]),
-    (8.6, [("  ", C["text"]), ("nothing consumes orders.failed. I never saw the", C["text"])]),
-    (8.6, [("  ", C["text"]), ("customers' emails, only references.", C["text"])]),
-]
-for i, (t, parts) in enumerate(reply):
-    body.append(spans(ax, ay + (row + i) * LH, parts, cls=show(t)))
+# Timeline (seconds).
+T_TYPED, T_SERVING = 1.3, 2.6          # lox run: the password typed, then the lock serving
+T_PROMPT, T_QUEUES = 3.2, 4.2          # agent: the prompt, the lockmq_queues call
+T_ASK, T_YES, T_CONNECTED = 4.7, 7.4, 7.8  # lox run: the connect question, y, connected
+T_QUEUES_OUT = 8.2
+T_READ, T_AUTO, T_READ_OUT = 9.6, 10.2, 10.8
+T_ANSWER = 13.2
 
-# --- Console pane (right) -----------------------------------------------------------------
-CX, CY, CW, CH = 548, 32, 628, 516
-pane(CX, CY, CW, CH, "lockmq console", "account lockmq · its own session")
-cx, cy = CX + 16, CY + 58
-con = [
-    (0.0, [("$ ", C["dim"]), ("lockmq console --profile dev --project ~/shop", C["text"])]),
-    (0.0, [("✓ ", C["green"]), ("profile ", C["text"]), ("dev", C["text"]),
-           (" · mq.example.com:15671 ", C["text"]), ("(approved policy)", C["dim"])]),
-    (0.0, [("", C["text"])]),
-    (0.0, [("› ", C["orange"]), ("Listening on /run/lockmq/3f9a0c1d-dev.sock", C["text"])]),
-]
-CS = 12  # console font size; one character is 0.602 em wide
-CHW = CS * 0.602
-for i, (t, parts) in enumerate(con):
-    body.append(spans(cx, cy + i * LH, parts, size=CS))
-V = C["violet"]
-screen = [
-    [("╭─ ", V), ("DEV", V), (" · mq.example.com:15671 / orders · user lockmq-ro · tier read ", C["text"]),
-     ("─────", V)],
-    [("│ ", V), ('requested by uid 1000 (alice) · pid 48211 · process "lockmq" (self-reported name)', C["dim"])],
-    [("│ ", V), ("agent: see why orders end in orders.failed", C["dim"])],
-    [("│", V)],
-    [("│ ", V), ("READ stream order-events  from last  max 3", C["text"])],
-    [("│", V)],
-    [("│ ", V), ("stream: first offset 0 · last 18342 · via stream protocol", C["text"])],
-    [("│ ", V), ("no offset stored · no message removed", C["text"])],
-    [("│ ", V), ("PII: masked (1 mask rules, 0 allow rules; body detect; detectors: card, email)",
-              C["text"])],
-]
-srow = len(con) + 1
-g = [f'<g class="{show(4.4)}">']
-for i, parts in enumerate(screen):
-    g.append(spans(cx, cy + (srow + i) * LH, parts, size=CS))
-g.append("</g>")
-body.append("".join(g))
-prow = srow + len(screen)
-body.append(spans(cx, cy + prow * LH, [("╰─ ", V), ("Approve? [y/N] ", C["text"])], cls=show(4.6), size=CS))
-# The human types y.
-body.append(text(cx + CHW * 18, cy + prow * LH, "y", cls=show(6.2, fade=0.05), size=CS,
-                 col=C["green"], weight=700))
-# Cursor before the answer.
-blink = anim([(0, "opacity:0"), (4.7, "opacity:0"), (4.71, "opacity:1"), (5.2, "opacity:1"),
-              (5.21, "opacity:0"), (5.6, "opacity:0"), (5.61, "opacity:1"), (6.19, "opacity:1"),
-              (6.2, "opacity:0"), (LOOP, "opacity:0")])
-body.append(f'<rect x="{cx + CHW * 18:.1f}" y="{cy + prow * LH - 11}" width="{CHW:.1f}" height="14" '
-            f'fill="{C["text"]}" class="{blink}"/>')
-# Key hint, lit while the console waits.
-body.append(f'<g class="{show(4.8, 6.2, fade=0.1)}"><rect x="{CX + CW - 196}" y="{cy + prow * LH - 15}" '
-            f'width="180" height="22" rx="6" fill="{C["violet"]}"/>'
-            + text(CX + CW - 106, cy + prow * LH, "only you can answer", size=12, col=C["pane"],
-                   weight=700, family=SANS, anchor="middle") + "</g>")
+# --- Agent pane (left) ----------------------------------------------------------------------
+rec = json.loads((HERE / "agent.json").read_text())
+queues, read = rec["calls"]
+assert queues["tool"] == "lockmq_queues" and read["tool"] == "lockmq_read"
+AX, AW = 16, 448
+pane(AX, PY, AW, PH, "✻ Claude Code", "the agent's session")
+AS, LH = 11.5, 17
+ax, ay = AX + 14, PY + 54
+COLS = 60
 
-# The broker, behind the console only.
-BX, BY = CX + 16, CY + CH - 74
-body.append(f'<rect x="{BX}" y="{BY}" width="{CW - 32}" height="58" rx="10" fill="{C["bar"]}" '
-            f'stroke="{C["orange"]}" stroke-width="1.5" stroke-dasharray="6 5"/>')
-body.append(text(BX + 16, BY + 25, "RabbitMQ", size=14, col=C["orange"], weight=700, family=SANS))
-body.append(text(BX + 16, BY + 44, "management API · stream protocol · AMQP 0-9-1", size=12,
-                 col=C["sub"], family=SANS))
-body.append(text(BX + CW - 48, BY + 35, "credentials stay here, in the console", size=12,
-                 col=C["sub"], family=SANS, anchor="end"))
 
-# The socket between the two accounts.
-SY = AY + AH / 2
-body.append(f'<rect x="{AX + AW + 2}" y="{SY - 40}" width="{CX - AX - AW - 4}" height="80" rx="4" '
-            f'fill="{C["teal"]}" fill-opacity=".85"/>')
-body.append(text(AX + AW + 12, SY - 50, "socket", size=11, col=C["teal"], weight=700, family=SANS,
-                 anchor="middle"))
-pkt = 'r="6" cx="0" cy="0"'
-body.append(f'<circle {pkt} fill="{C["teal"]}" class="{move(1.2, 1.7, 440, 100, 760, 100)}"/>')
-body.append(f'<circle {pkt} fill="{C["teal"]}" class="{move(1.8, 2.1, 760, 100, 420, 150)}"/>')
-body.append(f'<circle {pkt} fill="{C["violet"]}" class="{move(3.8, 4.3, 440, 210, 760, 230)}"/>')
-body.append(f'<circle {pkt} fill="{C["orange"]}" class="{move(6.4, 6.8, 760, 470, 760, 300)}"/>')
-body.append(f'<circle {pkt} fill="{C["teal"]}" class="{move(6.9, 7.3, 760, 300, 420, 260)}"/>')
+def args(d, keep):
+    return ", ".join(f"{k}: {json.dumps(d[k])}" for k in keep)
+
+
+row = 0
+
+
+def put(parts, cls):
+    global row
+    body.append(spans(ax, ay + row * LH, parts, cls=cls, size=AS))
+    row += 1
+
+
+def running(t0, t1):
+    """The dot of a tool call: dim while it runs, green once it answered."""
+    y = ay + row * LH
+    body.append(text(ax, y, "●", cls=show(t0, t1, fade=0.1), size=AS, col=C["dim"]))
+    body.append(text(ax, y, "●", cls=show(t1 + 0.1), size=AS, col=C["green"]))
+
+
+for i, s in enumerate(textwrap.wrap(rec["prompt"], COLS - 2)):
+    put([("> " if i == 0 else "  ", C["dim"]), (s, C["text"])], show(T_PROMPT))
+row += 1
+running(T_QUEUES, T_QUEUES_OUT)
+put([("  ", C["text"]), (queues["tool"], C["text"]), ("(" + args(queues["input"], ["vhost", "sort"]) + ")", C["sub"])],
+    show(T_QUEUES))
+items = queues["result"]["data"]["items"]
+wn = max(len(q["name"]) for q in items)
+for i, q in enumerate(items):
+    line = (f'{q["name"]:<{wn}}  {q["type"]:<7}  messages_ready {q["messages_ready"]:<4}  '
+            f'consumers {q["consumers"]}')
+    put([("  └ " if i == 0 else "    ", C["dim"]), (line, C["sub"])], show(T_QUEUES_OUT))
+row += 1
+running(T_READ, T_READ_OUT)
+put([("  ", C["text"]), (read["tool"], C["text"]),
+     ("(" + args(read["input"], ["vhost", "name"]) + ",", C["sub"])], show(T_READ))
+put([("    " + args(read["input"], ["from", "count"]) + ", …)", C["sub"])], show(T_READ))
+msgs = read["result"]["data"]["messages"]
+first = json.dumps(msgs[0]["body"], separators=(",", ":"))
+lines = [""]
+for piece in re.findall(r'[^,]*,?', first):  # wrapped after a comma, nothing else changed
+    if lines[-1] and len(lines[-1]) + len(piece) > COLS - 4:
+        lines.append("")
+    lines[-1] += piece
+assert "".join(lines) == first
+for i, s in enumerate(lines):
+    parts = [("  └ " if i == 0 else "    ", C["dim"])]
+    for k, piece in enumerate(re.split(r'("<redacted:[^"]*>")', s)):
+        if piece:
+            parts.append((piece, C["teal"] if k % 2 else C["text"]))
+    put(parts, show(T_READ_OUT))
+put([("    … +" + str(len(msgs) - 1) + " messages", C["dim"])], show(T_READ_OUT))
+row += 1
+for i, s in enumerate(textwrap.wrap(rec["answer"], COLS - 2)):
+    put([("● " if i == 0 else "  ", C["text"]), (s, C["text"])], show(T_ANSWER))
+
+# --- lox run pane (right) -------------------------------------------------------------------
+CX = AX + AW + 16
+CW = W - 16 - CX
+pane(CX, PY, CW, PH, "lox run", "your terminal, outside the agent")
+TS, TLH = 10.6, 17.6
+TCW = TS * 0.602
+tx, ty = CX + (CW - 106 * TCW) / 2, PY + 54
+shots = [("1-password", 0, T_TYPED), ("2-password-typed", T_TYPED, T_SERVING),
+         ("3-serving", T_SERVING, T_ASK), ("4-connect-question", T_ASK, T_CONNECTED),
+         ("5-connected", T_CONNECTED, T_AUTO), ("6-read-auto", T_AUTO, END)]
+for name, t0, t1 in shots:
+    body.append(f'<g class="{show(t0, t1 - 0.12, fade=0.12)}" font-family="{FONT}" font-size="{TS}" '
+                f'xml:space="preserve">{terminal(HERE / "frames" / (name + ".ansi"), tx, ty, TCW, TLH, TS)}</g>')
+# The key the human presses on the connect question.
+body.append(f'<g class="{show(T_YES - 0.9, T_CONNECTED - 0.12, fade=0.1)}">'
+            f'<rect x="{CX + CW - 150}" y="{ty + 15 * TLH - 16:.1f}" width="118" height="24" rx="6" fill="{C["green"]}"/>'
+            + text(CX + CW - 91, ty + 15 * TLH, "you press y", size=12.5, col=C["pane"], weight=700,
+                   family=SANS, anchor="middle") + "</g>")
 
 # Captions.
-caps = [(0.0, 3.6, "Your agent asks lockmq. It never holds a password."),
-        (3.6, 6.4, "Every message read waits for you, in a console it can't touch."),
-        (6.4, END, "It gets the messages back, masked.")]
+caps = [(0.0, T_PROMPT, "You type the broker password in lox run. The agent never holds it."),
+        (T_PROMPT, T_QUEUES_OUT + 0.9, "The first connection waits for your answer, in lox run."),
+        (T_QUEUES_OUT + 0.9, 12.4, "A stream read passes on the default rules, and shows in the feed."),
+        (12.4, END, "The messages come back with the customer's email masked.")]
 for t0, t1, s in caps:
-    body.append(text(W / 2, 600, s, cls=show(t0 + 0.05, t1 - 0.2), size=26, weight=650,
+    body.append(text(W / 2, PY + PH + 70, s, cls=show(t0 + 0.05, t1 - 0.2), size=25, weight=650,
                      family=SANS, anchor="middle"))
 
-label = ("lockmq: an agent (here Claude Code) lists RabbitMQ queues through lockmq, then asks to read a stream; "
-         "the lockmq console, in its own account, asks the human to approve, and the agent gets "
-         "the messages back with the customer's email masked.")
+label = ("lockmq demo, four steps. 1: in lox run, the human types the broker password the lock's console asks for. "
+         "2: an agent (here Claude Code) makes its first requests to the broker, lockmq_queues among them; lox run shows the question \"connect on dev/dev\" "
+         "and the human presses y. 3: the agent gets the three queues of the vhost orders, then calls lockmq_read on "
+         "the stream order-events; lox run approves it by a rule and lists it in its feed as auto:action. "
+         "4: the agent gets the messages with the customer's email replaced by <redacted:r1.1>.")
 print(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
-      f'role="img" aria-label="{label}">')
+      f'role="img" aria-label="{esc(label).replace(chr(34), "&quot;")}">')
 print("<title>lockmq: your agent reads the queue, you hold the key</title>")
 print("<style>" + "\n".join(css) +
-      "\n@media (prefers-reduced-motion: reduce){*{animation-delay:-8.8s!important;"
+      "\n@media (prefers-reduced-motion: reduce){*{animation-delay:-16s!important;"
       "animation-play-state:paused!important}}</style>")
 print("\n".join(body))
 print("</svg>")
