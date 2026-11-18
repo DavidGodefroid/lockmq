@@ -1,0 +1,178 @@
+{
+ "recorded": "2026-11-18",
+ "versions": {
+  "lockmq": "v0.10.0",
+  "lox": "v0.12.1 (lockhub)",
+  "rabbitmq": "4.4.0"
+ },
+ "agent": "Claude Code, headless (claude -p), lockmq MCP server as lockmq init wrote it",
+ "prompt": "Which queues in orders have no consumer? Read 3 messages of the stream order-events from its first offset to see why orders fail. Answer in English, in two short sentences.",
+ "calls": [
+  {
+   "tool": "lockmq_queues",
+   "input": {
+    "vhost": "orders",
+    "sort": "consumers"
+   },
+   "result": {
+    "data": {
+     "items": [
+      {
+       "arguments": {
+        "x-queue-type": "stream"
+       },
+       "consumers": 2,
+       "message_stats": {
+        "ack_details": {
+         "rate": 0
+        },
+        "deliver_get_details": {
+         "rate": 0
+        },
+        "publish_details": {
+         "rate": 0
+        },
+        "redeliver_details": {
+         "rate": 0
+        }
+       },
+       "messages": 3,
+       "messages_ready": 3,
+       "messages_unacknowledged": 0,
+       "name": "order-events",
+       "operator_policy": null,
+       "policy": null,
+       "state": "running",
+       "type": "stream",
+       "vhost": "orders"
+      },
+      {
+       "arguments": {
+        "x-queue-type": "classic"
+       },
+       "consumer_utilisation": 1,
+       "consumers": 1,
+       "idle_since": "2026-11-18T11:02:26.584+00:00",
+       "messages": 0,
+       "messages_ready": 0,
+       "messages_unacknowledged": 0,
+       "name": "orders.retry",
+       "operator_policy": null,
+       "policy": null,
+       "state": "running",
+       "type": "classic",
+       "vhost": "orders"
+      },
+      {
+       "arguments": {
+        "x-queue-type": "quorum"
+       },
+       "consumer_utilisation": 0,
+       "consumers": 0,
+       "message_stats": {
+        "publish_details": {
+         "rate": 0
+        }
+       },
+       "messages": 1204,
+       "messages_ready": 1204,
+       "messages_unacknowledged": 0,
+       "name": "orders.failed",
+       "operator_policy": null,
+       "policy": null,
+       "state": "running",
+       "type": "quorum",
+       "vhost": "orders"
+      }
+     ],
+     "page": 1,
+     "page_size": 100,
+     "total": 3
+    }
+   }
+  },
+  {
+   "tool": "lockmq_read",
+   "input": {
+    "vhost": "orders",
+    "name": "order-events",
+    "from": "first",
+    "count": 3,
+    "intent": "Lire 3 messages de order-events depuis le premier offset pour comprendre pourquoi les commandes échouent"
+   },
+   "result": {
+    "data": {
+     "from": "first",
+     "messages": [
+      {
+       "body": {
+        "customer": {
+         "email": "<redacted:r1.1>"
+        },
+        "order_id": "A-1041",
+        "reason": "card_declined",
+        "status": "payment_failed"
+       },
+       "headers": {
+        "x-stream-offset": 0
+       },
+       "properties": {
+        "content_type": "application/json",
+        "delivery_mode": 1
+       }
+      },
+      {
+       "body": {
+        "customer": {
+         "email": "<redacted:r1.2>"
+        },
+        "order_id": "A-1042",
+        "reason": "card_declined",
+        "status": "payment_failed"
+       },
+       "headers": {
+        "x-stream-offset": 1
+       },
+       "properties": {
+        "content_type": "application/json",
+        "delivery_mode": 1
+       }
+      },
+      {
+       "body": {
+        "customer": {
+         "email": "<redacted:r1.3>"
+        },
+        "order_id": "A-1043",
+        "reason": "card_declined",
+        "status": "payment_failed"
+       },
+       "headers": {
+        "x-stream-offset": 2
+       },
+       "properties": {
+        "content_type": "application/json",
+        "delivery_mode": 1
+       }
+      }
+     ],
+     "proposals": [
+      "queue=orders/order-events body=$.customer.email"
+     ],
+     "queue": "order-events",
+     "vhost": "orders",
+     "via": "AMQP 0-9-1"
+    }
+   }
+  }
+ ],
+ "calls_not_shown": [
+  "Skill",
+  "ToolSearch",
+  "lockmq_status",
+  "lockmq_stream",
+  "ToolSearch",
+  "lockmq_pii_add"
+ ],
+ "answer": "In vhost `orders`, only `orders.failed` (quorum, 1204 messages ready) has no consumer; `order-events` has 2 and `orders.retry` has 1. The 3 stream messages (offsets 0–2, orders A-1041 to A-1043) all show `status: payment_failed` with `reason: card_declined`, so orders fail because the card is declined."
+}

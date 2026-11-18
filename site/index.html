@@ -95,10 +95,10 @@
   <h2 id="demo" class="visually-hidden">See it run</h2>
   <figure class="demo">
     <div class="demo-frame" role="region" aria-label="Animated demo" tabindex="0">
-      <img src="assets/demo.svg" alt="An agent (here Claude Code, in the account alice) lists the queues of the vhost orders through lockmq, then asks to read the last 3 messages of the stream order-events. The lockmq console, in its own account, shows the approval screen; the human types y, and the agent gets the messages back with the customer's email replaced by a reference." width="1200" height="640" aria-describedby="demo-caption">
+      <img src="assets/demo.svg" alt="Four steps. 1: in lox run, in a terminal of their own, the human types the broker password that the lock's console asks for. 2: an agent (here Claude Code) calls lockmq_queues; lox run shows the question &quot;connect on dev/dev&quot; and the human presses y. 3: the agent gets the three queues of the vhost orders, then calls lockmq_read on the stream order-events; lox run approves it by a rule and lists it in its feed as auto:action. 4: the agent gets the messages back with the customer's email replaced by a reference." width="1200" height="590" aria-describedby="demo-caption">
     </div>
     <p class="demo-hint">Swipe sideways to see both terminals.</p>
-    <figcaption id="demo-caption">An agent (here Claude Code, left) lists queues at once, then reads a stream; the lockmq console (right) holds the key and masks the customer’s email. Recorded before decisions moved to lockhub: today you answer in <code>lox run</code>, and stream reads pass on the default rules.</figcaption>
+    <figcaption id="demo-caption">An agent (here Claude Code, left) lists queues and reads a stream; you answer in <code>lox run</code> (right): the broker password, then the first connection. The stream read passes on the default rules, and the customer’s email comes back masked. Recorded from one run with lockmq v0.10.0 and lox v0.12.1.</figcaption>
   </figure>
 </section>
 
