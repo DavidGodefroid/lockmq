@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="lockmq logo">
 <title>lockmq</title>
 <desc>The family padlock; engraved in its body, a queue of messages.</desc>
-<style>.i{stroke:#1d1b17}.f{fill:#1d1b17}.p{fill:#fffcf5}.d{stroke:#575146}@media (prefers-color-scheme:dark){.i{stroke:#ede6d6}.f{fill:#ede6d6}.p{fill:#25221b}.d{stroke:#b2a994}}</style>
+<style>.i{stroke:#1d1b17}.f{fill:#1d1b17}.p{fill:#fffcf5}.d{stroke:#575146}@media (prefers-color-scheme:dark){.i{stroke:#ede6d6}.f{fill:#ede6d6}.p{fill:#2f2c3a}.d{stroke:#bdb5a3}}</style>
 <path class="i" d="M40 58 V40 a24 24 0 0 1 48 0 V58" fill="none" stroke-width="9" stroke-linecap="round"/><rect class="p i" x="18" y="56" width="92" height="56" rx="6" stroke-width="6"/><rect class="f" x="31" y="77" width="14" height="14" rx="2"/><g class="i" fill="none" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><rect x="51" y="77" width="14" height="14" rx="2"/><rect x="71" y="77" width="14" height="14" rx="2"/><path d="M90 84 H98 M94 80 L98 84 L94 88"/></g>
 </svg>
