@@ -16,7 +16,7 @@
 connections and queue reads wait for you, and the agent never holds a password.</b></p>
 
 <p align="center">
-  <img src="site/assets/demo.svg" alt="Demo, four steps. 1: in lox run, in a terminal of their own, the human types the broker password that the lock's console asks for. 2: an agent (here Claude Code) calls lockmq_queues; lox run shows the question &quot;connect on dev/dev&quot; and the human presses y. 3: the agent gets the three queues of the vhost orders, then calls lockmq_read on the stream order-events; lox run approves it by a rule and lists it in its feed as auto:action. 4: the agent gets the messages back with the customer's email replaced by a reference." width="900">
+  <img src="site/assets/demo.svg" alt="Demo, four steps. 1: in lox run, in a terminal of their own, the human types the broker password that the lock's console asks for. 2: an agent (here Claude Code) makes its first requests to the broker, lockmq_queues among them; lox run shows the question &quot;connect on dev/dev&quot; and the human presses y. 3: the agent gets the three queues of the vhost orders, then calls lockmq_read on the stream order-events; lox run approves it by a rule and lists it in its feed as auto:action. 4: the agent gets the messages back with the customer's email replaced by a reference." width="900">
 </p>
 <p align="center"><sub>An agent (here Claude Code, left) and <code>lox run</code> (right), where you answer. Recorded from one run with lockmq v0.10.0 and lox v0.12.1.</sub></p>
 

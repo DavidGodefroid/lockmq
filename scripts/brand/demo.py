@@ -5,8 +5,9 @@ An agent (left) asks lockmq about a RabbitMQ broker; the human answers in `lox r
 terminal of their own. Pure SVG + CSS keyframes, so it plays on GitHub, on the site and in any
 browser. Every animation shares one clock of LOOP seconds.
 
-Nothing on the two terminals is typed here: it is read from a recording of one real run, kept in
-scripts/brand/demo/ (recorded 2026-11-18 with lockmq v0.10.0, lox v0.12.1 and RabbitMQ 4.4.0).
+The text of the two terminals is read from a recording of one real run, kept in
+scripts/brand/demo/ (recorded 2026-11-18 with lockmq v0.10.0, lox v0.12.1 and RabbitMQ 4.4.0). The right
+terminal is the capture as it is; the left one is laid out here from the recorded values.
 
   demo/frames/*.ansi  the `lox run` terminal (106x22), captured with `tmux capture-pane -e` at six
                       moments of the run: the console's password question, the password typed,
@@ -17,8 +18,18 @@ scripts/brand/demo/ (recorded 2026-11-18 with lockmq v0.10.0, lox v0.12.1 and Ra
                       returned them, and its answer. "calls_not_shown" names the calls of the run
                       this image leaves out.
 
-What this script adds: the layout, the two window frames, the captions under them, the dots that
-mark a call as running or done, and the cuts ("…"). To record again, see the demo's pull request
+What this script adds or composes:
+
+  - the layout, the two window frames and their titles, the captions under them, the "you press y"
+    label, the dots that mark a call as running or done, the connectors;
+  - the left terminal's lines: a call is written as tool(arguments) from the recorded input; each
+    queue row is composed from four fields of the returned item (name, type, messages_ready,
+    consumers); the message body is the returned JSON, wrapped after commas; the answer is wrapped;
+  - the cuts: "…" for the read's intent argument, "… +2 messages" for the other two messages.
+    agent.json lists what the run held and this image leaves out (run_order, calls_not_shown,
+    answer_cut), and marks the one value it holds in translation.
+
+To record again, see the demo's pull request
 (lockmq#76) for the fixture; then
 
     python3 scripts/brand/demo.py > site/assets/demo.svg
@@ -302,7 +313,7 @@ for t0, t1, s in caps:
                      family=SANS, anchor="middle"))
 
 label = ("lockmq demo, four steps. 1: in lox run, the human types the broker password the lock's console asks for. "
-         "2: an agent (here Claude Code) calls lockmq_queues; lox run shows the question \"connect on dev/dev\" "
+         "2: an agent (here Claude Code) makes its first requests to the broker, lockmq_queues among them; lox run shows the question \"connect on dev/dev\" "
          "and the human presses y. 3: the agent gets the three queues of the vhost orders, then calls lockmq_read on "
          "the stream order-events; lox run approves it by a rule and lists it in its feed as auto:action. "
          "4: the agent gets the messages with the customer's email replaced by <redacted:r1.1>.")

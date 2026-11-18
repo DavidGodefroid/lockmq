@@ -98,7 +98,7 @@
     "name": "order-events",
     "from": "first",
     "count": 3,
-    "intent": "Lire 3 messages de order-events depuis le premier offset pour comprendre pourquoi les commandes échouent"
+    "intent": "Read 3 messages of order-events from the first offset to understand why orders fail"
    },
    "result": {
     "data": {
@@ -163,8 +163,21 @@
      "vhost": "orders",
      "via": "AMQP 0-9-1"
     }
+   },
+   "translated": {
+    "input.intent": "recorded in French (the agent wrote it in its user's language); this is an English translation, the only value of this file that is not the recorded one"
    }
   }
+ ],
+ "answer": "In vhost `orders`, only `orders.failed` (quorum, 1204 messages ready) has no consumer; `order-events` has 2 and `orders.retry` has 1. The 3 stream messages (offsets 0–2, orders A-1041 to A-1043) all show `status: payment_failed` with `reason: card_declined`, so orders fail because the card is declined.",
+ "run_order": [
+  "Skill (loads the lockmq skill that lockmq init wrote)",
+  "ToolSearch",
+  "lockmq_status (answered by the console at once, before any connection)",
+  "lockmq_queues and lockmq_stream, sent together: the first requests that need the broker, so the connect question in lox run comes from them",
+  "lockmq_read",
+  "ToolSearch",
+  "lockmq_pii_add (failed: read-only file system)"
  ],
  "calls_not_shown": [
   "Skill",
@@ -174,5 +187,5 @@
   "ToolSearch",
   "lockmq_pii_add"
  ],
- "answer": "In vhost `orders`, only `orders.failed` (quorum, 1204 messages ready) has no consumer; `order-events` has 2 and `orders.retry` has 1. The 3 stream messages (offsets 0–2, orders A-1041 to A-1043) all show `status: payment_failed` with `reason: card_declined`, so orders fail because the card is declined."
+ "answer_cut": "\"answer\" is the first paragraph of the agent's final message. Cut: its second paragraph, a side note on the failed lockmq_pii_add call, and one sentence in French written before lockmq_read, announcing the read."
 }
